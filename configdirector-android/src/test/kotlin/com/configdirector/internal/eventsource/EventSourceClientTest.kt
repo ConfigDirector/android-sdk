@@ -12,6 +12,8 @@ import okhttp3.OkHttpClient
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.RecordedRequest
+import java.util.concurrent.TimeUnit
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -31,6 +33,9 @@ class EventSourceClientTest {
     fun stopServer() {
         server.shutdown()
     }
+
+    private fun request(): RecordedRequest =
+        checkNotNull(server.takeRequest(2, TimeUnit.SECONDS)) { "The server received no request." }
 
     private fun eventStream(body: String) = MockResponse()
         .setHeader("Content-Type", "text/event-stream")
@@ -136,8 +141,8 @@ class EventSourceClientTest {
 
         client(shouldReconnect = { server.requestCount < 2 }).events().toList()
 
-        assertThat(server.takeRequest().getHeader("Last-Event-ID")).isNull()
-        assertThat(server.takeRequest().getHeader("Last-Event-ID")).isEqualTo("42")
+        assertThat(request().getHeader("Last-Event-ID")).isNull()
+        assertThat(request().getHeader("Last-Event-ID")).isEqualTo("42")
     }
 
     @Test
@@ -147,7 +152,7 @@ class EventSourceClientTest {
 
         client(method = "POST", body = body, headers = mapOf("X-Sample" to "yes")).events().toList()
 
-        val request = server.takeRequest()
+        val request = request()
         assertThat(request.method).isEqualTo("POST")
         assertThat(request.body.readUtf8()).isEqualTo("""{"clientSdkKey":"key"}""")
         assertThat(request.getHeader("X-Sample")).isEqualTo("yes")

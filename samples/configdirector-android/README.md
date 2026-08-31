@@ -49,40 +49,51 @@ Turn the SDK's own logging up by watching its tag, which both apps set to `DEBUG
 adb logcat -s ConfigDirector:V ConfigDirectorSample:V
 ```
 
-## There is no SDK key yet
+## The SDK key
 
-Both apps pass `sample-client-sdk-key`, which is not a real key and does not need to be.
+Both apps read the key from `local.properties`, the same git-ignored file the Android SDK location
+lives in:
 
-The SDK's transports are not implemented yet, so the client talks to a stubbed transport that
-serves a hard-coded config set — no network, no dashboard, any non-blank key. The apps become real
-consumers, reading a key from your ConfigDirector dashboard, once the transports land. The client
-rejects a blank key today, and will reject an invalid one then; the "Every API" button in the Java
-sample shows that rejection.
+```properties
+configdirector.clientSdkKey=YOUR-KEY
+```
 
-## What the stub serves
+It reaches the apps as `BuildConfig.CLIENT_SDK_KEY`, so nothing has to be committed. Take the value
+from your ConfigDirector dashboard.
 
-| Key               | Type    | Value                                                       |
-| ----------------- | ------- | ----------------------------------------------------------- |
-| `dark-mode`       | boolean | `true` for a `plan: pro` context, `false` otherwise          |
-| `welcome-message` | string  | `Hello, <the context's name>`                                |
-| `max-items`       | integer | `25` for `plan: pro`, `10` otherwise                         |
-| `sample-rate`     | float   | `0.25`                                                       |
-| `theme`           | json    | `{"primary":"#101010"}`                                      |
-| `beta-banner`     | boolean | served with no value, so every read falls back to its default |
+Without it each app still builds and runs. It connects with a stand-in key the server will not
+recognise, says so on screen, and every config falls back to the default passed alongside its key —
+which is what a misconfigured app looks like, and worth seeing once.
 
-The values depend on the context the way a server's evaluation of targeting rules does. That is
-what makes the Context row worth pressing: each identity calls `updateContext`, which reconnects,
-re-evaluates every config, and pushes the new values to whatever is watching.
+## What they read
+
+Both apps read the keys of the ConfigDirector sample project. Pointing them at a project without
+them is fine: each config falls back to the default the app passes alongside the key, which is what
+the screen shows until the client is ready.
+
+| Key               | Type    | Default the apps pass |
+| ----------------- | ------- | --------------------- |
+| `dark-mode`       | boolean | `false`               |
+| `welcome-message` | string  | `Hello`               |
+| `max-items`       | integer | `10`                  |
+| `sample-rate`     | float   | `0.0`                 |
+| `theme`           | json    | `{}`                  |
+| `beta-banner`     | boolean | `false`               |
+
+`theme` is read with a string default, which serves the raw JSON document.
+
+Both connect in streaming mode, so a value changed in the dashboard reaches the screen without
+restarting them.
+
+The Context row is where targeting shows: each identity calls `updateContext`, which reconnects,
+re-evaluates every config against the new identity, and pushes the new values to whatever is
+watching — the way to watch a targeting rule take effect without rebuilding.
 
 | Identity     | Context                                            |
 | ------------ | -------------------------------------------------- |
 | Configured   | `user-123`, Sam, `plan: free`                       |
 | Pro plan     | `user-456`, Ada, `plan: pro`, `seats: 12`, `beta: true` |
 | Anonymous    | no id or name, anonymous                            |
-
-`beta-banner` is the one row on screen that is always a fallback: the config exists, the context
-resolves no value for it, so both apps show the default they passed in. Every other row is a value
-the server chose.
 
 ## Which SDK they build against
 

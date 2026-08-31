@@ -13,6 +13,7 @@ import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.RecordedRequest
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertThrows
@@ -36,6 +37,10 @@ class PollingTransportTest {
         transport?.close()
         server.shutdown()
     }
+
+
+    private fun request(): RecordedRequest =
+        checkNotNull(server.takeRequest(2, TimeUnit.SECONDS)) { "The server received no request." }
 
     private fun options(pollingIntervalMillis: Long = 60_000) = TransportOptions(
         clientSdkKey = "client-sdk-key",
@@ -89,7 +94,7 @@ class PollingTransportTest {
 
         polling().connect(context, timeoutMillis = 3_000)
 
-        val request = server.takeRequest()
+        val request = request()
         assertThat(request.method).isEqualTo("POST")
         assertThat(request.path).isEqualTo("/client/polling/v1")
         val body = JSONObject(request.body.readUtf8())
@@ -167,8 +172,8 @@ class PollingTransportTest {
         transport.connect(context, timeoutMillis = 3_000)
         transport.connect(context, timeoutMillis = 3_000)
 
-        server.takeRequest()
-        val second = JSONObject(server.takeRequest().body.readUtf8())
+        request()
+        val second = JSONObject(request().body.readUtf8())
         assertThat(second.getString("lastUpdateTimestamp")).isEqualTo("2026-08-31T00:00:00Z")
     }
 

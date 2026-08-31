@@ -1,10 +1,16 @@
 package com.configdirector
 
+import com.configdirector.internal.AppInfo
+import com.configdirector.internal.ConfigSet
 import com.configdirector.internal.ConfigStore
 import com.configdirector.internal.Constants
-import com.configdirector.internal.transport.StubTransport
+import com.configdirector.internal.transport.PollingTransport
+import com.configdirector.internal.transport.StreamingTransport
 import com.configdirector.internal.transport.Transport
+import com.configdirector.internal.transport.TransportOptions
 import java.io.Closeable
+import java.util.UUID
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -14,6 +20,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
 
 /**
  * The ConfigDirector SDK client.
@@ -49,7 +56,8 @@ public class ConfigDirectorClient @JvmOverloads constructor(
     private val logger: ConfigDirectorLogger = options.logger
     private val timeoutMillis: Long = options.connection.timeoutMillis
     private val store = ConfigStore(logger)
-    private val transport: Transport = StubTransport { configSet -> store.handleConfigSet(configSet) }
+    private val httpClient: OkHttpClient
+    private val transport: Transport
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val closed = AtomicBoolean(false)
     private val initializing = AtomicBoolean(false)
@@ -69,6 +77,25 @@ public class ConfigDirectorClient @JvmOverloads constructor(
                     "send, and every config value served back travel in plain text."
             }
         }
+
+        httpClient = OkHttpClient.Builder()
+            .connectTimeout(timeoutMillis, TimeUnit.MILLISECONDS)
+            .readTimeout(timeoutMillis, TimeUnit.MILLISECONDS)
+            .writeTimeout(timeoutMillis, TimeUnit.MILLISECONDS)
+            .build()
+
+        transport = transportFor(
+            options.connection.mode,
+            TransportOptions(
+                clientSdkKey = clientSdkKey,
+                baseUrl = baseUrl,
+                metaContext = AppInfo.metaContext(options.metadata),
+                instanceId = UUID.randomUUID().toString(),
+                logger = logger,
+                pollingIntervalMillis = options.connection.pollingIntervalMillis,
+                httpClient = httpClient,
+            ),
+        ) { configSet -> store.handleConfigSet(configSet) }
     }
 
     /**
@@ -233,6 +260,8 @@ public class ConfigDirectorClient @JvmOverloads constructor(
         store.close()
         transport.close()
         scope.cancel()
+        httpClient.dispatcher.executorService.shutdown()
+        httpClient.connectionPool.evictAll()
     }
 
     @get:JvmSynthetic
@@ -281,5 +310,15 @@ public class ConfigDirectorClient @JvmOverloads constructor(
 
     private companion object {
         private const val NANOS_PER_MILLISECOND = 1_000_000L
+
+        private fun transportFor(
+            mode: ConnectionMode,
+            options: TransportOptions,
+            onConfigSet: (ConfigSet) -> Unit,
+        ): Transport = when (mode) {
+            ConnectionMode.STREAMING -> StreamingTransport(options, onConfigSet)
+            ConnectionMode.POLLING -> PollingTransport(options, onConfigSet)
+            ConnectionMode.ONE_TIME -> PollingTransport.oneTime(options, onConfigSet)
+        }
     }
 }

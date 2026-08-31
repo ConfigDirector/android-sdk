@@ -14,10 +14,15 @@ import org.junit.Test;
 
 public class ConfigDirectorClientObservationJavaTest {
 
+  private final FakeSdkServer server = new FakeSdkServer();
+
   private final ConfigDirectorClient client =
       new ConfigDirectorClient(
           "client-sdk-key",
-          ClientOptions.builder().logger(new RecordingLogger(LogLevel.OFF)).build());
+          ClientOptions.builder()
+              .logger(new RecordingLogger(LogLevel.OFF))
+              .connection(ConnectionOptions.builder().baseUrl(server.getBaseUrl()).build())
+              .build());
 
   private final ConfigDirectorContext proContext =
       ConfigDirectorContext.builder().name("Ada").trait("plan", "pro").build();
@@ -30,6 +35,7 @@ public class ConfigDirectorClientObservationJavaTest {
   @After
   public void tearDown() {
     client.close();
+    server.close();
     TestDispatchers.resetMain(Dispatchers.INSTANCE);
   }
 

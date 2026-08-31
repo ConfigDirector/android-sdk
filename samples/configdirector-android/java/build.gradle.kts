@@ -1,6 +1,19 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
 }
+
+// The sample's key is not committed: put it in local.properties as
+// configdirector.clientSdkKey=YOUR-KEY, the same file the Android SDK location lives in.
+val clientSdkKey: String = providers
+    .fileContents(rootProject.layout.projectDirectory.file("local.properties"))
+    .asText
+    .map { text ->
+        Properties().apply { load(text.reader()) }
+            .getProperty("configdirector.clientSdkKey", "")
+    }
+    .getOrElse("")
 
 // Deliberately Java only, on the SDK's oldest supported Android and Java: no Kotlin sources, no
 // AndroidX, no Compose. If the SDK's Java surface breaks, this module stops compiling.
@@ -14,6 +27,12 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
+
+        buildConfigField("String", "CLIENT_SDK_KEY", "\"$clientSdkKey\"")
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     compileOptions {
@@ -24,7 +43,10 @@ android {
 
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
-    options.compilerArgs.addAll(listOf("-Xlint:all", "-Xlint:-options", "-Werror"))
+    // dangling-doc-comments is off because the generated BuildConfig.java trips it.
+    options.compilerArgs.addAll(
+        listOf("-Xlint:all", "-Xlint:-options", "-Xlint:-dangling-doc-comments", "-Werror"),
+    )
 }
 
 dependencies {

@@ -14,10 +14,15 @@ import org.junit.Test;
 public class ConfigDirectorClientJavaTest {
 
   private final RecordingLogger logger = new RecordingLogger(LogLevel.DEBUG);
+  private final FakeSdkServer server = new FakeSdkServer();
 
   private ConfigDirectorClient client() {
     return new ConfigDirectorClient(
-        "client-sdk-key", ClientOptions.builder().logger(logger).build());
+        "client-sdk-key",
+        ClientOptions.builder()
+            .logger(logger)
+            .connection(ConnectionOptions.builder().baseUrl(server.getBaseUrl()).build())
+            .build());
   }
 
   // The callbacks are handed back on the main thread, which a JVM test does not have.
@@ -27,7 +32,8 @@ public class ConfigDirectorClientJavaTest {
   }
 
   @After
-  public void resetMainDispatcher() {
+  public void tearDown() {
+    server.close();
     TestDispatchers.resetMain(Dispatchers.INSTANCE);
   }
 

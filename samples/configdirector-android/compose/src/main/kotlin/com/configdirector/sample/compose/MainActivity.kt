@@ -10,10 +10,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val client = (application as SampleApplication).client
+        val sample = application as SampleApplication
         setContent {
             MaterialTheme {
-                SampleScreen(client)
+                SampleScreen(sample.client, sample.hasSdkKey)
             }
         }
     }

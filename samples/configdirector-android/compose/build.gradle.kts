@@ -1,7 +1,20 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.compiler)
 }
+
+// The sample's key is not committed: put it in local.properties as
+// configdirector.clientSdkKey=YOUR-KEY, the same file the Android SDK location lives in.
+val clientSdkKey: String = providers
+    .fileContents(rootProject.layout.projectDirectory.file("local.properties"))
+    .asText
+    .map { text ->
+        Properties().apply { load(text.reader()) }
+            .getProperty("configdirector.clientSdkKey", "")
+    }
+    .getOrElse("")
 
 android {
     namespace = "com.configdirector.sample.compose"
@@ -15,9 +28,12 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
+
+        buildConfigField("String", "CLIENT_SDK_KEY", "\"$clientSdkKey\"")
     }
 
     buildFeatures {
+        buildConfig = true
         compose = true
     }
 

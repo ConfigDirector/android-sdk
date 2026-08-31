@@ -3,12 +3,12 @@ package com.configdirector
 /**
  * Metadata about your application, which targeting rules can be written against.
  *
- * Each field left null is filled in with what the running application reports.
+ * A field left null is left out of what the SDK sends.
  */
 public class Metadata @JvmOverloads constructor(
-    /** Your application's name. Defaults to the label the application manifest declares. */
+    /** Your application's name. */
     public val appName: String? = null,
-    /** Your application's version. Defaults to the version name the package reports. */
+    /** Your application's version. */
     public val appVersion: String? = null,
 ) {
     override fun equals(other: Any?): Boolean =

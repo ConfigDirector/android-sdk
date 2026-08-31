@@ -1,12 +1,13 @@
 package com.configdirector
 
 import com.google.common.truth.Truth.assertThat
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertThrows
 import org.junit.Before
@@ -15,19 +16,55 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class ConfigDirectorClientTest {
 
+    private val server = FakeSdkServer()
     private val logger = RecordingLogger()
-
-    private fun client(options: ClientOptions = ClientOptions.build { logger(logger) }) =
-        ConfigDirectorClient("client-sdk-key", options)
+    private var client: ConfigDirectorClient? = null
 
     @Before
     fun setUpMainDispatcher() {
-        Dispatchers.setMain(UnconfinedTestDispatcher())
+        Dispatchers.setMain(Dispatchers.Default)
     }
 
     @After
-    fun resetMainDispatcher() {
+    fun tearDown() {
+        client?.close()
+        server.close()
         Dispatchers.resetMain()
+    }
+
+    private fun client(
+        mode: ConnectionMode = ConnectionMode.STREAMING,
+        pollingIntervalMillis: Long = 60_000,
+        timeoutMillis: Long = 3_000,
+        metadata: Metadata = Metadata.empty(),
+        baseUrl: String = server.baseUrl,
+    ): ConfigDirectorClient = ConfigDirectorClient(
+        "client-sdk-key",
+        ClientOptions.build {
+            logger(logger)
+            metadata(metadata)
+            connection {
+                mode(mode)
+                pollingIntervalMillis(pollingIntervalMillis)
+                timeoutMillis(timeoutMillis)
+                baseUrl(baseUrl)
+            }
+        },
+    ).also { client = it }
+
+    private fun waitFor(description: String, condition: () -> Boolean) {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
+        while (System.nanoTime() < deadline) {
+            if (condition()) return
+            Thread.sleep(10)
+        }
+        throw AssertionError("Timed out waiting for $description")
+    }
+
+    private val proContext = ConfigDirectorContext.build {
+        id("user-123")
+        name("Ada")
+        trait("plan", "pro")
     }
 
     @Test
@@ -41,20 +78,20 @@ class ConfigDirectorClientTest {
 
     @Test
     fun `warns that a base URL which is not HTTPS travels in plain text`() {
-        client(ClientOptions.build { logger(logger); connection { baseUrl("http://proxy.example.com") } })
+        client(baseUrl = "http://proxy.example.com")
 
         assertThat(logger.messagesContaining("is not HTTPS")).hasSize(1)
     }
 
     @Test
     fun `says nothing about a base URL that is HTTPS`() {
-        client(ClientOptions.build { logger(logger); connection { baseUrl("https://proxy.example.com") } })
+        client(baseUrl = "https://proxy.example.com")
 
         assertThat(logger.messagesContaining("is not HTTPS")).isEmpty()
     }
 
     @Test
-    fun `serves default values before it is initialized`() = runTest {
+    fun `serves default values before it is initialized`() {
         val client = client()
 
         assertThat(client.isReady).isFalse()
@@ -64,10 +101,10 @@ class ConfigDirectorClientTest {
     }
 
     @Test
-    fun `serves the config state it received once initialized`() = runTest {
+    fun `serves the config state it received once initialized`() = runBlocking {
         val client = client()
 
-        client.initialize(ConfigDirectorContext.build { id("user-123"); name("Ada"); trait("plan", "pro") })
+        client.initialize(proContext)
 
         assertThat(client.isReady).isTrue()
         assertThat(client.getBoolean("dark-mode", false)).isTrue()
@@ -77,7 +114,26 @@ class ConfigDirectorClientTest {
     }
 
     @Test
-    fun `serves a JSON config as its raw document`() = runTest {
+    fun `sends the key, the context and the metadata it was built with`() = runBlocking {
+        client(metadata = Metadata("Checkout", "4.2.0")).initialize(proContext)
+
+        val request = checkNotNull(server.takeRequest())
+        assertThat(request.path).isEqualTo("/client/sse/v1")
+        val body = JSONObject(request.body.readUtf8())
+        assertThat(body.getString("clientSdkKey")).isEqualTo("client-sdk-key")
+        assertThat(body.getString("instanceId")).isNotEmpty()
+        assertThat(body.getJSONObject("givenContext").getString("id")).isEqualTo("user-123")
+
+        val meta = body.getJSONObject("metaContext")
+        assertThat(meta.getString("sdkName")).isEqualTo("android-client-sdk")
+        assertThat(meta.getString("sdkVersion")).isNotEmpty()
+        assertThat(meta.getString("appName")).isEqualTo("Checkout")
+        assertThat(meta.getString("appVersion")).isEqualTo("4.2.0")
+        assertThat(meta.getString("userAgent")).isEqualTo("Android")
+    }
+
+    @Test
+    fun `serves a JSON config as its raw document`() = runBlocking {
         val client = client()
 
         client.initialize()
@@ -86,7 +142,7 @@ class ConfigDirectorClientTest {
     }
 
     @Test
-    fun `truncates a decimal read as a whole number`() = runTest {
+    fun `truncates a decimal read as a whole number`() = runBlocking {
         val client = client()
 
         client.initialize()
@@ -95,7 +151,7 @@ class ConfigDirectorClientTest {
     }
 
     @Test
-    fun `falls back when no config carries the key`() = runTest {
+    fun `falls back when no config carries the key`() = runBlocking {
         val client = client()
 
         client.initialize()
@@ -105,7 +161,7 @@ class ConfigDirectorClientTest {
     }
 
     @Test
-    fun `falls back when the config holds a different type`() = runTest {
+    fun `falls back when the config holds a different type`() = runBlocking {
         val client = client()
 
         client.initialize()
@@ -115,7 +171,7 @@ class ConfigDirectorClientTest {
     }
 
     @Test
-    fun `falls back when the config has no value for the context`() = runTest {
+    fun `falls back when the config has no value for the context`() = runBlocking {
         val client = client()
 
         client.initialize()
@@ -125,7 +181,7 @@ class ConfigDirectorClientTest {
     }
 
     @Test
-    fun `falls back when the value does not spell a boolean`() = runTest {
+    fun `falls back when the value does not spell a boolean`() = runBlocking {
         val client = client()
 
         client.initialize()
@@ -135,7 +191,7 @@ class ConfigDirectorClientTest {
     }
 
     @Test
-    fun `falls back when the value does not spell a whole number`() = runTest {
+    fun `falls back when the value does not spell a whole number`() = runBlocking {
         val client = client()
 
         client.initialize()
@@ -145,7 +201,7 @@ class ConfigDirectorClientTest {
     }
 
     @Test
-    fun `falls back when the value does not spell a decimal number`() = runTest {
+    fun `falls back when the value does not spell a decimal number`() = runBlocking {
         val client = client()
 
         client.initialize()
@@ -155,7 +211,7 @@ class ConfigDirectorClientTest {
     }
 
     @Test
-    fun `is initializing only while initializing`() = runTest {
+    fun `is initializing only while initializing`() = runBlocking {
         val client = client()
         assertThat(client.isInitializing).isFalse()
 
@@ -166,32 +222,94 @@ class ConfigDirectorClientTest {
     }
 
     @Test
-    fun `takes the context it was initialized with`() = runTest {
+    fun `takes the context it was initialized with`() = runBlocking {
         val client = client()
-        val context = ConfigDirectorContext.build { id("user-123") }
         assertThat(client.context).isNull()
 
-        client.initialize(context)
+        client.initialize(proContext)
 
-        assertThat(client.context).isEqualTo(context)
+        assertThat(client.context).isEqualTo(proContext)
     }
 
     @Test
-    fun `re-evaluates against an updated context`() = runTest {
+    fun `re-evaluates against an updated context`() = runBlocking {
         val client = client()
         client.initialize(ConfigDirectorContext.build { id("user-123") })
+        assertThat(client.getInt("max-items", 0)).isEqualTo(10)
 
-        val updated = ConfigDirectorContext.build { id("user-456"); trait("plan", "pro") }
-        client.updateContext(updated)
+        client.updateContext(proContext)
 
-        assertThat(client.context).isEqualTo(updated)
+        assertThat(client.context).isEqualTo(proContext)
         assertThat(client.isReady).isTrue()
+        assertThat(client.getInt("max-items", 0)).isEqualTo(25)
     }
 
     @Test
-    fun `keeps serving the last config state once closed`() = runTest {
+    fun `merges a config set that carries only what changed`() = runBlocking {
+        val client = client(mode = ConnectionMode.POLLING, pollingIntervalMillis = 50)
+        client.initialize()
+        assertThat(client.getBoolean("dark-mode", false)).isFalse()
+
+        server.scriptDelta("dark-mode", "boolean", "true")
+
+        waitFor("the delta to arrive") { client.getBoolean("dark-mode", false) }
+        assertThat(client.getString("welcome-message", "fallback")).isEqualTo("Hello, there")
+    }
+
+    @Test
+    fun `fetches again on the polling interval`() = runBlocking {
+        client(mode = ConnectionMode.POLLING, pollingIntervalMillis = 50).initialize()
+
+        waitFor("a second fetch") { server.requestCount >= 2 }
+    }
+
+    @Test
+    fun `fetches once only when it connects one time`() = runBlocking {
+        client(mode = ConnectionMode.ONE_TIME, pollingIntervalMillis = 50).initialize()
+
+        Thread.sleep(300)
+        assertThat(server.requestCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `is not ready when the server rejects the request`() = runBlocking {
+        server.status = 401
         val client = client()
-        client.initialize(ConfigDirectorContext.build { trait("plan", "pro") })
+
+        client.initialize()
+
+        assertThat(client.isReady).isFalse()
+        assertThat(logger.messagesContaining("An error occurred during initialization")).hasSize(1)
+    }
+
+    @Test
+    fun `warns when no config state arrives in time`() = runBlocking {
+        server.sendsConfigState = false
+        val client = client(timeoutMillis = 300)
+
+        client.initialize()
+
+        assertThat(client.isReady).isFalse()
+        assertThat(logger.messagesContaining("Timed out waiting for initialization")).hasSize(1)
+    }
+
+    @Test
+    fun `stops talking to the server once closed`() = runBlocking {
+        val client = client(mode = ConnectionMode.POLLING, pollingIntervalMillis = 50)
+        client.initialize()
+        waitFor("a second fetch") { server.requestCount >= 2 }
+
+        client.close()
+
+        val fetched = server.requestCount
+        Thread.sleep(300)
+        assertThat(server.requestCount).isEqualTo(fetched)
+    }
+
+    @Test
+    fun `keeps serving the last config state once closed`() = runBlocking {
+        val client = client()
+        client.initialize(proContext)
 
         client.close()
 
@@ -200,7 +318,7 @@ class ConfigDirectorClientTest {
     }
 
     @Test
-    fun `closes only once`() = runTest {
+    fun `closes only once`() {
         val client = client()
 
         client.close()
@@ -210,13 +328,14 @@ class ConfigDirectorClientTest {
     }
 
     @Test
-    fun `will not connect once closed`() = runTest {
+    fun `will not connect once closed`() = runBlocking {
         val client = client()
         client.close()
 
         client.initialize()
 
         assertThat(client.isReady).isFalse()
+        assertThat(server.requestCount).isEqualTo(0)
         assertThat(logger.messagesContaining("The client is closed")).hasSize(1)
     }
 }

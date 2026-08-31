@@ -12,6 +12,7 @@ import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.RecordedRequest
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertThrows
@@ -55,6 +56,10 @@ class StreamingTransportTest {
         ),
     ) { received += it }.also { transport = it }
 
+
+    private fun request(): RecordedRequest =
+        checkNotNull(server.takeRequest(2, TimeUnit.SECONDS)) { "The server received no request." }
+
     private val configSetEvent =
         """{"kind":"full","timestamp":"2026-08-31T00:00:00Z","configs":""" +
             """{"dark-mode":{"id":"c1","key":"dark-mode","type":"boolean","value":"true","valueId":"v1"}}}"""
@@ -84,7 +89,7 @@ class StreamingTransportTest {
 
         streaming().connect(context, timeoutMillis = 3_000)
 
-        val request = server.takeRequest()
+        val request = request()
         assertThat(request.method).isEqualTo("POST")
         assertThat(request.path).isEqualTo("/client/sse/v1")
         assertThat(request.getHeader("Accept")).isEqualTo("text/event-stream")

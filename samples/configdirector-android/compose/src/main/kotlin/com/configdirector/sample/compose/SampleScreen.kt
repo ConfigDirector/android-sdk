@@ -36,7 +36,11 @@ import kotlinx.coroutines.launch
  * remembered: building one on each recomposition would unsubscribe and resubscribe every frame.
  */
 @Composable
-fun SampleScreen(client: ConfigDirectorClient, modifier: Modifier = Modifier) {
+fun SampleScreen(
+    client: ConfigDirectorClient,
+    hasSdkKey: Boolean = true,
+    modifier: Modifier = Modifier,
+) {
     val darkMode by remember(client) { client.values("dark-mode", false) }
         .collectAsStateWithLifecycle(false)
     val welcomeMessage by remember(client) { client.values("welcome-message", "Hello") }
@@ -75,6 +79,14 @@ fun SampleScreen(client: ConfigDirectorClient, modifier: Modifier = Modifier) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        if (!hasSdkKey) {
+            Text(
+                "No client SDK key configured. Add configdirector.clientSdkKey to " +
+                    "local.properties; until then every config below is its default value.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+
         SectionHeader(title = "Configs", trailing = if (isReady) "Ready" else "Connecting…")
 
         ConfigRow("dark-mode", darkMode.toString())

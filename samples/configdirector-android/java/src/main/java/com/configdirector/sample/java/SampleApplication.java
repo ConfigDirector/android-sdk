@@ -18,9 +18,9 @@ import com.configdirector.Metadata;
  */
 public final class SampleApplication extends Application {
 
-  // The SDK talks to a stubbed transport for now, which serves the sample's configs whatever the
-  // key is. It becomes a real key from the ConfigDirector dashboard once the transports land.
-  private static final String SAMPLE_SDK_KEY = "sample-client-sdk-key";
+  // The client rejects a blank key, so with none configured the sample runs on a stand-in that the
+  // server will not recognize, and says so in the log on screen.
+  private static final String PLACEHOLDER_SDK_KEY = "no-client-sdk-key-configured";
 
   private final SampleLog log = new SampleLog();
 
@@ -30,9 +30,17 @@ public final class SampleApplication extends Application {
   public void onCreate() {
     super.onCreate();
 
+    String clientSdkKey = BuildConfig.CLIENT_SDK_KEY;
+    if (clientSdkKey.isEmpty()) {
+      log.add(
+          "No client SDK key configured. Add configdirector.clientSdkKey to local.properties; "
+              + "until then every config is its default value.");
+      clientSdkKey = PLACEHOLDER_SDK_KEY;
+    }
+
     client =
         new ConfigDirectorClient(
-            SAMPLE_SDK_KEY,
+            clientSdkKey,
             ClientOptions.builder()
                 .metadata(new Metadata("ConfigDirector Java Sample", "1.0"))
                 .connection(

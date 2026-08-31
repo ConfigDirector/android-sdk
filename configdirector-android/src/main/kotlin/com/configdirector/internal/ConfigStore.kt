@@ -13,6 +13,7 @@ import com.configdirector.Subscription
 import com.configdirector.debug
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CoroutineScope
@@ -37,6 +38,7 @@ internal class ConfigStore(private val logger: ConfigDirectorLogger) {
     private val configs = AtomicReference<Map<String, ConfigState>>(emptyMap())
     private val contextHolder = AtomicReference<ConfigDirectorContext?>(null)
     private val pendingReason = AtomicReference(ConnectReason.INITIALIZATION)
+    private val hasReceivedConfigSet = AtomicBoolean(false)
     private val ready = MutableStateFlow(false)
     private val closedState = MutableStateFlow(false)
 
@@ -67,7 +69,9 @@ internal class ConfigStore(private val logger: ConfigDirectorLogger) {
     }
 
     fun handleConfigSet(configSet: ConfigSet) {
-        configs.set(configSet.configs)
+        val isDelta = configSet.kind == ConfigSetKind.DELTA && hasReceivedConfigSet.get()
+        configs.set(if (isDelta) configs.get() + configSet.configs else configSet.configs)
+        hasReceivedConfigSet.set(true)
         val keys = configSet.configs.keys.toList()
 
         markReady()

@@ -3,16 +3,6 @@ package com.configdirector
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
-class RecordingLogger(override val level: LogLevel) : ConfigDirectorLogger {
-    val messages: MutableList<String> = mutableListOf()
-    val errors: MutableList<Throwable?> = mutableListOf()
-
-    override fun log(level: LogLevel, message: String, error: Throwable?) {
-        messages += "$level: $message"
-        errors += error
-    }
-}
-
 class ConfigDirectorLoggerTest {
 
     @Test

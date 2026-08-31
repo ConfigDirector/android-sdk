@@ -1,0 +1,229 @@
+package com.configdirector
+
+import com.configdirector.internal.ConfigStore
+import com.configdirector.internal.ConnectReason
+import com.configdirector.internal.Constants
+import com.configdirector.internal.StubTransport
+import com.configdirector.internal.Transport
+import java.io.Closeable
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+/**
+ * The ConfigDirector SDK client.
+ *
+ * Applications should create a single instance and initialize it during startup.
+ *
+ * ```kotlin
+ * val client = ConfigDirectorClient("YOUR-SDK-KEY")
+ * client.initialize(ConfigDirectorContext.build { id("user-123") })
+ *
+ * val darkMode = client.getBoolean("dark-mode", false)
+ * ```
+ *
+ * ```java
+ * ConfigDirectorClient client = new ConfigDirectorClient("YOUR-SDK-KEY");
+ * client.initialize(context, () -> {
+ *   boolean darkMode = client.getBoolean("dark-mode", false);
+ * });
+ * ```
+ *
+ * After initialization, call [updateContext] to re-evaluate configs against a new context, and
+ * [close] when the client is no longer needed.
+ *
+ * @param clientSdkKey the client SDK key from the ConfigDirector dashboard
+ * @param options settings for this client, read once here
+ * @throws ConfigDirectorValidationException if [clientSdkKey] is blank
+ */
+public class ConfigDirectorClient @JvmOverloads constructor(
+    clientSdkKey: String,
+    options: ClientOptions = ClientOptions.defaults(),
+) : Closeable {
+
+    private val logger: ConfigDirectorLogger = options.logger
+    private val timeoutMillis: Long = options.connection.timeoutMillis
+    private val store = ConfigStore(logger)
+    private val transport: Transport = StubTransport { configSet -> store.handleConfigSet(configSet) }
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val closed = AtomicBoolean(false)
+    private val initializing = AtomicBoolean(false)
+
+    init {
+        if (clientSdkKey.isBlank()) {
+            throw ConfigDirectorValidationException(
+                "No client SDK key was provided. The client cannot be created without a valid " +
+                    "client SDK key.",
+            )
+        }
+
+        val baseUrl = options.connection.baseUrl?.trim().orEmpty().ifEmpty { Constants.CLIENT_BASE_URL }
+        if (!baseUrl.startsWith("https://", ignoreCase = true)) {
+            logger.warn {
+                "The base URL '$baseUrl' is not HTTPS. The client SDK key, every context you " +
+                    "send, and every config value served back travel in plain text."
+            }
+        }
+    }
+
+    /**
+     * The context the client is currently evaluating configs against, or null when there is none.
+     *
+     * This does not change the moment [updateContext] is called: configs are evaluated against the
+     * previous context until the underlying connection succeeds or times out.
+     */
+    public val context: ConfigDirectorContext?
+        get() = store.context
+
+    /**
+     * Whether the client is ready, meaning the connection to the server succeeded and config state
+     * was received.
+     */
+    public val isReady: Boolean
+        get() = store.isReady
+
+    /**
+     * Whether the client is currently initializing. It is false on creation, true after
+     * [initialize] is called, and false again once initialization completes.
+     */
+    public val isInitializing: Boolean
+        get() = initializing.get()
+
+    /**
+     * Connects to ConfigDirector to retrieve config evaluations. Until initialization succeeds,
+     * every config returns the default value passed to the accessor.
+     *
+     * @param context the current user's context, used to evaluate targeting rules
+     */
+    @JvmSynthetic
+    public suspend fun initialize(context: ConfigDirectorContext? = null) {
+        initializing.set(true)
+        try {
+            connect(context, ConnectReason.INITIALIZATION)
+        } finally {
+            initializing.set(false)
+        }
+    }
+
+    /**
+     * Connects to ConfigDirector to retrieve config evaluations, calling [callback] on the main
+     * thread once the client is ready or the attempt times out.
+     *
+     * @param context the current user's context, or null to evaluate without one
+     * @param callback told when the attempt finishes, whether or not it made the client ready
+     */
+    public fun initialize(context: ConfigDirectorContext?, callback: CompletionCallback) {
+        launchThenCallBack(callback) { initialize(context) }
+    }
+
+    /** Updates the user's context and re-evaluates every config against it. */
+    @JvmSynthetic
+    public suspend fun updateContext(context: ConfigDirectorContext) {
+        connect(context, ConnectReason.CONTEXT_UPDATE)
+    }
+
+    /**
+     * Updates the user's context and re-evaluates every config against it, calling [callback] on
+     * the main thread once the new context has taken effect or the attempt times out.
+     */
+    public fun updateContext(context: ConfigDirectorContext, callback: CompletionCallback) {
+        launchThenCallBack(callback) { updateContext(context) }
+    }
+
+    /**
+     * Evaluates [key] against the current context and targeting rules.
+     *
+     * Returns [defaultValue] when config state is unavailable, for instance when called before
+     * initialization completes, or when the served value cannot be read as a boolean.
+     */
+    public fun getBoolean(key: String, defaultValue: Boolean): Boolean =
+        store.getBoolean(key, defaultValue)
+
+    /**
+     * Evaluates [key] against the current context and targeting rules.
+     *
+     * Returns [defaultValue] when config state is unavailable. Every config can be read as a
+     * string, including a JSON config's raw document.
+     */
+    public fun getString(key: String, defaultValue: String): String =
+        store.getString(key, defaultValue)
+
+    /**
+     * Evaluates [key] against the current context and targeting rules.
+     *
+     * Returns [defaultValue] when config state is unavailable, or when the served value cannot be
+     * read as a whole number that fits an `int`. A value written as a decimal is truncated.
+     */
+    public fun getInt(key: String, defaultValue: Int): Int = store.getInt(key, defaultValue)
+
+    /**
+     * Evaluates [key] against the current context and targeting rules.
+     *
+     * Returns [defaultValue] when config state is unavailable, or when the served value cannot be
+     * read as a finite number.
+     */
+    public fun getDouble(key: String, defaultValue: Double): Double =
+        store.getDouble(key, defaultValue)
+
+    /**
+     * Closes the connection to the server. The client cannot be used afterwards, and every config
+     * evaluates to its default value.
+     */
+    override fun close() {
+        if (closed.getAndSet(true)) return
+
+        logger.debug { "close() called, closing the connection to the server" }
+        store.close()
+        transport.close()
+        scope.cancel()
+    }
+
+    private fun launchThenCallBack(callback: CompletionCallback, work: suspend () -> Unit) {
+        scope.launch {
+            work()
+            withContext(Dispatchers.Main) { callback.onComplete() }
+        }
+    }
+
+    private suspend fun connect(context: ConfigDirectorContext?, reason: ConnectReason) {
+        if (closed.get()) {
+            logger.warn { "The client is closed, so ${reason.description} was not attempted." }
+            return
+        }
+
+        store.beginConnect()
+        val startedAt = System.nanoTime()
+
+        try {
+            transport.connect(context ?: ConfigDirectorContext.empty(), timeoutMillis)
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (failure: Exception) {
+            logger.error(failure) { "An error occurred during ${reason.description}" }
+            return
+        }
+
+        store.setContext(context)
+
+        val remaining = timeoutMillis - (System.nanoTime() - startedAt) / NANOS_PER_MILLISECOND
+        if (remaining > 0) {
+            store.waitUntilReady(remaining)
+        }
+
+        if (!store.isReady) {
+            logger.warn {
+                "Timed out waiting for ${reason.description} after ${timeoutMillis}ms. Configs " +
+                    "return their default value until the connection succeeds."
+            }
+        }
+    }
+
+    private companion object {
+        private const val NANOS_PER_MILLISECOND = 1_000_000L
+    }
+}

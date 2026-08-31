@@ -5,6 +5,7 @@ import static com.google.common.truth.Truth.assertThat;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import kotlin.coroutines.Continuation;
 import kotlin.jvm.functions.Function1;
 import org.junit.Test;
 
@@ -17,6 +18,8 @@ public class JavaSurfaceTest {
 
   private static final Class<?>[] PUBLIC_API = {
     AndroidLogger.class,
+    CompletionCallback.class,
+    ConfigDirectorClient.class,
     ClientOptions.class,
     ClientOptions.Builder.class,
     ConfigDirectorContext.class,
@@ -64,6 +67,24 @@ public class JavaSurfaceTest {
     }
 
     assertThat(lambdaTaking).isEmpty();
+  }
+
+  // A suspend function arrives in Java as a method taking a Continuation, which Java has no way
+  // to supply. Every one of them is hidden with @JvmSynthetic and paired with a callback overload.
+  @Test
+  public void keepsSuspendFunctionsOutOfTheJavaSurface() {
+    List<String> continuationTaking = new ArrayList<>();
+    for (Class<?> type : PUBLIC_API) {
+      for (Method method : declaredPublicMethods(type)) {
+        for (Class<?> parameter : method.getParameterTypes()) {
+          if (Continuation.class.isAssignableFrom(parameter)) {
+            continuationTaking.add(type.getSimpleName() + "." + method.getName());
+          }
+        }
+      }
+    }
+
+    assertThat(continuationTaking).isEmpty();
   }
 
   private static List<Method> declaredPublicMethods(Class<?> type) {

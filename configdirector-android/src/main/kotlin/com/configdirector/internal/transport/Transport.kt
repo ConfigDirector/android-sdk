@@ -1,6 +1,9 @@
-package com.configdirector.internal
+package com.configdirector.internal.transport
 
 import com.configdirector.ConfigDirectorContext
+import com.configdirector.internal.ConfigSet
+import com.configdirector.internal.ConfigState
+import com.configdirector.internal.ConfigType
 
 /**
  * Retrieves config state from the ConfigDirector server and hands each set it receives to the

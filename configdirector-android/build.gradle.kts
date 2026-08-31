@@ -54,4 +54,7 @@ dependencies {
     testImplementation(libs.truth)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
+    // Android ships org.json in the framework, so the SDK adds no JSON dependency. The framework
+    // classes are stubs under unit tests, so the tests supply a real implementation instead.
+    testImplementation(libs.org.json)
 }

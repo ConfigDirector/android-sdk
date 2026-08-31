@@ -29,5 +29,19 @@ internal class ConfigState(
     val valueId: String? = null,
 )
 
+/**
+ * Whether a [ConfigSet] carries the complete config state or only the configs that changed since
+ * the last one.
+ */
+internal enum class ConfigSetKind { FULL, DELTA }
+
 /** A batch of config state received from the ConfigDirector server. */
-internal class ConfigSet(val configs: Map<String, ConfigState>)
+internal class ConfigSet(
+    val configs: Map<String, ConfigState>,
+    val kind: ConfigSetKind = ConfigSetKind.FULL,
+    /**
+     * The server timestamp of this set, echoed back on the next polling request so the server can
+     * answer with a delta.
+     */
+    val timestamp: String? = null,
+)

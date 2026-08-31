@@ -2,8 +2,8 @@ package com.configdirector
 
 import com.configdirector.internal.ConfigStore
 import com.configdirector.internal.Constants
-import com.configdirector.internal.StubTransport
-import com.configdirector.internal.Transport
+import com.configdirector.internal.transport.StubTransport
+import com.configdirector.internal.transport.Transport
 import java.io.Closeable
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.cancellation.CancellationException

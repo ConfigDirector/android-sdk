@@ -10,6 +10,7 @@ junit = "4.13.2"
 # 4.x rather than 5.x deliberately: 5.x publishes an Android variant that declares minCompileSdk 37,
 # and that floor passes through this AAR to every consumer. See CONTRIBUTING.md.
 okhttp = "4.12.0"
+org-json = "20251224"
 truth = "1.4.5"
 
 [libraries]
@@ -24,6 +25,7 @@ junit = { module = "junit:junit", version.ref = "junit" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 okhttp-sse = { module = "com.squareup.okhttp3:okhttp-sse", version.ref = "okhttp" }
 okhttp-mockwebserver = { module = "com.squareup.okhttp3:mockwebserver", version.ref = "okhttp" }
+org-json = { module = "org.json:json", version.ref = "org-json" }
 truth = { module = "com.google.truth:truth", version.ref = "truth" }
 
 [plugins]

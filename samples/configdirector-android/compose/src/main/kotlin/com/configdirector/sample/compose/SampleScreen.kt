@@ -53,6 +53,9 @@ fun SampleScreen(
         .collectAsStateWithLifecycle("{}")
     val integerAsDouble by remember(client) { client.values("integer-config", 0.0) }
         .collectAsStateWithLifecycle(0.0)
+    val jsonDocument by remember(client) {
+        client.values("json-value-config", emptyMap<String, Any?>())
+    }.collectAsStateWithLifecycle(emptyMap())
 
     var isReady by remember(client) { mutableStateOf(client.isReady) }
     var context by remember(client) { mutableStateOf(client.context) }
@@ -95,6 +98,7 @@ fun SampleScreen(
         ConfigRow("day-of-the-week-config", dayOfTheWeek)
         ConfigRow("json-value-config", jsonValue)
         ConfigRow("integer-config as a double", integerAsDouble.toString())
+        ConfigRow("json-value-config as a map", jsonDocument.toString())
 
         HorizontalDivider()
 

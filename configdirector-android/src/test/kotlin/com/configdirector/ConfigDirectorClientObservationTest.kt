@@ -152,6 +152,8 @@ class ConfigDirectorClientObservationTest {
                 "max-items",
                 "sample-rate",
                 "theme",
+                "feature-list",
+                "broken-json",
                 "beta-banner",
             )
     }
@@ -244,6 +246,33 @@ class ConfigDirectorClientObservationTest {
         assertThat(client.value("welcome-message", "fallback")).isEqualTo("Hello, Ada")
         assertThat(client.value("max-items", 0)).isEqualTo(25)
         assertThat(client.value("sample-rate", 0.0)).isEqualTo(0.25)
+        assertThat(client.value("theme", emptyMap<String, Any?>())["primary"]).isEqualTo("#101010")
+        assertThat(client.value("feature-list", emptyList<Any?>())).containsExactly("alpha", "beta")
+    }
+
+    @Test
+    fun `hands a watch every change to a JSON config`() = runBlocking<Unit> {
+        val documents = CopyOnWriteArrayList<Map<String, Any?>>()
+        client.watchJsonObject("theme", emptyMap<String, Any?>()) { documents += it }
+        waitFor("the default document") { documents.isNotEmpty() }
+
+        client.initialize(proContext)
+
+        waitFor("the document from the server") { documents.size == 2 }
+        assertThat(documents.first()).isEmpty()
+        assertThat(documents.last()["primary"]).isEqualTo("#101010")
+    }
+
+    @Test
+    fun `emits a JSON config on a flow`() = runBlocking<Unit> {
+        val documents = CopyOnWriteArrayList<Map<String, Any?>>()
+        collecting { client.values("theme", emptyMap<String, Any?>()).collect { documents += it } }
+        waitFor("the default document") { documents.isNotEmpty() }
+
+        client.initialize(proContext)
+
+        waitFor("the document from the server") { documents.size == 2 }
+        assertThat(documents.last()["primary"]).isEqualTo("#101010")
     }
 
     @Test

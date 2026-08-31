@@ -28,7 +28,7 @@ If the Java surface breaks, this module stops compiling. That is the whole job.
 | ----------------------------------- | ---------------------------------------------------------- |
 | `suspend fun initialize(context)`   | `initialize(context, callback)`, called back on the main thread |
 | `suspend fun updateContext(context)`| `updateContext(context, callback)`                          |
-| `client.values(key, default)`       | `client.watchBoolean(key, default, listener)` and friends   |
+| `client.values(key, default)`       | `client.watchBoolean(key, default, listener)` and friends |
 | `client.events`                     | `client.addEventListener(listener)`                         |
 | `client.evaluations`                | `client.addEvaluationListener(listener)`                    |
 
@@ -61,8 +61,9 @@ rather than touching a view.
 config against the new identity, and the watches deliver whatever changed. A config whose value is
 the same for both identities is not delivered again.
 
-**Read every config** reads each config directly with `getBoolean`, `getString`, `getInt` and
-`getDouble`, including two of the ways an evaluation falls back to the default it was given:
+**Read every config** reads each config directly with `getBoolean`, `getString`, `getInt`,
+`getDouble` and `getJsonObject`, including two of the ways an evaluation falls back to the default
+it was given:
 
 ```
 'no-such-config' fell back to fallback (config-state-missing, user-456)

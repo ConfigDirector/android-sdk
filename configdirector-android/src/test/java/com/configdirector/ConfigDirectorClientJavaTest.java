@@ -3,6 +3,10 @@ package com.configdirector;
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertThrows;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import kotlinx.coroutines.Dispatchers;
@@ -52,6 +56,27 @@ public class ConfigDirectorClientJavaTest {
     assertThat(client.getString("welcome-message", "fallback")).isEqualTo("Hello, Ada");
     assertThat(client.getInt("max-items", 0)).isEqualTo(25);
     assertThat(client.getDouble("sample-rate", 0.0)).isEqualTo(0.25);
+    client.close();
+  }
+
+  @Test
+  public void readsAJsonConfigAsMapsAndLists() throws InterruptedException {
+    ConfigDirectorClient client = client();
+    CountDownLatch initialized = new CountDownLatch(1);
+    client.initialize(null, initialized::countDown);
+    assertThat(initialized.await(5, TimeUnit.SECONDS)).isTrue();
+
+    Map<String, Object> fallback = new LinkedHashMap<>();
+    fallback.put("fell", "back");
+
+    Map<String, Object> theme = client.getJsonObject("theme", fallback);
+    assertThat(theme).containsEntry("primary", "#101010");
+    assertThat(theme).containsEntry("enabled", true);
+
+    List<Object> features = client.getJsonArray("feature-list", Collections.<Object>emptyList());
+    assertThat(features).containsExactly("alpha", "beta").inOrder();
+
+    assertThat(client.getJsonObject("broken-json", fallback)).containsEntry("fell", "back");
     client.close();
   }
 

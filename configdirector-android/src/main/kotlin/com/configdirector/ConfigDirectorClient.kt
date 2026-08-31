@@ -163,39 +163,63 @@ public class ConfigDirectorClient @JvmOverloads constructor(
     }
 
     /**
-     * Evaluates [key] against the current context and targeting rules.
+     * Evaluates [key] against the current context and targeting rules, reading the value as a
+     * boolean.
      *
      * Returns [defaultValue] when config state is unavailable, for instance when called before
      * initialization completes, or when the served value cannot be read as a boolean.
+     *
+     * There is a method per type a config can be read as, matching the watches. Kotlin callers have
+     * `client.value(key, default)`, which takes the type from the default value.
+     *
+     * ```kotlin
+     * val darkMode = client.getBoolean("dark-mode", false)
+     * ```
+     *
+     * ```java
+     * boolean darkMode = client.getBoolean("dark-mode", false);
+     * ```
      */
     public fun getBoolean(key: String, defaultValue: Boolean): Boolean =
         store.getBoolean(key, defaultValue)
 
     /**
-     * Evaluates [key] against the current context and targeting rules.
-     *
-     * Returns [defaultValue] when config state is unavailable. Every config can be read as a
-     * string, including a JSON config's raw document.
+     * Evaluates [key], reading the value as a string. Every config can be read as one, including a
+     * JSON config's raw document. See [getBoolean].
      */
     public fun getString(key: String, defaultValue: String): String =
         store.getString(key, defaultValue)
 
     /**
-     * Evaluates [key] against the current context and targeting rules.
-     *
-     * Returns [defaultValue] when config state is unavailable, or when the served value cannot be
-     * read as a whole number that fits an `int`. A value written as a decimal is truncated.
+     * Evaluates [key], reading the value as a whole number that fits an `int`. A value written as a
+     * decimal is truncated. See [getBoolean].
      */
     public fun getInt(key: String, defaultValue: Int): Int = store.getInt(key, defaultValue)
 
-    /**
-     * Evaluates [key] against the current context and targeting rules.
-     *
-     * Returns [defaultValue] when config state is unavailable, or when the served value cannot be
-     * read as a finite number.
-     */
+    /** Evaluates [key], reading the value as a finite decimal number. See [getBoolean]. */
     public fun getDouble(key: String, defaultValue: Double): Double =
         store.getDouble(key, defaultValue)
+
+    /**
+     * Evaluates [key], reading a JSON config's document as a map. The values inside are String,
+     * Number, Boolean, List, Map, or null.
+     *
+     * Only a config declared as JSON in the ConfigDirector dashboard reads as one; read any other
+     * config as a string to get its raw value. See [getBoolean].
+     */
+    public fun getJsonObject(
+        key: String,
+        defaultValue: Map<String, @JvmSuppressWildcards Any?>,
+    ): Map<String, Any?> = store.getJsonObject(key, defaultValue)
+
+    /**
+     * Evaluates [key], reading a JSON config's document as a list. The values inside are String,
+     * Number, Boolean, List, Map, or null. See [getBoolean].
+     */
+    public fun getJsonArray(
+        key: String,
+        defaultValue: List<@JvmSuppressWildcards Any?>,
+    ): List<Any?> = store.getJsonArray(key, defaultValue)
 
     /**
      * Watches [key] for changes, which can come from an update in the ConfigDirector dashboard or
@@ -204,6 +228,7 @@ public class ConfigDirectorClient @JvmOverloads constructor(
      * [listener] is handed the config's current value straight away and then every time the
      * evaluated value changes; consecutive identical values are not delivered again. Close the
      * returned subscription to stop watching.
+     *
      */
     public fun watchBoolean(
         key: String,
@@ -231,6 +256,20 @@ public class ConfigDirectorClient @JvmOverloads constructor(
         defaultValue: Double,
         listener: ConfigListener<Double>,
     ): Subscription = store.watch(key, listener) { store.getDouble(key, defaultValue) }
+
+    /** Watches [key] for changes, reading each JSON document as a map. See [watchBoolean]. */
+    public fun watchJsonObject(
+        key: String,
+        defaultValue: Map<String, @JvmSuppressWildcards Any?>,
+        listener: ConfigListener<Map<String, @JvmSuppressWildcards Any?>>,
+    ): Subscription = store.watch(key, listener) { store.getJsonObject(key, defaultValue) }
+
+    /** Watches [key] for changes, reading each JSON document as a list. See [watchBoolean]. */
+    public fun watchJsonArray(
+        key: String,
+        defaultValue: List<@JvmSuppressWildcards Any?>,
+        listener: ConfigListener<List<@JvmSuppressWildcards Any?>>,
+    ): Subscription = store.watch(key, listener) { store.getJsonArray(key, defaultValue) }
 
     /**
      * Registers [listener] for everything the client does, from now on. Close the returned

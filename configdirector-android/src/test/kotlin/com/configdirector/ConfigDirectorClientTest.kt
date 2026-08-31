@@ -138,7 +138,66 @@ class ConfigDirectorClientTest {
 
         client.initialize()
 
-        assertThat(client.getString("theme", "{}")).isEqualTo("""{"primary":"#101010"}""")
+        assertThat(client.getString("theme", "{}")).isEqualTo(FakeSdkServer.THEME_DOCUMENT)
+    }
+
+    @Test
+    fun `serves a JSON config as a map`() = runBlocking {
+        val client = client()
+
+        client.initialize()
+
+        val theme = client.getJsonObject("theme", emptyMap<String, Any?>())
+        assertThat(theme["primary"]).isEqualTo("#101010")
+        assertThat(theme["enabled"]).isEqualTo(true)
+        assertThat(theme["spacing"]).isEqualTo(mapOf("small" to 4))
+        // JSONObject.NULL equals null, so only an identity check can tell them apart.
+        val tags = theme["tags"] as List<*>
+        assertThat(tags).hasSize(2)
+        assertThat(tags[0]).isEqualTo("a")
+        assertThat(tags[1]).isNull()
+    }
+
+    @Test
+    fun `serves a JSON config as a list`() = runBlocking {
+        val client = client()
+
+        client.initialize()
+
+        assertThat(client.getJsonArray("feature-list", emptyList<Any?>()))
+            .containsExactly("alpha", "beta")
+            .inOrder()
+    }
+
+    @Test
+    fun `falls back when the JSON document cannot be read`() = runBlocking {
+        val client = client()
+
+        client.initialize()
+
+        assertThat(client.getJsonObject("broken-json", mapOf<String, Any?>("fell" to "back")))
+            .containsExactly("fell", "back")
+        assertThat(logger.messagesContaining("(invalid-json)")).hasSize(1)
+    }
+
+    @Test
+    fun `falls back when a JSON object is read as a list`() = runBlocking {
+        val client = client()
+
+        client.initialize()
+
+        assertThat(client.getJsonArray("theme", listOf<Any?>("fallback"))).containsExactly("fallback")
+        assertThat(logger.messagesContaining("(invalid-json)")).hasSize(1)
+    }
+
+    @Test
+    fun `falls back when the config is not a JSON config`() = runBlocking {
+        val client = client()
+
+        client.initialize()
+
+        assertThat(client.getJsonObject("welcome-message", emptyMap<String, Any?>())).isEmpty()
+        assertThat(logger.messagesContaining("(type-mismatch)")).hasSize(1)
     }
 
     @Test

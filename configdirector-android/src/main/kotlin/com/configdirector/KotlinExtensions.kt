@@ -12,7 +12,7 @@ import kotlinx.coroutines.launch
  *
  * ```kotlin
  * val darkMode = client.value("dark-mode", false)
- * val maxItems = client.value("max-items", 25)
+ * val theme = client.value("theme", emptyMap())
  * ```
  *
  * There is one overload per type a config can be read as, so a default of any other type is a
@@ -35,6 +35,18 @@ public fun ConfigDirectorClient.value(key: String, defaultValue: Int): Int = get
 @JvmSynthetic
 public fun ConfigDirectorClient.value(key: String, defaultValue: Double): Double =
     getDouble(key, defaultValue)
+
+/** Evaluates [key], reading a JSON config's document as a map. See [value]. */
+@JvmSynthetic
+public fun ConfigDirectorClient.value(
+    key: String,
+    defaultValue: Map<String, Any?>,
+): Map<String, Any?> = getJsonObject(key, defaultValue)
+
+/** Evaluates [key], reading a JSON config's document as a list. See [value]. */
+@JvmSynthetic
+public fun ConfigDirectorClient.value(key: String, defaultValue: List<Any?>): List<Any?> =
+    getJsonArray(key, defaultValue)
 
 /**
  * Watches [key] for changes, reading each value as a boolean.
@@ -68,6 +80,22 @@ public fun ConfigDirectorClient.values(key: String, defaultValue: Int): Flow<Int
 @JvmSynthetic
 public fun ConfigDirectorClient.values(key: String, defaultValue: Double): Flow<Double> =
     subscriptionFlow { send -> watchDouble(key, defaultValue) { send(it) } }
+
+/** Watches [key] for changes, reading each JSON document as a map. See [values]. */
+@JvmSynthetic
+public fun ConfigDirectorClient.values(
+    key: String,
+    defaultValue: Map<String, Any?>,
+): Flow<Map<String, Any?>> =
+    subscriptionFlow { send -> watchJsonObject(key, defaultValue) { send(it) } }
+
+/** Watches [key] for changes, reading each JSON document as a list. See [values]. */
+@JvmSynthetic
+public fun ConfigDirectorClient.values(
+    key: String,
+    defaultValue: List<Any?>,
+): Flow<List<Any?>> =
+    subscriptionFlow { send -> watchJsonArray(key, defaultValue) { send(it) } }
 
 /** Every event the client publishes, from the moment the flow is collected. */
 @get:JvmSynthetic

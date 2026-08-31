@@ -31,6 +31,9 @@ internal enum class ConfigValueKind(
     /** Every config: each value is a string on the wire, including a JSON config's raw document. */
     STRING(ConfigType.entries.toSet(), EvaluationReason.TYPE_MISMATCH),
 
+    /** JSON configs only: a JSON document is not something another type happens to spell. */
+    JSON(setOf(ConfigType.JSON), EvaluationReason.INVALID_JSON),
+
     /** Numeric configs, and any config whose value spells a finite number. */
     NUMBER(
         setOf(
@@ -67,6 +70,22 @@ internal object ConfigValueParser {
     fun parseDouble(configState: ConfigState, defaultValue: Double): EvaluationResult<Double> =
         parse(configState, defaultValue, ConfigValueKind.NUMBER) { rawValue ->
             rawValue.toDoubleOrNull()?.takeIf { it.isFinite() }
+        }
+
+    fun parseJsonObject(
+        configState: ConfigState,
+        defaultValue: Map<String, Any?>,
+    ): EvaluationResult<Map<String, Any?>> =
+        parse(configState, defaultValue, ConfigValueKind.JSON) { rawValue ->
+            JsonValues.objectOrNull(rawValue)
+        }
+
+    fun parseJsonArray(
+        configState: ConfigState,
+        defaultValue: List<Any?>,
+    ): EvaluationResult<List<Any?>> =
+        parse(configState, defaultValue, ConfigValueKind.JSON) { rawValue ->
+            JsonValues.arrayOrNull(rawValue)
         }
 
     private fun <T> parse(

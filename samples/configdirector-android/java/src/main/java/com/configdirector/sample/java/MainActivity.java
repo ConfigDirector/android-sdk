@@ -12,6 +12,7 @@ import com.configdirector.ConfigDirectorContext;
 import com.configdirector.ConfigEvaluation;
 import com.configdirector.Subscription;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -87,6 +88,11 @@ public final class MainActivity extends Activity {
     subscriptions.add(
         client.watchDouble(
             "integer-config", 0.0, value -> onWatched("integer-config as a double", value)));
+    subscriptions.add(
+        client.watchJsonObject(
+            "json-value-config",
+            Collections.<String, Object>emptyMap(),
+            value -> onWatched("json-value-config", value)));
   }
 
   private void listen() {
@@ -161,6 +167,11 @@ public final class MainActivity extends Activity {
     log.add("day-of-the-week-config=" + client.getString("day-of-the-week-config", "Friday"));
     log.add("json-value-config=" + client.getString("json-value-config", "{}"));
     log.add("integer-config as a double=" + client.getDouble("integer-config", 0.0));
+    // A JSON config also reads as a map, whose values are String, Number, Boolean, List, Map or
+    // null. Reading it as a string above serves the same document unparsed.
+    log.add(
+        "json-value-config as a map="
+            + client.getJsonObject("json-value-config", Collections.<String, Object>emptyMap()));
 
     // No config carries this key.
     log.add("no-such-config=" + client.getString("no-such-config", "fallback"));

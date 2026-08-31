@@ -79,13 +79,14 @@ the screen shows until the client is ready.
 | `day-of-the-week-config` | string  | `Friday`              |
 | `json-value-config`      | string  | `{}`                  |
 | `integer-config`         | double  | `0.0`                 |
+| `json-value-config`      | map     | empty                 |
 
 These are the keys the other ConfigDirector sample apps read, so the same dashboard project drives
 all of them.
 
-`json-value-config` is read with a string default, which serves the raw JSON document. The last row
-is the same integer config read as a double, so that all four accessors — `getBoolean`, `getString`,
-`getInt` and `getDouble` — appear on screen.
+`json-value-config` appears twice: read with a string default it serves the raw document, and read
+with a map default it serves the parsed one, whose values are String, Number, Boolean, List, Map or
+null. `integer-config` appears twice for the same reason — every type the SDK reads is on screen.
 
 Both connect in streaming mode, so a value changed in the dashboard reaches the screen without
 restarting them.

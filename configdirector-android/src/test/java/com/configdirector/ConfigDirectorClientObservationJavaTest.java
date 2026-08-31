@@ -2,7 +2,9 @@ package com.configdirector;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -59,6 +61,25 @@ public class ConfigDirectorClientObservationJavaTest {
 
     await(delivered);
     assertThat(values).containsExactly(false, true).inOrder();
+  }
+
+  @Test
+  public void watchesAJsonConfig() throws InterruptedException {
+    List<Map<String, Object>> documents = new CopyOnWriteArrayList<>();
+    CountDownLatch delivered = new CountDownLatch(2);
+    client.watchJsonObject(
+        "theme",
+        Collections.<String, Object>emptyMap(),
+        document -> {
+          documents.add(document);
+          delivered.countDown();
+        });
+
+    client.initialize(proContext, () -> {});
+
+    await(delivered);
+    assertThat(documents.get(0)).isEmpty();
+    assertThat(documents.get(1)).containsEntry("primary", "#101010");
   }
 
   @Test

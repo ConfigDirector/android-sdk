@@ -100,6 +100,12 @@ internal class ConfigStore(private val logger: ConfigDirectorLogger) {
     fun getDouble(key: String, defaultValue: Double): Double =
         evaluate(key, defaultValue) { ConfigValueParser.parseDouble(it, defaultValue) }
 
+    fun getJsonObject(key: String, defaultValue: Map<String, Any?>): Map<String, Any?> =
+        evaluate(key, defaultValue) { ConfigValueParser.parseJsonObject(it, defaultValue) }
+
+    fun getJsonArray(key: String, defaultValue: List<Any?>): List<Any?> =
+        evaluate(key, defaultValue) { ConfigValueParser.parseJsonArray(it, defaultValue) }
+
     fun <T : Any> watch(key: String, listener: ConfigListener<T>, evaluate: () -> T): Subscription {
         if (closedState.value) return Subscription {}
 

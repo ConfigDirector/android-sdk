@@ -107,7 +107,12 @@ class FakeSdkServer : Closeable {
                 configJson("max-items", "integer", if (isPro) "25" else "10", "max-items-$variant"),
             )
             .put("sample-rate", configJson("sample-rate", "float", "0.25", "sample-rate-only"))
-            .put("theme", configJson("theme", "json", """{"primary":"#101010"}""", "theme-only"))
+            .put("theme", configJson("theme", "json", THEME_DOCUMENT, "theme-only"))
+            .put(
+                "feature-list",
+                configJson("feature-list", "json", """["alpha","beta"]""", "feature-list-only"),
+            )
+            .put("broken-json", configJson("broken-json", "json", "{oops", "broken-json-only"))
             .put("beta-banner", configJson("beta-banner", "boolean", null, null))
 
         return JSONObject()
@@ -128,6 +133,9 @@ class FakeSdkServer : Closeable {
 
     companion object {
         private const val NO_CONTENT = 204
+
+        const val THEME_DOCUMENT: String =
+            """{"primary":"#101010","spacing":{"small":4},"tags":["a",null],"enabled":true}"""
         const val TIMESTAMP: String = "2026-08-31T00:00:00Z"
     }
 }

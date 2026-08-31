@@ -144,7 +144,7 @@ public final class MainActivity extends Activity {
 
   private void wireUserButtons() {
     bindUser(R.id.user_configured, SampleUser.CONFIGURED);
-    bindUser(R.id.user_pro, SampleUser.PRO);
+    bindUser(R.id.user_beta_tester, SampleUser.BETA_TESTER);
     bindUser(R.id.user_anonymous, SampleUser.ANONYMOUS);
   }
 

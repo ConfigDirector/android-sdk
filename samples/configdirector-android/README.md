@@ -56,10 +56,18 @@ lives in:
 
 ```properties
 configdirector.clientSdkKey=YOUR-KEY
+configdirector.userId=
+configdirector.userName=
+configdirector.userRole=
 ```
 
-It reaches the apps as `BuildConfig.CLIENT_SDK_KEY`, so nothing has to be committed. Take the value
-from your ConfigDirector dashboard.
+They reach the apps as `BuildConfig` fields, so nothing has to be committed. Take the key from your
+ConfigDirector dashboard.
+
+Alongside the key sit the values of the identity configs are evaluated against, the same three the
+Swift samples read from `Config.local.xcconfig`. `configdirector.userRole` is sent as the `role`
+trait. Leave them empty and the Configured identity carries no id, name or trait, so configs are
+evaluated without a context.
 
 Without it each app still builds and runs. It connects with a stand-in key the server will not
 recognise, says so on screen, and every config falls back to the default passed alongside its key —
@@ -95,11 +103,14 @@ The Context row is where targeting shows: each identity calls `updateContext`, w
 re-evaluates every config against the new identity, and pushes the new values to whatever is
 watching — the way to watch a targeting rule take effect without rebuilding.
 
-| Identity     | Context                                            |
-| ------------ | -------------------------------------------------- |
-| Configured   | `user-123`, Sam, `plan: free`                       |
-| Pro plan     | `user-456`, Ada, `plan: pro`, `seats: 12`, `beta: true` |
-| Anonymous    | no id or name, anonymous                            |
+| Identity     | Context                                                     |
+| ------------ | ----------------------------------------------------------- |
+| Configured   | the id, name and `role` trait from `local.properties`        |
+| Beta tester  | `beta-tester`, Beta Tester, `role: beta`                     |
+| Anonymous    | no id or name, anonymous                                     |
+
+These are the identities the other ConfigDirector sample apps offer, so a targeting rule written
+against `role` behaves the same everywhere.
 
 ## Which SDK they build against
 

@@ -7,25 +7,23 @@ import com.configdirector.ConfigDirectorContext
  * `updateContext`, which reconnects and re-evaluates every config.
  */
 enum class SampleUser(val label: String, val context: ConfigDirectorContext) {
-    CONFIGURED(
-        "Configured",
-        ConfigDirectorContext.build {
-            id("user-123")
-            name("Sam")
-            trait("plan", "free")
-        },
-    ),
+    CONFIGURED("Configured", configuredContext()),
 
-    PRO(
-        "Pro plan",
+    BETA_TESTER(
+        "Beta tester",
         ConfigDirectorContext.build {
-            id("user-456")
-            name("Ada")
-            trait("plan", "pro")
-            trait("seats", 12)
-            trait("beta", true)
+            id("beta-tester")
+            name("Beta Tester")
+            trait("role", "beta")
         },
     ),
 
     ANONYMOUS("Anonymous", ConfigDirectorContext.build { anonymous(true) }),
+}
+
+/** The identity from `local.properties`. With none set, configs are evaluated without a context. */
+private fun configuredContext() = ConfigDirectorContext.build {
+    id(BuildConfig.USER_ID.ifEmpty { null })
+    name(BuildConfig.USER_NAME.ifEmpty { null })
+    BuildConfig.USER_ROLE.ifEmpty { null }?.let { role -> trait("role", role) }
 }

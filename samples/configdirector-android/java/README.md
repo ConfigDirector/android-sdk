@@ -57,7 +57,7 @@ rather than touching a view.
 
 ## What the buttons do
 
-**Configured / Pro plan / Anonymous** call `updateContext`. The client reconnects, re-evaluates every
+**Configured / Beta tester / Anonymous** call `updateContext`. The client reconnects, re-evaluates every
 config against the new identity, and the watches deliver whatever changed. A config whose value is
 the same for both identities is not delivered again.
 
@@ -66,8 +66,8 @@ the same for both identities is not delivered again.
 it was given:
 
 ```
-'no-such-config' fell back to fallback (config-state-missing, user-456)
-'integer-config' fell back to true (type-mismatch, user-456)
+'no-such-config' fell back to fallback (config-state-missing, beta-tester)
+'integer-config' fell back to true (type-mismatch, beta-tester)
 ```
 
 `integer-config` holds an integer, so reading it as a boolean is a type mismatch rather than an

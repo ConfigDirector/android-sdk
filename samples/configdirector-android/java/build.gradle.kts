@@ -4,15 +4,12 @@ plugins {
     alias(libs.plugins.android.application)
 }
 
-// The sample's key is not committed: put it in local.properties as
-// configdirector.clientSdkKey=YOUR-KEY, the same file the Android SDK location lives in.
-val clientSdkKey: String = providers
+// The sample's key and the identity it evaluates configs against are not committed: put them in
+// local.properties, the same file the Android SDK location lives in. See the README.
+fun localProperty(name: String): String = providers
     .fileContents(rootProject.layout.projectDirectory.file("local.properties"))
     .asText
-    .map { text ->
-        Properties().apply { load(text.reader()) }
-            .getProperty("configdirector.clientSdkKey", "")
-    }
+    .map { text -> Properties().apply { load(text.reader()) }.getProperty(name, "") }
     .getOrElse("")
 
 // Deliberately Java only, on the SDK's oldest supported Android and Java: no Kotlin sources, no
@@ -28,7 +25,10 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        buildConfigField("String", "CLIENT_SDK_KEY", "\"$clientSdkKey\"")
+        buildConfigField("String", "CLIENT_SDK_KEY", "\"${localProperty("configdirector.clientSdkKey")}\"")
+        buildConfigField("String", "USER_ID", "\"${localProperty("configdirector.userId")}\"")
+        buildConfigField("String", "USER_NAME", "\"${localProperty("configdirector.userName")}\"")
+        buildConfigField("String", "USER_ROLE", "\"${localProperty("configdirector.userRole")}\"")
     }
 
     buildFeatures {

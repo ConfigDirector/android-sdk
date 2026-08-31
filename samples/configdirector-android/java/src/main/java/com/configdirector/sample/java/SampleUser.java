@@ -1,25 +1,21 @@
 package com.configdirector.sample.java;
 
 import com.configdirector.ConfigDirectorContext;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 /**
- * The identities the sample can evaluate configs against. Switching between them calls
- * {@code updateContext}, which reconnects and re-evaluates every config.
+ * The identities the sample can evaluate configs against. Switching between them calls {@code
+ * updateContext}, which reconnects and re-evaluates every config.
  */
 enum SampleUser {
-  CONFIGURED("Configured", ConfigDirectorContext.builder()
-      .id("user-123")
-      .name("Sam")
-      .trait("plan", "free")
-      .build()),
+  CONFIGURED("Configured", configuredContext()),
 
-  PRO("Pro plan", ConfigDirectorContext.builder()
-      .id("user-456")
-      .name("Ada")
-      .traits(proTraits())
-      .build()),
+  BETA_TESTER(
+      "Beta tester",
+      ConfigDirectorContext.builder()
+          .id("beta-tester")
+          .name("Beta Tester")
+          .trait("role", "beta")
+          .build()),
 
   ANONYMOUS("Anonymous", ConfigDirectorContext.builder().anonymous(true).build());
 
@@ -39,11 +35,22 @@ enum SampleUser {
     return context;
   }
 
-  private static Map<String, Object> proTraits() {
-    Map<String, Object> traits = new LinkedHashMap<>();
-    traits.put("plan", "pro");
-    traits.put("seats", 12);
-    traits.put("beta", true);
-    return traits;
+  /** The identity from {@code local.properties}. With none set, configs are evaluated without a
+   * context. */
+  private static ConfigDirectorContext configuredContext() {
+    ConfigDirectorContext.Builder builder =
+        ConfigDirectorContext.builder()
+            .id(emptyToNull(BuildConfig.USER_ID))
+            .name(emptyToNull(BuildConfig.USER_NAME));
+
+    String role = emptyToNull(BuildConfig.USER_ROLE);
+    if (role != null) {
+      builder.trait("role", role);
+    }
+    return builder.build();
+  }
+
+  private static String emptyToNull(String value) {
+    return value.isEmpty() ? null : value;
   }
 }

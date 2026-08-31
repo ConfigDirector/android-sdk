@@ -33,11 +33,11 @@
             android:text="@string/configured" />
 
         <Button
-            android:id="@+id/user_pro"
+            android:id="@+id/user_beta_tester"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="@string/pro_plan" />
+            android:text="@string/beta_tester" />
 
         <Button
             android:id="@+id/user_anonymous"

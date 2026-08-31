@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ConfigDirector (Java)</string>
+    <string name="configured">Configured</string>
+    <string name="pro_plan">Pro plan</string>
+    <string name="anonymous">Anonymous</string>
+    <string name="read_every_config">Read every config</string>
+    <string name="exercise_every_api">Every API</string>
+    <string name="close_client">Close client</string>
+</resources>

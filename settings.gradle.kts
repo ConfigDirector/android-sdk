@@ -24,3 +24,8 @@ dependencyResolutionManagement {
 rootProject.name = "configdirector-android-sdk"
 
 include("configdirector-android")
+
+// Not published. Samples are grouped by the artifact they demonstrate, since this repository will
+// hold more than one.
+include("samples:configdirector-android:compose")
+include("samples:configdirector-android:java")

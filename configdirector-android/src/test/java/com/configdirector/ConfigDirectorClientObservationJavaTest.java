@@ -153,7 +153,7 @@ public class ConfigDirectorClientObservationJavaTest {
     ConfigEvaluation evaluation = evaluations.get(0);
     assertThat(evaluation.getKey()).isEqualTo("dark-mode");
     assertThat(evaluation.getValue()).isEqualTo(true);
-    assertThat(evaluation.getValueId()).isEqualTo("dark-mode-true");
+    assertThat(evaluation.getValueId()).isEqualTo("dark-mode-pro");
     assertThat(evaluation.isDefaultValue()).isFalse();
     assertThat(evaluation.getReason()).isEqualTo(EvaluationReason.FOUND_MATCH);
     assertThat(evaluation.getReason().getWireName()).isEqualTo("found-match");

@@ -21,22 +21,39 @@ internal class StubTransport(private val onConfigSet: (ConfigSet) -> Unit) : Tra
 
     private fun configSetFor(context: ConfigDirectorContext): ConfigSet {
         val isPro = context.traits?.get("plan") == "pro"
+        val variant = if (isPro) "pro" else "free"
         return ConfigSet(
             listOf(
                 ConfigState(
                     key = "dark-mode",
                     type = ConfigType.BOOLEAN,
                     value = isPro.toString(),
-                    valueId = "dark-mode-$isPro",
+                    valueId = "dark-mode-$variant",
                 ),
                 ConfigState(
                     key = "welcome-message",
                     type = ConfigType.STRING,
                     value = "Hello, ${context.name ?: "there"}",
+                    valueId = "welcome-message-$variant",
                 ),
-                ConfigState(key = "max-items", type = ConfigType.INTEGER, value = if (isPro) "25" else "10"),
-                ConfigState(key = "sample-rate", type = ConfigType.FLOAT, value = "0.25"),
-                ConfigState(key = "theme", type = ConfigType.JSON, value = """{"primary":"#101010"}"""),
+                ConfigState(
+                    key = "max-items",
+                    type = ConfigType.INTEGER,
+                    value = if (isPro) "25" else "10",
+                    valueId = "max-items-$variant",
+                ),
+                ConfigState(
+                    key = "sample-rate",
+                    type = ConfigType.FLOAT,
+                    value = "0.25",
+                    valueId = "sample-rate-only",
+                ),
+                ConfigState(
+                    key = "theme",
+                    type = ConfigType.JSON,
+                    value = """{"primary":"#101010"}""",
+                    valueId = "theme-only",
+                ),
                 ConfigState(key = "beta-banner", type = ConfigType.BOOLEAN, value = null),
             ).associateBy { it.key },
         )

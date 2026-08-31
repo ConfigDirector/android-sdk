@@ -162,7 +162,7 @@ class ConfigDirectorClientObservationTest {
         val evaluation = evaluations.single()
         assertThat(evaluation.key).isEqualTo("dark-mode")
         assertThat(evaluation.value).isEqualTo(true)
-        assertThat(evaluation.valueId).isEqualTo("dark-mode-true")
+        assertThat(evaluation.valueId).isEqualTo("dark-mode-pro")
         assertThat(evaluation.isDefaultValue).isFalse()
         assertThat(evaluation.reason).isEqualTo(EvaluationReason.FOUND_MATCH)
         assertThat(evaluation.context).isEqualTo(proContext)

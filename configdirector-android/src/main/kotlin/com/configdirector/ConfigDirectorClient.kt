@@ -8,9 +8,9 @@ import com.configdirector.internal.transport.PollingTransport
 import com.configdirector.internal.transport.StreamingTransport
 import com.configdirector.internal.transport.Transport
 import com.configdirector.internal.transport.TransportOptions
+import com.configdirector.internal.transport.sdkHttpClient
 import java.io.Closeable
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -78,11 +78,7 @@ public class ConfigDirectorClient @JvmOverloads constructor(
             }
         }
 
-        httpClient = OkHttpClient.Builder()
-            .connectTimeout(timeoutMillis, TimeUnit.MILLISECONDS)
-            .readTimeout(timeoutMillis, TimeUnit.MILLISECONDS)
-            .writeTimeout(timeoutMillis, TimeUnit.MILLISECONDS)
-            .build()
+        httpClient = sdkHttpClient(timeoutMillis, logger)
 
         transport = transportFor(
             options.connection.mode,

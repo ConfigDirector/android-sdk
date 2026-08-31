@@ -1,7 +1,6 @@
 package com.configdirector
 
 import com.configdirector.internal.ConfigStore
-import com.configdirector.internal.ConnectReason
 import com.configdirector.internal.Constants
 import com.configdirector.internal.StubTransport
 import com.configdirector.internal.Transport
@@ -12,6 +11,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -171,8 +171,60 @@ public class ConfigDirectorClient @JvmOverloads constructor(
         store.getDouble(key, defaultValue)
 
     /**
-     * Closes the connection to the server. The client cannot be used afterwards, and every config
-     * evaluates to its default value.
+     * Watches [key] for changes, which can come from an update in the ConfigDirector dashboard or
+     * from a call to [updateContext].
+     *
+     * [listener] is handed the config's current value straight away and then every time the
+     * evaluated value changes; consecutive identical values are not delivered again. Close the
+     * returned subscription to stop watching.
+     */
+    public fun watchBoolean(
+        key: String,
+        defaultValue: Boolean,
+        listener: ConfigListener<Boolean>,
+    ): Subscription = store.watch(key, listener) { store.getBoolean(key, defaultValue) }
+
+    /** Watches [key] for changes, reading each value as a string. See [watchBoolean]. */
+    public fun watchString(
+        key: String,
+        defaultValue: String,
+        listener: ConfigListener<String>,
+    ): Subscription = store.watch(key, listener) { store.getString(key, defaultValue) }
+
+    /** Watches [key] for changes, reading each value as a whole number. See [watchBoolean]. */
+    public fun watchInt(
+        key: String,
+        defaultValue: Int,
+        listener: ConfigListener<Int>,
+    ): Subscription = store.watch(key, listener) { store.getInt(key, defaultValue) }
+
+    /** Watches [key] for changes, reading each value as a decimal number. See [watchBoolean]. */
+    public fun watchDouble(
+        key: String,
+        defaultValue: Double,
+        listener: ConfigListener<Double>,
+    ): Subscription = store.watch(key, listener) { store.getDouble(key, defaultValue) }
+
+    /**
+     * Registers [listener] for everything the client does, from now on. Close the returned
+     * subscription to stop listening.
+     */
+    public fun addEventListener(listener: ClientEventListener): Subscription =
+        store.addEventListener(listener)
+
+    /**
+     * Registers [listener] for every config evaluation the client makes, from now on. One is
+     * published for every read, so a config read from a Compose composable publishes one per
+     * recomposition. Close the returned subscription to stop listening.
+     */
+    public fun addEvaluationListener(listener: EvaluationListener): Subscription =
+        store.addEvaluationListener(listener)
+
+    /**
+     * Closes the connection to the server, along with every watch and listener registration.
+     *
+     * The client cannot be used afterwards: it stops receiving config state and never becomes ready
+     * again, though reads keep serving the last config state it received.
      */
     override fun close() {
         if (closed.getAndSet(true)) return
@@ -182,6 +234,10 @@ public class ConfigDirectorClient @JvmOverloads constructor(
         transport.close()
         scope.cancel()
     }
+
+    @get:JvmSynthetic
+    internal val closedState: StateFlow<Boolean>
+        get() = store.closed
 
     private fun launchThenCallBack(callback: CompletionCallback, work: suspend () -> Unit) {
         scope.launch {
@@ -196,7 +252,7 @@ public class ConfigDirectorClient @JvmOverloads constructor(
             return
         }
 
-        store.beginConnect()
+        store.beginConnect(reason)
         val startedAt = System.nanoTime()
 
         try {

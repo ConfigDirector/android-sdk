@@ -3,7 +3,7 @@ package com.configdirector
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -22,7 +22,7 @@ class ConfigDirectorClientTest {
 
     @Before
     fun setUpMainDispatcher() {
-        Dispatchers.setMain(StandardTestDispatcher())
+        Dispatchers.setMain(UnconfinedTestDispatcher())
     }
 
     @After
@@ -67,12 +67,11 @@ class ConfigDirectorClientTest {
     fun `serves the config state it received once initialized`() = runTest {
         val client = client()
 
-        client.initialize(ConfigDirectorContext.build { id("user-123") })
+        client.initialize(ConfigDirectorContext.build { id("user-123"); name("Ada"); trait("plan", "pro") })
 
         assertThat(client.isReady).isTrue()
         assertThat(client.getBoolean("dark-mode", false)).isTrue()
-        assertThat(client.getString("welcome-message", "fallback"))
-            .isEqualTo("Hello from ConfigDirector")
+        assertThat(client.getString("welcome-message", "fallback")).isEqualTo("Hello, Ada")
         assertThat(client.getInt("max-items", 0)).isEqualTo(25)
         assertThat(client.getDouble("sample-rate", 0.0)).isEqualTo(0.25)
     }
@@ -190,9 +189,9 @@ class ConfigDirectorClientTest {
     }
 
     @Test
-    fun `serves default values once closed`() = runTest {
+    fun `keeps serving the last config state once closed`() = runTest {
         val client = client()
-        client.initialize()
+        client.initialize(ConfigDirectorContext.build { trait("plan", "pro") })
 
         client.close()
 

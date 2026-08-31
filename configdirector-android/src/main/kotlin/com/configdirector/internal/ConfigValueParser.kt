@@ -1,5 +1,7 @@
 package com.configdirector.internal
 
+import com.configdirector.EvaluationReason
+
 internal class EvaluationResult<T>(
     val value: T,
     val valueId: String?,

@@ -1,7 +1,10 @@
-package com.configdirector.internal
+package com.configdirector
 
 /** Why a config evaluated to the value it did. */
-internal enum class EvaluationReason(val wireName: String) {
+public enum class EvaluationReason(
+    /** How ConfigDirector spells this reason on the wire, such as `found-match`. */
+    public val wireName: String,
+) {
     /** The config state was found and its value matched the requested type. */
     FOUND_MATCH("found-match"),
 

@@ -37,13 +37,13 @@ public class ConfigDirectorClientJavaTest {
     CountDownLatch initialized = new CountDownLatch(1);
 
     client.initialize(
-        ConfigDirectorContext.builder().id("user-123").build(), initialized::countDown);
+        ConfigDirectorContext.builder().id("user-123").name("Ada").trait("plan", "pro").build(),
+        initialized::countDown);
 
     assertThat(initialized.await(5, TimeUnit.SECONDS)).isTrue();
     assertThat(client.isReady()).isTrue();
     assertThat(client.getBoolean("dark-mode", false)).isTrue();
-    assertThat(client.getString("welcome-message", "fallback"))
-        .isEqualTo("Hello from ConfigDirector");
+    assertThat(client.getString("welcome-message", "fallback")).isEqualTo("Hello, Ada");
     assertThat(client.getInt("max-items", 0)).isEqualTo(25);
     assertThat(client.getDouble("sample-rate", 0.0)).isEqualTo(0.25);
     client.close();

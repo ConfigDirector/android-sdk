@@ -22,15 +22,26 @@ public class JavaSurfaceTest {
     ConfigDirectorClient.class,
     ClientOptions.class,
     ClientOptions.Builder.class,
+    ClientEvent.class,
+    ClientEvent.ConfigsUpdated.class,
+    ClientEvent.ContextUpdated.class,
+    ClientEvent.Ready.class,
+    ClientEventListener.class,
     ConfigDirectorContext.class,
     ConfigDirectorContext.Builder.class,
     ConfigDirectorException.class,
     ConfigDirectorLogger.class,
+    ConfigEvaluation.class,
+    ConfigListener.class,
     ConfigDirectorValidationException.class,
+    ConnectReason.class,
     ConnectionMode.class,
     ConnectionOptions.class,
     ConnectionOptions.Builder.class,
+    EvaluationListener.class,
+    EvaluationReason.class,
     LogLevel.class,
+    Subscription.class,
     Metadata.class,
   };
 
@@ -85,6 +96,20 @@ public class JavaSurfaceTest {
     }
 
     assertThat(continuationTaking).isEmpty();
+  }
+
+  // The Kotlin conveniences -- the flows, and reading a config as the type of its default value --
+  // are built on the API above rather than beside it, and Java has no use for any of them.
+  @Test
+  public void keepsKotlinOnlyExtensionsOutOfTheJavaSurface() throws ClassNotFoundException {
+    Class<?> extensions = Class.forName("com.configdirector.KotlinExtensionsKt");
+
+    List<String> visible = new ArrayList<>();
+    for (Method method : declaredPublicMethods(extensions)) {
+      visible.add(method.getName());
+    }
+
+    assertThat(visible).isEmpty();
   }
 
   private static List<Method> declaredPublicMethods(Class<?> type) {

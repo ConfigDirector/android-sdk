@@ -46,7 +46,8 @@ Every listener and every completion callback is handed back on the main thread, 
 straight from a watch:
 
 ```java
-client.watchBoolean("dark-mode", false, value -> onWatched("dark-mode", value));
+client.watchBoolean(
+    "temporary-feature-flag", true, value -> onWatched("temporary-feature-flag", value));
 ```
 
 The logger is the exception, and the one place the difference matters. The SDK writes logs from
@@ -56,22 +57,21 @@ rather than touching a view.
 
 ## What the buttons do
 
-**Configured / Pro plan / Anonymous** call `updateContext`. The client reconnects, re-evaluates, and
-the watches deliver the new values — `dark-mode` and `max-items` change with the plan,
-`welcome-message` with the name, and `sample-rate` does not change at all, so it is not delivered
-again.
+**Configured / Pro plan / Anonymous** call `updateContext`. The client reconnects, re-evaluates every
+config against the new identity, and the watches deliver whatever changed. A config whose value is
+the same for both identities is not delivered again.
 
 **Read every config** reads each config directly with `getBoolean`, `getString`, `getInt` and
-`getDouble`, including the three ways an evaluation falls back to the default it was given:
+`getDouble`, including two of the ways an evaluation falls back to the default it was given:
 
 ```
-'beta-banner' fell back to false (value-missing, user-456)
 'no-such-config' fell back to fallback (config-state-missing, user-456)
-'max-items' fell back to true (type-mismatch, user-456)
+'integer-config' fell back to true (type-mismatch, user-456)
 ```
 
-`max-items` holds an integer, so reading it as a boolean is a type mismatch rather than an error —
-every accessor returns the default it was given instead of throwing.
+`integer-config` holds an integer, so reading it as a boolean is a type mismatch rather than an
+error — every accessor returns the default it was given instead of throwing. Reading it as a double
+is not: a whole number is a number, so that one resolves.
 
 **Every API** runs [`ApiTour`](src/main/java/com/configdirector/sample/java/ApiTour.java): every call
 the screen itself has no reason to make, gathered in one place so the compiler covers it too — the

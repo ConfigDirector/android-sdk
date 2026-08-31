@@ -71,16 +71,21 @@ Both apps read the keys of the ConfigDirector sample project. Pointing them at a
 them is fine: each config falls back to the default the app passes alongside the key, which is what
 the screen shows until the client is ready.
 
-| Key               | Type    | Default the apps pass |
-| ----------------- | ------- | --------------------- |
-| `dark-mode`       | boolean | `false`               |
-| `welcome-message` | string  | `Hello`               |
-| `max-items`       | integer | `10`                  |
-| `sample-rate`     | float   | `0.0`                 |
-| `theme`           | json    | `{}`                  |
-| `beta-banner`     | boolean | `false`               |
+| Key                      | Read as | Default the apps pass |
+| ------------------------ | ------- | --------------------- |
+| `temporary-feature-flag` | boolean | `true`                |
+| `permanent-kill-switch`  | boolean | `false`               |
+| `integer-config`         | integer | `10`                  |
+| `day-of-the-week-config` | string  | `Friday`              |
+| `json-value-config`      | string  | `{}`                  |
+| `integer-config`         | double  | `0.0`                 |
 
-`theme` is read with a string default, which serves the raw JSON document.
+These are the keys the other ConfigDirector sample apps read, so the same dashboard project drives
+all of them.
+
+`json-value-config` is read with a string default, which serves the raw JSON document. The last row
+is the same integer config read as a double, so that all four accessors — `getBoolean`, `getString`,
+`getInt` and `getDouble` — appear on screen.
 
 Both connect in streaming mode, so a value changed in the dashboard reaches the screen without
 restarting them.

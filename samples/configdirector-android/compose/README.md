@@ -18,8 +18,8 @@ gone earlier, on sign-out for instance, calls `close()` itself.
 ## Reading a config
 
 ```kotlin
-val darkMode by remember(client) { client.values("dark-mode", false) }
-    .collectAsStateWithLifecycle(false)
+val featureFlag by remember(client) { client.values("temporary-feature-flag", true) }
+    .collectAsStateWithLifecycle(true)
 ```
 
 `values` is a Kotlin-only extension: it hands back a `Flow` built on the same listener registration

@@ -304,6 +304,8 @@ class ConfigDirectorClientTest {
         val fetched = server.requestCount
         Thread.sleep(300)
         assertThat(server.requestCount).isEqualTo(fetched)
+        // A transport left running would go on failing against the client it can no longer use.
+        assertThat(logger.messagesContaining("Error during polling")).isEmpty()
     }
 
     @Test

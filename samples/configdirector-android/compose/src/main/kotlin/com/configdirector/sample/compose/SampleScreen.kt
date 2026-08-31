@@ -41,18 +41,18 @@ fun SampleScreen(
     hasSdkKey: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
-    val darkMode by remember(client) { client.values("dark-mode", false) }
+    val featureFlag by remember(client) { client.values("temporary-feature-flag", true) }
+        .collectAsStateWithLifecycle(true)
+    val killSwitch by remember(client) { client.values("permanent-kill-switch", false) }
         .collectAsStateWithLifecycle(false)
-    val welcomeMessage by remember(client) { client.values("welcome-message", "Hello") }
-        .collectAsStateWithLifecycle("Hello")
-    val maxItems by remember(client) { client.values("max-items", 10) }
+    val integerConfig by remember(client) { client.values("integer-config", 10) }
         .collectAsStateWithLifecycle(10)
-    val sampleRate by remember(client) { client.values("sample-rate", 0.0) }
-        .collectAsStateWithLifecycle(0.0)
-    val theme by remember(client) { client.values("theme", "{}") }
+    val dayOfTheWeek by remember(client) { client.values("day-of-the-week-config", "Friday") }
+        .collectAsStateWithLifecycle("Friday")
+    val jsonValue by remember(client) { client.values("json-value-config", "{}") }
         .collectAsStateWithLifecycle("{}")
-    val betaBanner by remember(client) { client.values("beta-banner", false) }
-        .collectAsStateWithLifecycle(false)
+    val integerAsDouble by remember(client) { client.values("integer-config", 0.0) }
+        .collectAsStateWithLifecycle(0.0)
 
     var isReady by remember(client) { mutableStateOf(client.isReady) }
     var context by remember(client) { mutableStateOf(client.context) }
@@ -89,12 +89,12 @@ fun SampleScreen(
 
         SectionHeader(title = "Configs", trailing = if (isReady) "Ready" else "Connecting…")
 
-        ConfigRow("dark-mode", darkMode.toString())
-        ConfigRow("welcome-message", welcomeMessage)
-        ConfigRow("max-items", maxItems.toString())
-        ConfigRow("sample-rate", sampleRate.toString())
-        ConfigRow("theme", theme)
-        ConfigRow("beta-banner", "$betaBanner (no value served, so the default)")
+        ConfigRow("temporary-feature-flag", featureFlag.toString())
+        ConfigRow("permanent-kill-switch", killSwitch.toString())
+        ConfigRow("integer-config", integerConfig.toString())
+        ConfigRow("day-of-the-week-config", dayOfTheWeek)
+        ConfigRow("json-value-config", jsonValue)
+        ConfigRow("integer-config as a double", integerAsDouble.toString())
 
         HorizontalDivider()
 

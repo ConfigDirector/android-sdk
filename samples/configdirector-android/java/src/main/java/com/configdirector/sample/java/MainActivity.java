@@ -72,13 +72,21 @@ public final class MainActivity extends Activity {
    */
   private void watchEveryConfig() {
     subscriptions.add(
-        client.watchBoolean("dark-mode", false, value -> onWatched("dark-mode", value)));
+        client.watchBoolean(
+            "temporary-feature-flag", true, value -> onWatched("temporary-feature-flag", value)));
+    subscriptions.add(
+        client.watchBoolean(
+            "permanent-kill-switch", false, value -> onWatched("permanent-kill-switch", value)));
     subscriptions.add(
         client.watchString(
-            "welcome-message", "Hello", value -> onWatched("welcome-message", value)));
-    subscriptions.add(client.watchInt("max-items", 10, value -> onWatched("max-items", value)));
+            "day-of-the-week-config",
+            "Friday",
+            value -> onWatched("day-of-the-week-config", value)));
     subscriptions.add(
-        client.watchDouble("sample-rate", 0.0, value -> onWatched("sample-rate", value)));
+        client.watchInt("integer-config", 10, value -> onWatched("integer-config", value)));
+    subscriptions.add(
+        client.watchDouble(
+            "integer-config", 0.0, value -> onWatched("integer-config as a double", value)));
   }
 
   private void listen() {
@@ -147,18 +155,17 @@ public final class MainActivity extends Activity {
 
   /** Reads every config the sample knows about, including ones that fall back to their default. */
   private void readEveryConfig() {
-    log.add("dark-mode=" + client.getBoolean("dark-mode", false));
-    log.add("welcome-message=" + client.getString("welcome-message", "Hello"));
-    log.add("max-items=" + client.getInt("max-items", 10));
-    log.add("sample-rate=" + client.getDouble("sample-rate", 0.0));
-    log.add("theme=" + client.getString("theme", "{}"));
+    log.add("temporary-feature-flag=" + client.getBoolean("temporary-feature-flag", true));
+    log.add("permanent-kill-switch=" + client.getBoolean("permanent-kill-switch", false));
+    log.add("integer-config=" + client.getInt("integer-config", 10));
+    log.add("day-of-the-week-config=" + client.getString("day-of-the-week-config", "Friday"));
+    log.add("json-value-config=" + client.getString("json-value-config", "{}"));
+    log.add("integer-config as a double=" + client.getDouble("integer-config", 0.0));
 
-    // Served with no value for this context, so the default comes back.
-    log.add("beta-banner=" + client.getBoolean("beta-banner", false));
     // No config carries this key.
     log.add("no-such-config=" + client.getString("no-such-config", "fallback"));
     // Held as an integer, so it cannot be read as a boolean.
-    log.add("max-items as boolean=" + client.getBoolean("max-items", true));
+    log.add("integer-config as boolean=" + client.getBoolean("integer-config", true));
 
     render();
   }

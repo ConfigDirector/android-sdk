@@ -12,6 +12,13 @@ android {
     defaultConfig {
         minSdk = 21
         consumerProguardFiles("consumer-rules.pro")
+
+        // What a consumer must compile against. Left alone it follows compileSdk above, which
+        // would make every consumer move to the newest SDK to take an SDK update. The SDK touches
+        // almost nothing of the framework, so it does not need them to.
+        aarMetadata {
+            minCompileSdk = 21
+        }
     }
 
     compileOptions {
@@ -41,7 +48,10 @@ tasks.withType<JavaCompile>().configureEach {
 
 dependencies {
     api(libs.kotlinx.coroutines.android)
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.sse)
     testImplementation(libs.junit)
     testImplementation(libs.truth)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.okhttp.mockwebserver)
 }

@@ -37,6 +37,27 @@ Narrower loops while working:
 
 Running the sample apps is covered in [their README](samples/configdirector-android/README.md).
 
+## Dependencies
+
+The SDK depends on the Kotlin stdlib, coroutines, and OkHttp. Every addition to that list is a
+potential version conflict in a consumer's build, so the bar for a new one is high.
+
+**OkHttp 4.x, not 5.x.** OkHttp 5 is a multiplatform publication whose Android variant,
+`okhttp-android`, declares `minCompileSdk 37`. That is not an extra dependency to exclude — it *is*
+OkHttp on Android — and the floor passes through this AAR to every consumer, so an app on
+`compileSdk 34` could not use the SDK at all. It would also drag an app pinned to OkHttp 4 up to a
+new major. 4.12.0 is a plain jar with no such floor, and it is what most Android apps already have.
+
+**`minCompileSdk` is declared, not inherited.** Left alone, the AAR's floor follows this module's
+`compileSdk`, which would make every consumer move to the newest SDK to take an SDK update. The SDK
+touches almost nothing of the Android framework, so `aarMetadata.minCompileSdk` says 21 and the
+build compiles against the newest SDK regardless.
+
+Server-sent events come from `okhttp-sse` rather than a parser of our own. It handles the framing;
+the reconnection policy is ours, because OkHttp deliberately has none. What it does not surface —
+stream comments, and the server's `retry:` field — the reference SDKs ignore too: their transports
+back off on their own schedule.
+
 ## Every public API needs a Java test
 
 The SDK is Kotlin and serves two kinds of consumer: modern Kotlin apps, and Java codebases that

@@ -43,7 +43,7 @@ class StreamingTransportTest {
             baseUrl = server.url("/").toString(),
             metaContext = SdkMetaContext(
                 sdkName = "android-client-sdk",
-                sdkVersion = "0.1.0",
+                sdkVersion = "9.9.9",
                 appName = "Sample",
                 appVersion = "1.0",
                 userAgent = "Android",

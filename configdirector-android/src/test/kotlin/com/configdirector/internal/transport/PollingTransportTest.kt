@@ -47,7 +47,7 @@ class PollingTransportTest {
         baseUrl = server.url("/").toString(),
         metaContext = SdkMetaContext(
             sdkName = "android-client-sdk",
-            sdkVersion = "0.1.0",
+            sdkVersion = "9.9.9",
             appName = "Sample",
             appVersion = "1.0",
             userAgent = "Android",
@@ -114,7 +114,7 @@ class PollingTransportTest {
 
         val meta = body.getJSONObject("metaContext")
         assertThat(meta.getString("sdkName")).isEqualTo("android-client-sdk")
-        assertThat(meta.getString("sdkVersion")).isEqualTo("0.1.0")
+        assertThat(meta.getString("sdkVersion")).isEqualTo("9.9.9")
         assertThat(meta.getString("appName")).isEqualTo("Sample")
         assertThat(meta.getString("appVersion")).isEqualTo("1.0")
         assertThat(meta.getString("userAgent")).isEqualTo("Android")

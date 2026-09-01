@@ -10,6 +10,8 @@ plugins {
 group = providers.gradleProperty("GROUP").get()
 version = providers.gradleProperty("VERSION_NAME").get()
 
+private val publishedVersion = version.toString()
+
 private val REPOSITORY_URL = "https://github.com/ConfigDirector/android-sdk"
 
 android {
@@ -37,6 +39,10 @@ android {
         unitTests {
             isReturnDefaultValues = true
             isIncludeAndroidResources = true
+
+            // The version the SDK reports to the server is a constant in the source, and this is
+            // what lets a test hold it to the version the artifact is published under.
+            all { test -> test.systemProperty("configdirector.publishedVersion", publishedVersion) }
         }
     }
 }

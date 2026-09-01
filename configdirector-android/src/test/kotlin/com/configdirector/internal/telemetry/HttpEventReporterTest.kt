@@ -38,7 +38,7 @@ class HttpEventReporterTest {
         TransportOptions(
             clientSdkKey = "client-sdk-key",
             baseUrl = server.url("/").toString(),
-            metaContext = SdkMetaContext("android-client-sdk", "0.1.0", "Sample", "1.0", "Android"),
+            metaContext = SdkMetaContext("android-client-sdk", "9.9.9", "Sample", "1.0", "Android"),
             instanceId = "instance-1",
             logger = logger,
             pollingIntervalMillis = 60_000,

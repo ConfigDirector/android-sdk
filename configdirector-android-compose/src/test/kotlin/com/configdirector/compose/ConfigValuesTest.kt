@@ -13,6 +13,7 @@ import com.configdirector.LogLevel
 import com.configdirector.AndroidLogger
 import com.google.common.truth.Truth.assertThat
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Rule
@@ -65,6 +66,21 @@ class ConfigValuesTest {
         }
     }
 
+    /**
+     * Settles until [condition] holds. A value reaches the composition over a callback, a flow and
+     * a recomposition, and how many passes that takes depends on how the machine is doing, so a
+     * fixed number of them is a test that fails on a slow one.
+     */
+    private fun settleUntil(description: String, condition: () -> Boolean) {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (System.nanoTime() < deadline) {
+            settle()
+            if (condition()) return
+            Thread.sleep(5)
+        }
+        throw AssertionError("Timed out waiting for $description")
+    }
+
     @Test
     fun `serves the default until the client is ready`() {
         val values = CopyOnWriteArrayList<Boolean>()
@@ -81,9 +97,8 @@ class ConfigValuesTest {
 
         runBlocking { client.initialize(proContext) }
 
-        settle()
+        settleUntil("the value the server sent") { values.last() }
         assertThat(values.first()).isFalse()
-        assertThat(values.last()).isTrue()
     }
 
     @Test
@@ -91,7 +106,7 @@ class ConfigValuesTest {
         val values = CopyOnWriteArrayList<Boolean>()
         composed { values += configValue("dark-mode", false) }
         runBlocking { client.initialize(proContext) }
-        settle()
+        settleUntil("the value the server sent") { values.last() }
         val composedSoFar = values.size
 
         runBlocking { client.updateContext(proContext) }
@@ -105,13 +120,11 @@ class ConfigValuesTest {
         val values = CopyOnWriteArrayList<Boolean>()
         composed { values += configValue("dark-mode", false) }
         runBlocking { client.initialize(proContext) }
-        settle()
-        assertThat(values.last()).isTrue()
+        settleUntil("the value the server sent") { values.last() }
 
         runBlocking { client.updateContext(ConfigDirectorContext.build { trait("plan", "free") }) }
 
-        settle()
-        assertThat(values.last()).isFalse()
+        settleUntil("the value the new context evaluates to") { !values.last() }
     }
 
     @Test
@@ -120,13 +133,11 @@ class ConfigValuesTest {
         var key by mutableStateOf("dark-mode")
         composed { values += configValue(key, false) }
         runBlocking { client.initialize(proContext) }
-        settle()
-        assertThat(values.last()).isTrue()
+        settleUntil("the value the server sent") { values.last() }
 
         key = "no-such-config"
 
-        settle()
-        assertThat(values.last()).isFalse()
+        settleUntil("the value of the key it was moved to") { !values.last() }
     }
 
     @Test
@@ -157,8 +168,7 @@ class ConfigValuesTest {
 
         runBlocking { client.initialize(proContext) }
 
-        settle()
-        assertThat(ready.last()).isTrue()
+        settleUntil("the client to be ready") { ready.last() }
     }
 
     @Test
@@ -169,8 +179,7 @@ class ConfigValuesTest {
 
         runBlocking { client.initialize(proContext) }
 
-        settle()
-        assertThat(contexts.last()).isEqualTo(proContext)
+        settleUntil("the context to take effect") { contexts.last() == proContext }
     }
 
     @Test
@@ -179,8 +188,7 @@ class ConfigValuesTest {
         compose.setContent { ConfigDirectorProvider(client) { states += isClientReady() } }
 
         runBlocking { client.initialize(proContext) }
-        settle()
 
-        assertThat(states.last()).isTrue()
+        settleUntil("the client to be ready") { states.last() }
     }
 }

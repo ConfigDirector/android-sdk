@@ -136,7 +136,7 @@ Both artifacts share one version, in `gradle.properties`:
 
 ```properties
 GROUP=com.configdirector.android
-VERSION_NAME=0.1.0
+VERSION_NAME=1.0.0
 ```
 
 They are released together, because the Compose bindings depend on the core of the same version.

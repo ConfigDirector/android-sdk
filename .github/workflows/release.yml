@@ -69,10 +69,17 @@ jobs:
       - name: Check the Java tests ran
         run: ./.github/scripts/check-java-tests-ran.sh
 
-      # Uploads a signed bundle to the Central Portal and stops. The deployment is released from the
-      # Portal by hand, which is the last chance to look at what is about to become permanent.
+      # One artifact per invocation, deliberately: the Central Portal names a deployment after the
+      # artifact only when a build publishes a single one, and after the group and version when it
+      # publishes several. Two deployments both have to be released in the Portal for a version to
+      # be usable, since the Compose bindings depend on the core of the same version.
+      #
+      # Each uploads a signed bundle and stops there. Releasing them is a decision made in the
+      # Portal, which is the last chance to look at what is about to become permanent.
       - name: Publish to the Central Portal
-        run: ./gradlew publishToMavenCentral --no-configuration-cache
+        run: |
+          ./gradlew :configdirector-android:publishToMavenCentral --no-configuration-cache
+          ./gradlew :configdirector-android-compose:publishToMavenCentral --no-configuration-cache
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}

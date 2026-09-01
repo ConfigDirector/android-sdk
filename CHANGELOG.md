@@ -1,16 +1,33 @@
 # Changelog
 
-Changes to `com.configdirector.android:configdirector-android` and
-`com.configdirector.android:configdirector-android-compose`. The two are released together and
-share a version, so they share this file; an entry says which artifact it belongs to when it is not
-both.
+Changes to `com.configdirector:configdirector-android` and
+`com.configdirector:configdirector-android-compose`. The two are released together and share a
+version, so they share this file; an entry says which artifact it belongs to when it is not both.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and these artifacts
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-01
+
+### Changed
+
+- The artifacts moved from the `com.configdirector.android` group to `com.configdirector`, which is
+  where the other ConfigDirector SDKs live. Nothing else changed: update the group in your
+  dependency declaration and carry on.
+
+  ```kotlin
+  implementation("com.configdirector:configdirector-android:1.1.0")
+  implementation("com.configdirector:configdirector-android-compose:1.1.0")
+  ```
+
+  1.0.0 stays on Maven Central under the old group, since a published version cannot be withdrawn.
+  It receives no further versions, and this is the release to move to.
+
 ## [1.0.0] - 2026-09-01
+
+Published as `com.configdirector.android:configdirector-android`. Use 1.1.0 above instead.
 
 ### Added
 

@@ -135,21 +135,27 @@ watch it fail. Test names say what the code does, not which method they call.
 Both artifacts share one version, in `gradle.properties`:
 
 ```properties
-GROUP=com.configdirector.android
-VERSION_NAME=1.0.0
+GROUP=com.configdirector
+VERSION_NAME=1.1.0
 ```
 
 They are released together, because the Compose bindings depend on the core of the same version.
 
 A release is two steps: merge the `VERSION_NAME` bump, then run the **Release configdirector-android**
-workflow against `main`. It builds and tests everything CI does, uploads a signed bundle to the
-Maven Central Portal, and tags the commit `v<version>`. It refuses to run when that tag already
-exists, so a version cannot be released twice by accident.
+workflow against `main`. It builds and tests everything CI does, uploads a signed bundle per
+artifact to the Maven Central Portal, and tags the commit `v<version>`. It refuses to run when that
+tag already exists, so a version cannot be released twice by accident.
 
-The bundle is not a published version: the deployment waits in the
+The artifacts are uploaded one Gradle invocation each, so that the Portal names each deployment
+after the artifact it carries — `com.configdirector-configdirector-android-<version>` —
+rather than after the group. A build that publishes both at once is named after the group and the
+version instead, which says nothing about which artifact it holds.
+
+A bundle is not a published version: each deployment waits in the
 [Central Portal](https://central.sonatype.com) until someone releases it by hand, which is the last
-look at what is about to become permanent. Dropping it there instead means deleting the tag before
-running the workflow again.
+look at what is about to become permanent. **Both have to be released** for the version to be
+usable, since the Compose bindings depend on the core of the same version. Dropping them there
+instead means deleting the tag before running the workflow again.
 
 The workflow needs four repository secrets: `MAVEN_CENTRAL_USERNAME` and `MAVEN_CENTRAL_PASSWORD`
 (a Portal user token, not the account password), and `SIGNING_KEY` and `SIGNING_KEY_PASSWORD` (an

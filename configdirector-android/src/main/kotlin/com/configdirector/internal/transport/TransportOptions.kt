@@ -2,7 +2,7 @@ package com.configdirector.internal.transport
 
 import com.configdirector.ConfigDirectorContext
 import com.configdirector.ConfigDirectorLogger
-import org.json.JSONArray
+import com.configdirector.internal.JsonValues
 import org.json.JSONObject
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -34,7 +34,7 @@ internal class TransportOptions(
 
     fun payload(context: ConfigDirectorContext, lastUpdateTimestamp: String? = null): String {
         val payload = JSONObject()
-            .put("givenContext", contextJson(context))
+            .put("givenContext", JsonValues.contextJson(context))
             .put("metaContext", metaContextJson())
             .put("clientSdkKey", clientSdkKey)
             .put("instanceId", instanceId)
@@ -42,15 +42,6 @@ internal class TransportOptions(
         lastUpdateTimestamp?.let { payload.put("lastUpdateTimestamp", it) }
 
         return payload.toString()
-    }
-
-    private fun contextJson(context: ConfigDirectorContext): JSONObject {
-        val json = JSONObject()
-        context.id?.let { json.put("id", it) }
-        context.name?.let { json.put("name", it) }
-        context.traits?.let { json.put("traits", jsonValue(it)) }
-        json.put("anonymous", context.isAnonymous)
-        return json
     }
 
     private fun metaContextJson(): JSONObject {
@@ -63,18 +54,6 @@ internal class TransportOptions(
         return json
     }
 
-    // Traits are JSON-shaped by the time they get here: ConfigDirectorContext.Builder rejects
-    // anything else when it builds.
-    private fun jsonValue(value: Any?): Any = when (value) {
-        null -> JSONObject.NULL
-        is Map<*, *> -> JSONObject().apply {
-            value.forEach { (key, element) -> put(key.toString(), jsonValue(element)) }
-        }
-        is List<*> -> JSONArray().apply {
-            value.forEach { element -> put(jsonValue(element)) }
-        }
-        else -> value
-    }
 }
 
 /** 2^9 seconds is a little over 8 minutes, which caps the backoff to under 10. */

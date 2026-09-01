@@ -353,6 +353,51 @@ class ConfigDirectorClientTest {
     }
 
     @Test
+    fun `reports the configs it evaluated to the server`() = runBlocking {
+        val client = client()
+        client.initialize(proContext)
+        client.getBoolean("dark-mode", false)
+        client.getBoolean("dark-mode", false)
+
+        // A context update reports what the context before it saw.
+        client.updateContext(ConfigDirectorContext.build { id("user-456") })
+
+        waitFor("the telemetry report") { server.telemetryReports.isNotEmpty() }
+        val payload = server.telemetryReports.first()
+        assertThat(payload.getString("clientSdkKey")).isEqualTo("client-sdk-key")
+        assertThat(payload.getJSONObject("context").getString("id")).isEqualTo("user-123")
+
+        val events = payload.getJSONObject("aggregatedEvents").getJSONArray("evaluatedConfig")
+        val darkMode = (0 until events.length())
+            .map { events.getJSONObject(it) }
+            .single { it.getJSONObject("event").getString("key") == "dark-mode" }
+
+        assertThat(darkMode.getInt("count")).isEqualTo(2)
+        val event = darkMode.getJSONObject("event")
+        assertThat(event.getString("contextId")).isEqualTo("user-123")
+        assertThat(event.getString("requestedType")).isEqualTo("Boolean")
+        assertThat(event.getString("evaluationReason")).isEqualTo("found-match")
+        assertThat(event.getJSONObject("evaluatedValue").getString("value")).isEqualTo("true")
+        assertThat(event.getJSONObject("defaultValue").getString("value")).isEqualTo("false")
+    }
+
+    @Test
+    fun `reports what it evaluated when the client closes`() = runBlocking {
+        val client = client()
+        client.initialize(proContext)
+        client.getInt("max-items", 0)
+
+        client.close()
+
+        waitFor("the telemetry report") { server.telemetryReports.isNotEmpty() }
+        val events = server.telemetryReports.first()
+            .getJSONObject("aggregatedEvents")
+            .getJSONArray("evaluatedConfig")
+        assertThat(events.getJSONObject(0).getJSONObject("event").getString("key"))
+            .isEqualTo("max-items")
+    }
+
+    @Test
     fun `stops talking to the server once closed`() = runBlocking {
         val client = client(mode = ConnectionMode.POLLING, pollingIntervalMillis = 50)
         client.initialize()

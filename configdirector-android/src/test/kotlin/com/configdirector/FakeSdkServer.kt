@@ -2,6 +2,7 @@ package com.configdirector
 
 import java.io.Closeable
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
@@ -18,6 +19,7 @@ class FakeSdkServer : Closeable {
 
     private val server = MockWebServer()
     private val scripted = ConcurrentLinkedQueue<String>()
+    private val telemetry = CopyOnWriteArrayList<JSONObject>()
 
     /** The status to answer with, so a test can see what the client does with a failure. */
     @Volatile
@@ -41,6 +43,9 @@ class FakeSdkServer : Closeable {
     val baseUrl: String get() = server.url("/").toString()
 
     val requestCount: Int get() = server.requestCount
+
+    /** Every telemetry report the client has sent, in the order the server received them. */
+    val telemetryReports: List<JSONObject> get() = telemetry
 
     /** The next request the server received, or null if none arrived within [timeoutMillis]. An
      * unbounded wait would hang the whole suite when the client never connects. */
@@ -68,6 +73,12 @@ class FakeSdkServer : Closeable {
 
     private fun respondTo(request: RecordedRequest): MockResponse {
         val response = MockResponse().setHeadersDelay(responseDelayMillis, TimeUnit.MILLISECONDS)
+
+        if (request.path?.contains("telemetry") == true) {
+            telemetry += JSONObject(request.body.peek().readUtf8())
+            return response
+        }
+
         if (status != 200) {
             return response.setResponseCode(status).setBody("the server rejected the request")
         }

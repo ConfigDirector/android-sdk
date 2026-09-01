@@ -1,5 +1,6 @@
 package com.configdirector.internal
 
+import com.configdirector.ConfigDirectorContext
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -20,6 +21,31 @@ internal object JsonValues {
         toList(JSONArray(rawValue))
     } catch (malformed: JSONException) {
         null
+    }
+
+    /** The context as the ConfigDirector API expects it, on every request that carries one. */
+    fun contextJson(context: ConfigDirectorContext): JSONObject = JSONObject().apply {
+        context.id?.let { put("id", it) }
+        context.name?.let { put("name", it) }
+        // Traits are JSON-shaped by the time they get here: the context builder rejects anything
+        // else when it builds.
+        context.traits?.let { put("traits", toJson(it)) }
+        put("anonymous", context.isAnonymous)
+    }
+
+    /** The JSON text for a value made of maps, lists, strings, numbers and booleans. */
+    fun toJsonText(value: Any?): String = when (value) {
+        is Map<*, *>, is List<*> -> toJson(value).toString()
+        else -> value.toString()
+    }
+
+    private fun toJson(value: Any?): Any = when (value) {
+        null -> JSONObject.NULL
+        is Map<*, *> -> JSONObject().apply {
+            value.forEach { (key, element) -> put(key.toString(), toJson(element)) }
+        }
+        is List<*> -> JSONArray().apply { value.forEach { element -> put(toJson(element)) } }
+        else -> value
     }
 
     private fun toMap(json: JSONObject): Map<String, Any?> {

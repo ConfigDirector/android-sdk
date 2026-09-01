@@ -11,6 +11,10 @@ import com.configdirector.EvaluationListener
 import com.configdirector.EvaluationReason
 import com.configdirector.Subscription
 import com.configdirector.debug
+import com.configdirector.internal.telemetry.EvaluatedConfigEvent
+import com.configdirector.internal.telemetry.TelemetryClient
+import com.configdirector.internal.telemetry.TelemetryValue
+import com.configdirector.internal.telemetry.requestedTypeOf
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
@@ -31,7 +35,10 @@ import kotlinx.coroutines.withTimeoutOrNull
  * Holds the config state the client evaluates against, and everything that observes it: the ready
  * signal, the registered listeners, and the active watches.
  */
-internal class ConfigStore(private val logger: ConfigDirectorLogger) {
+internal class ConfigStore(
+    private val logger: ConfigDirectorLogger,
+    private val telemetry: TelemetryClient,
+) {
 
     private class Watcher(val reevaluate: () -> Unit)
 
@@ -162,6 +169,20 @@ internal class ConfigStore(private val logger: ConfigDirectorLogger) {
         val result = configState?.let(parse) ?: EvaluationResult.usedDefault(
             defaultValue,
             if (isReady) EvaluationReason.CONFIG_STATE_MISSING else EvaluationReason.CLIENT_NOT_READY,
+        )
+
+        telemetry.evaluatedConfig(
+            EvaluatedConfigEvent(
+                contextId = context?.id,
+                key = key,
+                type = configState?.type,
+                defaultValue = TelemetryValue.of(defaultValue, null, configState?.type),
+                requestedType = requestedTypeOf(defaultValue),
+                evaluatedValue = TelemetryValue.of(result.value, result.valueId, configState?.type),
+                evaluatedValueId = result.valueId,
+                usedDefault = result.usedDefault,
+                evaluationReason = result.reason,
+            ),
         )
 
         val evaluation = ConfigEvaluation(

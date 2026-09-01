@@ -7,6 +7,9 @@ import com.configdirector.internal.Constants
 import com.configdirector.internal.transport.PollingTransport
 import com.configdirector.internal.transport.StreamingTransport
 import com.configdirector.internal.transport.Transport
+import com.configdirector.internal.telemetry.HttpEventReporter
+import com.configdirector.internal.telemetry.TelemetryClient
+import com.configdirector.internal.telemetry.TelemetryEventCollector
 import com.configdirector.internal.transport.TransportOptions
 import com.configdirector.internal.transport.sdkHttpClient
 import java.io.Closeable
@@ -55,7 +58,8 @@ public class ConfigDirectorClient @JvmOverloads constructor(
 
     private val logger: ConfigDirectorLogger = options.logger
     private val timeoutMillis: Long = options.connection.timeoutMillis
-    private val store = ConfigStore(logger)
+    private val store: ConfigStore
+    private val telemetry: TelemetryClient
     private val httpClient: OkHttpClient
     private val transport: Transport
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -80,18 +84,21 @@ public class ConfigDirectorClient @JvmOverloads constructor(
 
         httpClient = sdkHttpClient(timeoutMillis, logger)
 
-        transport = transportFor(
-            options.connection.mode,
-            TransportOptions(
-                clientSdkKey = clientSdkKey,
-                baseUrl = baseUrl,
-                metaContext = AppInfo.metaContext(options.metadata),
-                instanceId = UUID.randomUUID().toString(),
-                logger = logger,
-                pollingIntervalMillis = options.connection.pollingIntervalMillis,
-                httpClient = httpClient,
-            ),
-        ) { configSet -> store.handleConfigSet(configSet) }
+        val transportOptions = TransportOptions(
+            clientSdkKey = clientSdkKey,
+            baseUrl = baseUrl,
+            metaContext = AppInfo.metaContext(options.metadata),
+            instanceId = UUID.randomUUID().toString(),
+            logger = logger,
+            pollingIntervalMillis = options.connection.pollingIntervalMillis,
+            httpClient = httpClient,
+        )
+
+        telemetry = TelemetryEventCollector(HttpEventReporter(transportOptions), logger)
+        store = ConfigStore(logger, telemetry)
+        transport = transportFor(options.connection.mode, transportOptions) { configSet ->
+            store.handleConfigSet(configSet)
+        }
     }
 
     /**
@@ -292,11 +299,13 @@ public class ConfigDirectorClient @JvmOverloads constructor(
         if (closed.getAndSet(true)) return
 
         logger.debug { "close() called, closing the connection to the server" }
+        telemetry.close()
         store.close()
         transport.close()
         scope.cancel()
-        httpClient.dispatcher.executorService.shutdown()
-        httpClient.connectionPool.evictAll()
+        // The HTTP client is left to wind itself down: telemetry reports what it collected as the
+        // client closes, and shutting the executor out from under that request would drop it. Idle
+        // threads and connections are reaped on their own.
     }
 
     @get:JvmSynthetic
@@ -328,6 +337,7 @@ public class ConfigDirectorClient @JvmOverloads constructor(
             return
         }
 
+        telemetry.updateContext(context)
         store.setContext(context)
 
         val remaining = timeoutMillis - (System.nanoTime() - startedAt) / NANOS_PER_MILLISECOND

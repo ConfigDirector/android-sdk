@@ -43,10 +43,13 @@ android {
 
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
-    // dangling-doc-comments is off because the generated BuildConfig.java trips it.
-    options.compilerArgs.addAll(
-        listOf("-Xlint:all", "-Xlint:-options", "-Xlint:-dangling-doc-comments", "-Werror"),
-    )
+    options.compilerArgs.addAll(listOf("-Xlint:all", "-Xlint:-options", "-Werror"))
+
+    // The generated BuildConfig.java trips dangling-doc-comments, a category that arrived in JDK
+    // 22. Older compilers never warn about it, and reject the flag that turns it off.
+    if (JavaVersion.current() >= JavaVersion.VERSION_22) {
+        options.compilerArgs.add("-Xlint:-dangling-doc-comments")
+    }
 }
 
 dependencies {

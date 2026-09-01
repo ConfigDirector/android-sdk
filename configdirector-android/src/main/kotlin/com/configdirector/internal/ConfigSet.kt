@@ -27,7 +27,18 @@ internal data class ConfigState(
     val id: String = "",
     /** An opaque identifier of the evaluated value, used for telemetry. */
     val valueId: String? = null,
-)
+) {
+    /**
+     * The value read as a JSON document, parsed on the first read that asks for it.
+     *
+     * A config is read far more often than it changes -- once per recomposition, for instance --
+     * and parsing it every time would put that work on the caller's thread.
+     */
+    val jsonObject: Map<String, Any?>? by lazy { value?.jsonObjectOrNull() }
+
+    /** See [jsonObject]. */
+    val jsonArray: List<Any?>? by lazy { value?.jsonArrayOrNull() }
+}
 
 /**
  * Whether a [ConfigSet] carries the complete config state or only the configs that changed since

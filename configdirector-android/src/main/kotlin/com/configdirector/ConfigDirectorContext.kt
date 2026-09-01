@@ -146,7 +146,13 @@ private fun validateTraits(traits: Map<String, Any?>) {
 
 private fun validateTrait(path: String, value: Any?, enclosing: MutableSet<Any>) {
     when (value) {
-        null, is String, is Boolean, is Number -> Unit
+        null, is String, is Boolean -> Unit
+
+        is Double -> requireFinite(path, value)
+
+        is Float -> requireFinite(path, value.toDouble())
+
+        is Number -> Unit
 
         is List<*> -> withinContainer(path, value, enclosing) {
             value.forEachIndexed { index, element ->
@@ -170,6 +176,15 @@ private fun validateTrait(path: String, value: Any?, enclosing: MutableSet<Any>)
             "Invalid trait '$path' of type ${value.javaClass.name}. A trait value must be a " +
                 "String, Number, Boolean, List, Map, or null; anything else has no form a " +
                 "targeting rule could match.",
+        )
+    }
+}
+
+private fun requireFinite(path: String, value: Double) {
+    if (value.isNaN() || value.isInfinite()) {
+        throw ConfigDirectorValidationException(
+            "Invalid trait '$path' with value $value. A trait number has to be finite: JSON has no " +
+                "way to spell NaN or infinity, so the whole context would fail to send.",
         )
     }
 }

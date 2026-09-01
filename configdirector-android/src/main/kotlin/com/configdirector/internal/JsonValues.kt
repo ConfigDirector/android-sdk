@@ -1,6 +1,7 @@
 package com.configdirector.internal
 
 import com.configdirector.ConfigDirectorContext
+import java.util.Collections
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -47,10 +48,13 @@ private fun Any?.toJsonValue(): Any = when (this) {
     else -> this
 }
 
+// Read-only all the way down: a document is parsed once and handed to every caller that reads it,
+// so one caller altering it would alter what the next one reads.
 private fun JSONObject.toValueMap(): Map<String, Any?> =
-    keys().asSequence().associateWith { key -> get(key).toValue() }
+    Collections.unmodifiableMap(keys().asSequence().associateWith { key -> get(key).toValue() })
 
-private fun JSONArray.toValueList(): List<Any?> = (0 until length()).map { index -> get(index).toValue() }
+private fun JSONArray.toValueList(): List<Any?> =
+    Collections.unmodifiableList((0 until length()).map { index -> get(index).toValue() })
 
 private fun Any?.toValue(): Any? = when (this) {
     JSONObject.NULL, null -> null

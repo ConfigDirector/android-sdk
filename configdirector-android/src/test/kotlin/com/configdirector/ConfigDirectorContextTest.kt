@@ -178,4 +178,24 @@ class ConfigDirectorContextTest {
 
         assertThat(failure).hasMessageThat().contains("nest at most 32 levels")
     }
+
+    @Test
+    fun `rejects a trait holding a number JSON cannot spell`() {
+        val builder = ConfigDirectorContext.builder().trait("score", Double.NaN)
+
+        val failure = assertThrows(ConfigDirectorValidationException::class.java) { builder.build() }
+
+        assertThat(failure).hasMessageThat().contains("Invalid trait 'score'")
+        assertThat(failure).hasMessageThat().contains("NaN")
+    }
+
+    @Test
+    fun `rejects an infinite number inside a trait`() {
+        val builder = ConfigDirectorContext.builder()
+            .trait("limits", mapOf("max" to Float.POSITIVE_INFINITY))
+
+        val failure = assertThrows(ConfigDirectorValidationException::class.java) { builder.build() }
+
+        assertThat(failure).hasMessageThat().contains("'limits.max'")
+    }
 }

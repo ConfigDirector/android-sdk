@@ -78,10 +78,10 @@ class TelemetryEventsTest {
     }
 
     @Test
-    fun `renders a JSON default as JSON rather than as a Kotlin map`() {
-        val value = TelemetryValue.of(mapOf("primary" to "#101010"), null, ConfigType.JSON)
+    fun `spells a JSON value out as JSON rather than as a Kotlin map`() {
+        val value = TelemetryValue(mapOf("primary" to "#101010"), null, ConfigType.STRING)
 
-        assertThat(value.value).isEqualTo("""{"primary":"#101010"}""")
+        assertThat(value.compacted().value).isEqualTo("""{"primary":"#101010"}""")
     }
 
     @Test

@@ -81,6 +81,19 @@ public class ConfigDirectorClientJavaTest {
   }
 
   @Test
+  public void servesAJsonConfigThatNoCallerCanAlter() throws InterruptedException {
+    ConfigDirectorClient client = client();
+    CountDownLatch initialized = new CountDownLatch(1);
+    client.initialize(null, initialized::countDown);
+    assertThat(initialized.await(5, TimeUnit.SECONDS)).isTrue();
+
+    Map<String, Object> theme = client.getJsonObject("theme", Collections.<String, Object>emptyMap());
+
+    assertThrows(UnsupportedOperationException.class, () -> theme.put("primary", "#ffffff"));
+    client.close();
+  }
+
+  @Test
   public void initializesWithoutAContext() throws InterruptedException {
     ConfigDirectorClient client = client();
     CountDownLatch initialized = new CountDownLatch(1);

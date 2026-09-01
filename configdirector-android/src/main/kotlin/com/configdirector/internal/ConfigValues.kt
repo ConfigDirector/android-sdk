@@ -75,10 +75,10 @@ internal fun ConfigState.asDouble(defaultValue: Double): EvaluationResult<Double
 internal fun ConfigState.asJsonObject(
     defaultValue: Map<String, Any?>,
 ): EvaluationResult<Map<String, Any?>> =
-    read(defaultValue, ConfigValueKind.JSON) { rawValue -> rawValue.jsonObjectOrNull() }
+    read(defaultValue, ConfigValueKind.JSON) { jsonObject }
 
 internal fun ConfigState.asJsonArray(defaultValue: List<Any?>): EvaluationResult<List<Any?>> =
-    read(defaultValue, ConfigValueKind.JSON) { rawValue -> rawValue.jsonArrayOrNull() }
+    read(defaultValue, ConfigValueKind.JSON) { jsonArray }
 
 private fun <T> ConfigState.read(
     defaultValue: T,

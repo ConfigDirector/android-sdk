@@ -159,6 +159,44 @@ class ConfigDirectorClientTest {
     }
 
     @Test
+    fun `leaves a JSON default value unserialized on the reading thread`() = runBlocking {
+        val client = client()
+        val fallback = CountingMap(mapOf("primary" to "#ffffff"))
+
+        client.initialize()
+        repeat(3) { client.getJsonObject("theme", fallback) }
+
+        assertThat(fallback.iterations).isEqualTo(0)
+    }
+
+    @Test
+    fun `parses a JSON config once however often it is read`() = runBlocking {
+        val client = client()
+
+        client.initialize()
+
+        val first = client.getJsonObject("theme", emptyMap<String, Any?>())
+        assertThat(client.getJsonObject("theme", emptyMap<String, Any?>())).isSameInstanceAs(first)
+    }
+
+    @Test
+    fun `serves a JSON config as a document no caller can alter`() = runBlocking<Unit> {
+        val client = client()
+
+        client.initialize()
+
+        val theme = client.getJsonObject("theme", emptyMap<String, Any?>())
+        @Suppress("UNCHECKED_CAST")
+        assertThrows(UnsupportedOperationException::class.java) {
+            (theme as MutableMap<String, Any?>)["primary"] = "#ffffff"
+        }
+        @Suppress("UNCHECKED_CAST")
+        assertThrows(UnsupportedOperationException::class.java) {
+            (theme["spacing"] as MutableMap<String, Any?>)["small"] = 8
+        }
+    }
+
+    @Test
     fun `serves a JSON config as a list`() = runBlocking {
         val client = client()
 
@@ -444,4 +482,17 @@ class ConfigDirectorClientTest {
         assertThat(server.requestCount).isEqualTo(0)
         assertThat(logger.messagesContaining("The client is closed")).hasSize(1)
     }
+}
+
+private class CountingMap(
+    private val entriesByKey: Map<String, Any?>,
+) : Map<String, Any?> by entriesByKey {
+    var iterations = 0
+        private set
+
+    override val entries: Set<Map.Entry<String, Any?>>
+        get() {
+            iterations += 1
+            return entriesByKey.entries
+        }
 }

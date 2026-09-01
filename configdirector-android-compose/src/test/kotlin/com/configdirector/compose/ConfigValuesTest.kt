@@ -170,4 +170,15 @@ class ConfigValuesTest {
         settle()
         assertThat(contexts.last()).isEqualTo(proContext)
     }
+
+    @Test
+    fun `reports a client that becomes ready after the composition started`() {
+        val states = CopyOnWriteArrayList<Boolean>()
+        compose.setContent { ConfigDirectorProvider(client) { states += isClientReady() } }
+
+        runBlocking { client.initialize(proContext) }
+        settle()
+
+        assertThat(states.last()).isTrue()
+    }
 }

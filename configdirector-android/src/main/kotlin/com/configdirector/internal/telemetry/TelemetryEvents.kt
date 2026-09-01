@@ -14,30 +14,39 @@ import org.json.JSONObject
  * the value spelled out, or the id of a value too large to spell out.
  */
 internal data class TelemetryValue(
-    val value: String? = null,
+    /**
+     * The value as the caller holds it, which is a map or a list for a JSON config. It is spelled
+     * out as text only when the value is [compacted].
+     */
+    val value: Any? = null,
     val valueId: String? = null,
     /** The type the config was declared with, carried only until the value is [compacted]. */
     val type: ConfigType? = null,
 ) {
     /**
      * The form that goes on the wire: an oversized value, and every JSON document, is replaced by
-     * its id. This is the only step that hashes, which is why it runs off the caller's thread.
+     * its id. This is the only step that spells values out and hashes them, which is why it runs
+     * off the caller's thread.
      */
     fun compacted(): TelemetryValue {
-        val mustUseId = type == ConfigType.JSON || (value?.length ?: 0) > MAX_VALUE_LENGTH
+        val isJson = type == ConfigType.JSON
+        if (valueId != null && isJson) return TelemetryValue(valueId = valueId)
+
+        val text = value?.toJsonText()
+        val mustUseId = isJson || (text?.length ?: 0) > MAX_VALUE_LENGTH
 
         if (valueId != null && mustUseId) return TelemetryValue(valueId = valueId)
-        if (value.isNullOrEmpty()) return TelemetryValue(valueId = valueId)
+        if (text.isNullOrEmpty()) return TelemetryValue(valueId = valueId)
 
         return if (mustUseId) {
-            TelemetryValue(valueId = valueIdFor(value))
+            TelemetryValue(valueId = valueIdFor(text))
         } else {
-            TelemetryValue(value = value)
+            TelemetryValue(value = text)
         }
     }
 
     fun toJson(): JSONObject = JSONObject().apply {
-        value?.let { put("value", it) }
+        value?.let { put("value", it.toJsonText()) }
         valueId?.let { put("valueId", it) }
         type?.let { put("type", it.wireName) }
     }

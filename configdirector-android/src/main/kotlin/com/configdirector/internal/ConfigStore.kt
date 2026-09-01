@@ -174,24 +174,26 @@ internal class ConfigStore(
                 contextId = context?.id,
                 key = key,
                 type = configState?.type,
-                defaultValue = TelemetryValue.of(defaultValue, null, configState?.type),
+                defaultValue = TelemetryValue(defaultValue, valueId = null, type = configState?.type),
                 requestedType = requestedTypeOf(defaultValue),
-                evaluatedValue = TelemetryValue.of(result.value, result.valueId, configState?.type),
+                evaluatedValue = TelemetryValue(result.value, result.valueId, configState?.type),
                 evaluatedValueId = result.valueId,
                 usedDefault = result.usedDefault,
                 evaluationReason = result.reason,
             ),
         )
 
-        val evaluation = ConfigEvaluation(
-            key = key,
-            value = result.value,
-            valueId = result.valueId,
-            isDefaultValue = result.usedDefault,
-            reason = result.reason,
-            context = context,
-        )
-        evaluationListeners.forEach { listener -> deliver { listener.onEvaluation(evaluation) } }
+        if (evaluationListeners.isNotEmpty()) {
+            val evaluation = ConfigEvaluation(
+                key = key,
+                value = result.value,
+                valueId = result.valueId,
+                isDefaultValue = result.usedDefault,
+                reason = result.reason,
+                context = context,
+            )
+            evaluationListeners.forEach { listener -> deliver { listener.onEvaluation(evaluation) } }
+        }
 
         logger.debug { "Evaluated '$key' to '${result.value}' (${result.reason.wireName})" }
         return result.value

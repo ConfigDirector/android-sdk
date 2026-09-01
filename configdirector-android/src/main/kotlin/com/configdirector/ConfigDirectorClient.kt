@@ -205,7 +205,7 @@ public class ConfigDirectorClient @JvmOverloads constructor(
 
     /**
      * Evaluates [key], reading a JSON config's document as a map. The values inside are String,
-     * Number, Boolean, List, Map, or null.
+     * Number, Boolean, List, Map, or null, and the document cannot be modified.
      *
      * Only a config declared as JSON in the ConfigDirector dashboard reads as one; read any other
      * config as a string to get its raw value. See [getBoolean].
@@ -217,7 +217,7 @@ public class ConfigDirectorClient @JvmOverloads constructor(
 
     /**
      * Evaluates [key], reading a JSON config's document as a list. The values inside are String,
-     * Number, Boolean, List, Map, or null. See [getBoolean].
+     * Number, Boolean, List, Map, or null, and the document cannot be modified. See [getBoolean].
      */
     public fun getJsonArray(
         key: String,

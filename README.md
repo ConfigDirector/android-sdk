@@ -3,8 +3,8 @@
 This is the Android client SDK for [ConfigDirector](https://www.configdirector.com). It is written
 in Kotlin and is meant to be used from Kotlin and Java alike, and it ships as two artifacts:
 
-- `com.configdirector:configdirector-android` — the SDK.
-- `com.configdirector:configdirector-android-compose` — optional Jetpack Compose bindings over it.
+- `com.configdirector.android:configdirector-android` — the SDK.
+- `com.configdirector.android:configdirector-android-compose` — optional Jetpack Compose bindings over it.
 
 ## Documentation
 

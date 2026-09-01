@@ -135,7 +135,7 @@ watch it fail. Test names say what the code does, not which method they call.
 Both artifacts share one version, in `gradle.properties`:
 
 ```properties
-GROUP=com.configdirector
+GROUP=com.configdirector.android
 VERSION_NAME=0.1.0
 ```
 

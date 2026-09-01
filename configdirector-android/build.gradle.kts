@@ -1,3 +1,6 @@
+import com.android.build.api.artifact.SingleArtifact
+import com.configdirector.gradle.registerApiValidation
+
 plugins {
     alias(libs.plugins.android.library)
 }
@@ -31,6 +34,12 @@ android {
             isReturnDefaultValues = true
             isIncludeAndroidResources = true
         }
+    }
+}
+
+androidComponents {
+    onVariants(selector().withName("release")) { variant ->
+        registerApiValidation(variant.artifacts.get(SingleArtifact.AAR))
     }
 }
 

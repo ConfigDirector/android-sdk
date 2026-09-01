@@ -1,3 +1,6 @@
+import com.android.build.api.artifact.SingleArtifact
+import com.configdirector.gradle.registerApiValidation
+
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.compose.compiler)
@@ -33,6 +36,12 @@ android {
         // moved; a consumer already using Compose is on 11 by definition.
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+    }
+}
+
+androidComponents {
+    onVariants(selector().withName("release")) { variant ->
+        registerApiValidation(variant.artifacts.get(SingleArtifact.AAR))
     }
 }
 

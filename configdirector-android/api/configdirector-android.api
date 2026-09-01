@@ -1,0 +1,272 @@
+public final class com/configdirector/AndroidLogger : com/configdirector/ConfigDirectorLogger {
+	public fun <init> ()V
+	public fun <init> (Lcom/configdirector/LogLevel;)V
+	public synthetic fun <init> (Lcom/configdirector/LogLevel;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun getLevel ()Lcom/configdirector/LogLevel;
+	public fun log (Lcom/configdirector/LogLevel;Ljava/lang/String;Ljava/lang/Throwable;)V
+}
+
+public abstract class com/configdirector/ClientEvent {
+}
+
+public final class com/configdirector/ClientEvent$ConfigsUpdated : com/configdirector/ClientEvent {
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getKeys ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/configdirector/ClientEvent$ContextUpdated : com/configdirector/ClientEvent {
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getContext ()Lcom/configdirector/ConfigDirectorContext;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/configdirector/ClientEvent$Ready : com/configdirector/ClientEvent {
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getReason ()Lcom/configdirector/ConnectReason;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/configdirector/ClientEventListener {
+	public abstract fun onEvent (Lcom/configdirector/ClientEvent;)V
+}
+
+public final class com/configdirector/ClientOptions {
+	public static final field Companion Lcom/configdirector/ClientOptions$Companion;
+	public synthetic fun <init> (Lcom/configdirector/Metadata;Lcom/configdirector/ConnectionOptions;Lcom/configdirector/ConfigDirectorLogger;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public static final fun builder ()Lcom/configdirector/ClientOptions$Builder;
+	public static final fun defaults ()Lcom/configdirector/ClientOptions;
+	public final fun getConnection ()Lcom/configdirector/ConnectionOptions;
+	public final fun getLogger ()Lcom/configdirector/ConfigDirectorLogger;
+	public final fun getMetadata ()Lcom/configdirector/Metadata;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/configdirector/ClientOptions$Builder {
+	public final fun build ()Lcom/configdirector/ClientOptions;
+	public final fun connection (Lcom/configdirector/ConnectionOptions;)Lcom/configdirector/ClientOptions$Builder;
+	public final synthetic fun connection (Lkotlin/jvm/functions/Function1;)Lcom/configdirector/ClientOptions$Builder;
+	public final fun logger (Lcom/configdirector/ConfigDirectorLogger;)Lcom/configdirector/ClientOptions$Builder;
+	public final fun metadata (Lcom/configdirector/Metadata;)Lcom/configdirector/ClientOptions$Builder;
+	public final fun metadata (Ljava/lang/String;Ljava/lang/String;)Lcom/configdirector/ClientOptions$Builder;
+}
+
+public final class com/configdirector/ClientOptions$Companion {
+	public final synthetic fun build (Lkotlin/jvm/functions/Function1;)Lcom/configdirector/ClientOptions;
+	public final fun builder ()Lcom/configdirector/ClientOptions$Builder;
+	public final fun defaults ()Lcom/configdirector/ClientOptions;
+}
+
+public abstract interface class com/configdirector/CompletionCallback {
+	public abstract fun onComplete ()V
+}
+
+public final class com/configdirector/ConfigDirectorClient : java/io/Closeable {
+	public fun <init> (Landroid/content/Context;Ljava/lang/String;)V
+	public fun <init> (Landroid/content/Context;Ljava/lang/String;Lcom/configdirector/ClientOptions;)V
+	public synthetic fun <init> (Landroid/content/Context;Ljava/lang/String;Lcom/configdirector/ClientOptions;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun addEvaluationListener (Lcom/configdirector/EvaluationListener;)Lcom/configdirector/Subscription;
+	public final fun addEventListener (Lcom/configdirector/ClientEventListener;)Lcom/configdirector/Subscription;
+	public fun close ()V
+	public final fun getBoolean (Ljava/lang/String;Z)Z
+	public final fun getContext ()Lcom/configdirector/ConfigDirectorContext;
+	public final fun getDouble (Ljava/lang/String;D)D
+	public final fun getInt (Ljava/lang/String;I)I
+	public final fun getJsonArray (Ljava/lang/String;Ljava/util/List;)Ljava/util/List;
+	public final fun getJsonObject (Ljava/lang/String;Ljava/util/Map;)Ljava/util/Map;
+	public final fun getString (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+	public final fun initialize (Lcom/configdirector/ConfigDirectorContext;Lcom/configdirector/CompletionCallback;)V
+	public final synthetic fun initialize (Lcom/configdirector/ConfigDirectorContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun initialize$default (Lcom/configdirector/ConfigDirectorClient;Lcom/configdirector/ConfigDirectorContext;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun isInitializing ()Z
+	public final fun isReady ()Z
+	public final fun pauseNetwork ()V
+	public final fun resumeNetwork (Lcom/configdirector/CompletionCallback;)V
+	public final synthetic fun resumeNetwork (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun updateContext (Lcom/configdirector/ConfigDirectorContext;Lcom/configdirector/CompletionCallback;)V
+	public final synthetic fun updateContext (Lcom/configdirector/ConfigDirectorContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun watchBoolean (Ljava/lang/String;ZLcom/configdirector/ConfigListener;)Lcom/configdirector/Subscription;
+	public final fun watchDouble (Ljava/lang/String;DLcom/configdirector/ConfigListener;)Lcom/configdirector/Subscription;
+	public final fun watchInt (Ljava/lang/String;ILcom/configdirector/ConfigListener;)Lcom/configdirector/Subscription;
+	public final fun watchJsonArray (Ljava/lang/String;Ljava/util/List;Lcom/configdirector/ConfigListener;)Lcom/configdirector/Subscription;
+	public final fun watchJsonObject (Ljava/lang/String;Ljava/util/Map;Lcom/configdirector/ConfigListener;)Lcom/configdirector/Subscription;
+	public final fun watchString (Ljava/lang/String;Ljava/lang/String;Lcom/configdirector/ConfigListener;)Lcom/configdirector/Subscription;
+}
+
+public final class com/configdirector/ConfigDirectorContext {
+	public static final field Companion Lcom/configdirector/ConfigDirectorContext$Companion;
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;ZLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public static final fun builder ()Lcom/configdirector/ConfigDirectorContext$Builder;
+	public static final fun empty ()Lcom/configdirector/ConfigDirectorContext;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getId ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getTraits ()Ljava/util/Map;
+	public fun hashCode ()I
+	public final fun isAnonymous ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/configdirector/ConfigDirectorContext$Builder {
+	public final fun anonymous (Z)Lcom/configdirector/ConfigDirectorContext$Builder;
+	public final fun build ()Lcom/configdirector/ConfigDirectorContext;
+	public final fun id (Ljava/lang/String;)Lcom/configdirector/ConfigDirectorContext$Builder;
+	public final fun name (Ljava/lang/String;)Lcom/configdirector/ConfigDirectorContext$Builder;
+	public final fun trait (Ljava/lang/String;Ljava/lang/Object;)Lcom/configdirector/ConfigDirectorContext$Builder;
+	public final fun traits (Ljava/util/Map;)Lcom/configdirector/ConfigDirectorContext$Builder;
+}
+
+public final class com/configdirector/ConfigDirectorContext$Companion {
+	public final synthetic fun build (Lkotlin/jvm/functions/Function1;)Lcom/configdirector/ConfigDirectorContext;
+	public final fun builder ()Lcom/configdirector/ConfigDirectorContext$Builder;
+	public final fun empty ()Lcom/configdirector/ConfigDirectorContext;
+}
+
+public class com/configdirector/ConfigDirectorException : java/lang/RuntimeException {
+}
+
+public abstract interface class com/configdirector/ConfigDirectorLogger {
+	public abstract fun getLevel ()Lcom/configdirector/LogLevel;
+	public abstract fun log (Lcom/configdirector/LogLevel;Ljava/lang/String;Ljava/lang/Throwable;)V
+}
+
+public final class com/configdirector/ConfigDirectorValidationException : com/configdirector/ConfigDirectorException {
+}
+
+public final class com/configdirector/ConfigEvaluation {
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getContext ()Lcom/configdirector/ConfigDirectorContext;
+	public final fun getKey ()Ljava/lang/String;
+	public final fun getReason ()Lcom/configdirector/EvaluationReason;
+	public final fun getValue ()Ljava/lang/Object;
+	public final fun getValueId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun isDefaultValue ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/configdirector/ConfigListener {
+	public abstract fun onValue (Ljava/lang/Object;)V
+}
+
+public final class com/configdirector/ConnectReason : java/lang/Enum {
+	public static final field CONTEXT_UPDATE Lcom/configdirector/ConnectReason;
+	public static final field INITIALIZATION Lcom/configdirector/ConnectReason;
+	public static final field NETWORK_RESUME Lcom/configdirector/ConnectReason;
+	public final fun getDescription ()Ljava/lang/String;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/configdirector/ConnectReason;
+	public static fun values ()[Lcom/configdirector/ConnectReason;
+}
+
+public final class com/configdirector/ConnectionMode : java/lang/Enum {
+	public static final field ONE_TIME Lcom/configdirector/ConnectionMode;
+	public static final field POLLING Lcom/configdirector/ConnectionMode;
+	public static final field STREAMING Lcom/configdirector/ConnectionMode;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/configdirector/ConnectionMode;
+	public static fun values ()[Lcom/configdirector/ConnectionMode;
+}
+
+public final class com/configdirector/ConnectionOptions {
+	public static final field Companion Lcom/configdirector/ConnectionOptions$Companion;
+	public synthetic fun <init> (Lcom/configdirector/ConnectionMode;JJLjava/lang/String;ZLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public static final fun builder ()Lcom/configdirector/ConnectionOptions$Builder;
+	public static final fun defaults ()Lcom/configdirector/ConnectionOptions;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBaseUrl ()Ljava/lang/String;
+	public final fun getMode ()Lcom/configdirector/ConnectionMode;
+	public final fun getPausesWhileBackgrounded ()Z
+	public final fun getPollingIntervalMillis ()J
+	public final fun getTimeoutMillis ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/configdirector/ConnectionOptions$Builder {
+	public final fun baseUrl (Ljava/lang/String;)Lcom/configdirector/ConnectionOptions$Builder;
+	public final fun build ()Lcom/configdirector/ConnectionOptions;
+	public final fun mode (Lcom/configdirector/ConnectionMode;)Lcom/configdirector/ConnectionOptions$Builder;
+	public final fun pausesWhileBackgrounded (Z)Lcom/configdirector/ConnectionOptions$Builder;
+	public final fun pollingIntervalMillis (J)Lcom/configdirector/ConnectionOptions$Builder;
+	public final fun timeoutMillis (J)Lcom/configdirector/ConnectionOptions$Builder;
+}
+
+public final class com/configdirector/ConnectionOptions$Companion {
+	public final synthetic fun build (Lkotlin/jvm/functions/Function1;)Lcom/configdirector/ConnectionOptions;
+	public final fun builder ()Lcom/configdirector/ConnectionOptions$Builder;
+	public final fun defaults ()Lcom/configdirector/ConnectionOptions;
+}
+
+public abstract interface class com/configdirector/EvaluationListener {
+	public abstract fun onEvaluation (Lcom/configdirector/ConfigEvaluation;)V
+}
+
+public final class com/configdirector/EvaluationReason : java/lang/Enum {
+	public static final field CLIENT_NOT_READY Lcom/configdirector/EvaluationReason;
+	public static final field CONFIG_STATE_MISSING Lcom/configdirector/EvaluationReason;
+	public static final field FOUND_MATCH Lcom/configdirector/EvaluationReason;
+	public static final field INVALID_BOOLEAN Lcom/configdirector/EvaluationReason;
+	public static final field INVALID_JSON Lcom/configdirector/EvaluationReason;
+	public static final field INVALID_NUMBER Lcom/configdirector/EvaluationReason;
+	public static final field TYPE_MISMATCH Lcom/configdirector/EvaluationReason;
+	public static final field VALUE_MISSING Lcom/configdirector/EvaluationReason;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getWireName ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lcom/configdirector/EvaluationReason;
+	public static fun values ()[Lcom/configdirector/EvaluationReason;
+}
+
+public final class com/configdirector/KotlinExtensionsKt {
+	public static final synthetic fun getEvaluations (Lcom/configdirector/ConfigDirectorClient;)Lkotlinx/coroutines/flow/Flow;
+	public static final synthetic fun getEvents (Lcom/configdirector/ConfigDirectorClient;)Lkotlinx/coroutines/flow/Flow;
+	public static final synthetic fun value (Lcom/configdirector/ConfigDirectorClient;Ljava/lang/String;D)D
+	public static final synthetic fun value (Lcom/configdirector/ConfigDirectorClient;Ljava/lang/String;I)I
+	public static final synthetic fun value (Lcom/configdirector/ConfigDirectorClient;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+	public static final synthetic fun value (Lcom/configdirector/ConfigDirectorClient;Ljava/lang/String;Ljava/util/List;)Ljava/util/List;
+	public static final synthetic fun value (Lcom/configdirector/ConfigDirectorClient;Ljava/lang/String;Ljava/util/Map;)Ljava/util/Map;
+	public static final synthetic fun value (Lcom/configdirector/ConfigDirectorClient;Ljava/lang/String;Z)Z
+	public static final synthetic fun values (Lcom/configdirector/ConfigDirectorClient;Ljava/lang/String;D)Lkotlinx/coroutines/flow/Flow;
+	public static final synthetic fun values (Lcom/configdirector/ConfigDirectorClient;Ljava/lang/String;I)Lkotlinx/coroutines/flow/Flow;
+	public static final synthetic fun values (Lcom/configdirector/ConfigDirectorClient;Ljava/lang/String;Ljava/lang/String;)Lkotlinx/coroutines/flow/Flow;
+	public static final synthetic fun values (Lcom/configdirector/ConfigDirectorClient;Ljava/lang/String;Ljava/util/List;)Lkotlinx/coroutines/flow/Flow;
+	public static final synthetic fun values (Lcom/configdirector/ConfigDirectorClient;Ljava/lang/String;Ljava/util/Map;)Lkotlinx/coroutines/flow/Flow;
+	public static final synthetic fun values (Lcom/configdirector/ConfigDirectorClient;Ljava/lang/String;Z)Lkotlinx/coroutines/flow/Flow;
+}
+
+public final class com/configdirector/LogLevel : java/lang/Enum {
+	public static final field DEBUG Lcom/configdirector/LogLevel;
+	public static final field ERROR Lcom/configdirector/LogLevel;
+	public static final field INFO Lcom/configdirector/LogLevel;
+	public static final field OFF Lcom/configdirector/LogLevel;
+	public static final field WARN Lcom/configdirector/LogLevel;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/configdirector/LogLevel;
+	public static fun values ()[Lcom/configdirector/LogLevel;
+}
+
+public final class com/configdirector/Metadata {
+	public static final field Companion Lcom/configdirector/Metadata$Companion;
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public static final fun empty ()Lcom/configdirector/Metadata;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAppName ()Ljava/lang/String;
+	public final fun getAppVersion ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/configdirector/Metadata$Companion {
+	public final fun empty ()Lcom/configdirector/Metadata;
+}
+
+public abstract interface class com/configdirector/Subscription : java/io/Closeable {
+	public abstract fun close ()V
+}
+

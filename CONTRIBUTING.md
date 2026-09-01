@@ -101,6 +101,29 @@ A build can also go green with the Java tests silently not running at all, so
 [`check-java-tests-ran.sh`](.github/scripts/check-java-tests-ran.sh) fails when it finds no Java
 test results. CI and the hook both run it after `build`.
 
+## The published API is locked down
+
+`api/configdirector-android.api` and `api/configdirector-android-compose.api` are the public API of
+each artifact, as Java and Kotlin consumers see it. `apiCheck` regenerates the signatures from the
+release AAR and fails when they differ from the committed file; `check` depends on it, so
+`./gradlew build`, CI and the hook all catch an accidental break.
+
+```sh
+./gradlew apiDump   # after an intended API change; commit the result with it
+./gradlew apiCheck  # what the build runs for you
+```
+
+A diff in these files is the API review. An entry disappearing or changing shape breaks every app
+already compiled against it, so a pull request that changes one without saying why in its
+description is the thing to push back on.
+
+The signatures come from the same engine as the Kotlin binary compatibility validator. Its Gradle
+plugin only wires itself up for the `kotlin`, `kotlin-android` and `kotlin-multiplatform` plugin
+ids, and the Android Gradle plugin brings its own Kotlin instead, so
+[`buildSrc`](buildSrc/src/main/kotlin/com/configdirector/gradle/ApiValidation.kt) feeds that engine
+the release AAR directly. Reading the AAR rather than the compiled classes means the check sees
+exactly what we publish.
+
 ## Tests have to be shown to work
 
 A test that passes against a bug is worse than no test. Either write it before the code and watch

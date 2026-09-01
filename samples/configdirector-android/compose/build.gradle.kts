@@ -52,8 +52,28 @@ kotlin {
     }
 }
 
+// -PuseLocalSdk builds against configdirector-android-compose/ in this repository instead of the
+// release on Central. CI and the pre-push hook set it, so a breaking API change fails here first;
+// locally it is how you try an unreleased SDK change against a real consumer.
+val useLocalSdk = providers.gradleProperty("useLocalSdk")
+    .map { it.isEmpty() || it.toBoolean() }
+    .getOrElse(false)
+
+if (useLocalSdk) {
+    configurations.configureEach {
+        resolutionStrategy.dependencySubstitution {
+            substitute(module("com.configdirector:configdirector-android-compose"))
+                .using(project(":configdirector-android-compose"))
+        }
+    }
+}
+
 dependencies {
-    implementation(project(":configdirector-android-compose"))
+    // The latest released bindings, which is what a reader copying this line wants. They
+    // deliberately lag the version in gradle.properties between a version bump and the release
+    // that publishes it -- naming an unpublished version here leaves the sample unresolvable for
+    // everyone who is not passing -PuseLocalSdk above. The core arrives with them.
+    implementation("com.configdirector:configdirector-android-compose:1.1.0")
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)

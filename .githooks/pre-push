@@ -2,11 +2,13 @@
 #
 # Runs the same checks CI runs, before allowing a push.
 #
-#   ./gradlew build  ->  the Java tests actually ran
+#   ./gradlew build -PuseLocalSdk  ->  the Java tests actually ran
 #
 # `build` covers the SDK's Kotlin, both of its test source sets, Android lint, and both sample
 # apps -- the Java sample being a Java-only module, which is what catches a break in the SDK's
-# Java surface.
+# Java surface. -PuseLocalSdk points the samples at this working tree rather than at the release
+# on Maven Central they name by default, so a breaking API change fails here rather than after it
+# ships.
 #
 # Install it with:  git config core.hooksPath .githooks
 # Bypass it for a single push with:  git push --no-verify
@@ -82,7 +84,7 @@ run() {
     fi
 }
 
-run "./gradlew build" ./gradlew build
+run "./gradlew build" ./gradlew build -PuseLocalSdk
 
 # A build can go green with the Java tests silently not running at all, which would leave the
 # Java surface uncovered. CI runs this same script.
@@ -100,7 +102,7 @@ if [ -z "$jdk21" ]; then
 fi
 
 if [ -n "$jdk21" ]; then
-    run "compile on JDK 21" ./gradlew assembleDebug -Dorg.gradle.java.home="$jdk21"
+    run "compile on JDK 21" ./gradlew assembleDebug -PuseLocalSdk -Dorg.gradle.java.home="$jdk21"
 else
     printf '\n%s> skipped: compile on JDK 21%s\n' "$bold" "$reset"
     printf '  No JDK 21 found. Install one (sdk install java 21.0.12+1.1-tem) or set JAVA21_HOME\n'

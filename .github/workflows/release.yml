@@ -16,6 +16,10 @@ defaults:
 env:
   JAVA_VERSION: "25"
 
+  # The samples name the released artifacts, which for the version being released do not exist yet.
+  # This points them at this checkout instead, so the build below covers them too.
+  ORG_GRADLE_PROJECT_useLocalSdk: "true"
+
 jobs:
   publish:
     name: Publish to Maven Central

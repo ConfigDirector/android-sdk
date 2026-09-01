@@ -22,8 +22,8 @@ this SDK, reading the same handful of configs and re-rendering as their values c
 [**java**](samples/configdirector-android/java) is plain Java with framework views, no Kotlin
 sources at all.
 
-They build against this checkout rather than a released version. From the repository root, with a
-device or emulator running:
+They depend on the released artifacts, the way your own app would; `-PuseLocalSdk` builds them
+against this checkout instead. From the repository root, with a device or emulator running:
 
 ```sh
 ./gradlew :samples:configdirector-android:compose:installDebug

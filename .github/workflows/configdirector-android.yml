@@ -17,6 +17,12 @@ defaults:
   run:
     shell: bash
 
+env:
+  # Points the samples at the artifacts in this checkout rather than at their release on Central,
+  # so a breaking API change fails here rather than after it ships. Set as a Gradle project
+  # property through the environment, which every ./gradlew below picks up.
+  ORG_GRADLE_PROJECT_useLocalSdk: "true"
+
 jobs:
   build:
     # `build` compiles the SDK's Kotlin, its Kotlin and Java test source sets, and both sample

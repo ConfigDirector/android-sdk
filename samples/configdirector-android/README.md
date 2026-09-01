@@ -114,20 +114,28 @@ against `role` behaves the same everywhere.
 
 ## Which SDK they build against
 
-Each depends on the module in this repository it demonstrates:
+Each depends on the released artifact it demonstrates, exactly as your own app would:
 
 ```kotlin
-implementation(project(":configdirector-android-compose"))  // the Compose sample
-implementation(project(":configdirector-android"))          // the Java sample
+implementation("com.configdirector:configdirector-android-compose:1.1.0")  // the Compose sample
+implementation("com.configdirector:configdirector-android:1.1.0")          // the Java sample
 ```
 
 The Compose artifact depends on the core and re-exposes it, so the Compose sample gets both from
 that one line.
 
-The other ConfigDirector SDKs point their samples at the released artifact and swap in the local
-one behind a flag, so a breaking API change fails in a real consumer before it ships. This SDK has
-not been published yet, so there is nothing to point at; the samples move to the released artifact
-when it is.
+Pass `-PuseLocalSdk` to build them against the modules in this repository instead:
+
+```sh
+./gradlew :samples:configdirector-android:compose:installDebug -PuseLocalSdk
+```
+
+That is how to try an unreleased SDK change against a real consumer, and CI and the pre-push hook
+set it on every build, so a breaking API change fails here before it ships.
+
+The versions above deliberately lag the one in `gradle.properties` between a version bump and the
+release that publishes it: naming a version that is not on Central yet leaves the samples
+unresolvable for anyone who is not passing the flag.
 
 ## They do not share a minSdk
 

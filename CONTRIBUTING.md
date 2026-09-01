@@ -49,10 +49,19 @@ client — the options, the context, the parsers, the telemetry queue — stay p
 ./gradlew build
 ```
 
-That is the whole check, and it is what CI and the pre-push hook run. It compiles both artifacts,
-the core's two test source sets, and both sample apps; runs the unit tests; and runs Android lint, whose
-failures fail the build — lint is what catches an API that needs a newer Android than the SDK's
-`minSdk 21`.
+That is the whole check. It compiles both artifacts, the core's two test source sets, and both
+sample apps; runs the unit tests; and runs Android lint, whose failures fail the build — lint is
+what catches an API that needs a newer Android than the SDK's `minSdk 21`.
+
+The samples resolve the SDK from Maven Central, the way a consumer does. Build them against the
+working tree instead with:
+
+```sh
+./gradlew build -PuseLocalSdk
+```
+
+That is what CI and the pre-push hook run, so a breaking API change fails in a real consumer before
+it ships.
 
 Narrower loops while working:
 
@@ -157,6 +166,10 @@ look at what is about to become permanent. **Both have to be released** for the 
 usable, since the Compose bindings depend on the core of the same version. Dropping them there
 instead means deleting the tag before running the workflow again.
 
+Once the version resolves on Central, bump both samples to it. They deliberately lag the SDK:
+naming a version that is not published yet leaves them unresolvable for anyone who is not passing
+`-PuseLocalSdk`.
+
 The workflow needs four repository secrets: `MAVEN_CENTRAL_USERNAME` and `MAVEN_CENTRAL_PASSWORD`
 (a Portal user token, not the account password), and `SIGNING_KEY` and `SIGNING_KEY_PASSWORD` (an
 ASCII-armoured GPG secret key and its passphrase). Signing is skipped when no key is configured, so
@@ -172,14 +185,14 @@ git config core.hooksPath .githooks
 ```
 
 It runs the same checks CI does, against your working tree rather than the commits being pushed:
-`./gradlew build`, the Java test check, and — when a JDK 21 is installed — a compile pass on 21.
-Bypass it for a single push with `git push --no-verify`.
+`./gradlew build -PuseLocalSdk`, the Java test check, and — when a JDK 21 is installed — a compile
+pass on 21. Bypass it for a single push with `git push --no-verify`.
 
 ## What CI runs
 
 [`configdirector-android.yml`](.github/workflows/configdirector-android.yml) runs `./gradlew build`
-and the Java test check on JDK 21 and 25, and keeps the AAR and the sample APKs as artifacts. Test
-and lint reports are uploaded when a job fails.
+and the Java test check on JDK 21 and 25, with `useLocalSdk` set for the whole workflow, and keeps
+the AAR and the sample APKs as artifacts. Test and lint reports are uploaded when a job fails.
 
 [`release.yml`](.github/workflows/release.yml) is the manual release described above. It is the only
 workflow that touches Maven Central, and the only one that needs secrets.

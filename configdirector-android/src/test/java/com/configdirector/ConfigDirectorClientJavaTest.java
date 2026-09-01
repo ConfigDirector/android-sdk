@@ -14,7 +14,13 @@ import kotlinx.coroutines.test.TestDispatchers;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.RobolectricTestRunner;
+import org.robolectric.RuntimeEnvironment;
+import org.robolectric.annotation.Config;
 
+@RunWith(RobolectricTestRunner.class)
+@Config(sdk = 34)
 public class ConfigDirectorClientJavaTest {
 
   private final RecordingLogger logger = new RecordingLogger(LogLevel.DEBUG);
@@ -22,6 +28,7 @@ public class ConfigDirectorClientJavaTest {
 
   private ConfigDirectorClient client() {
     return new ConfigDirectorClient(
+        RuntimeEnvironment.getApplication(),
         "client-sdk-key",
         ClientOptions.builder()
             .logger(logger)
@@ -94,6 +101,24 @@ public class ConfigDirectorClientJavaTest {
   }
 
   @Test
+  public void pausesAndResumesTheConnection() throws InterruptedException {
+    ConfigDirectorClient client = client();
+    CountDownLatch initialized = new CountDownLatch(1);
+    client.initialize(null, initialized::countDown);
+    assertThat(initialized.await(5, TimeUnit.SECONDS)).isTrue();
+
+    client.pauseNetwork();
+    assertThat(client.isReady()).isFalse();
+
+    CountDownLatch resumed = new CountDownLatch(1);
+    client.resumeNetwork(resumed::countDown);
+
+    assertThat(resumed.await(5, TimeUnit.SECONDS)).isTrue();
+    assertThat(client.isReady()).isTrue();
+    client.close();
+  }
+
+  @Test
   public void initializesWithoutAContext() throws InterruptedException {
     ConfigDirectorClient client = client();
     CountDownLatch initialized = new CountDownLatch(1);
@@ -138,12 +163,15 @@ public class ConfigDirectorClientJavaTest {
 
   @Test
   public void rejectsABlankClientSdkKey() {
-    assertThrows(ConfigDirectorValidationException.class, () -> new ConfigDirectorClient("   "));
+    assertThrows(
+        ConfigDirectorValidationException.class,
+        () -> new ConfigDirectorClient(RuntimeEnvironment.getApplication(), "   "));
   }
 
   @Test
   public void takesTheKeyOnItsOwn() {
-    ConfigDirectorClient client = new ConfigDirectorClient("client-sdk-key");
+    ConfigDirectorClient client =
+        new ConfigDirectorClient(RuntimeEnvironment.getApplication(), "client-sdk-key");
 
     assertThat(client.isReady()).isFalse();
     client.close();

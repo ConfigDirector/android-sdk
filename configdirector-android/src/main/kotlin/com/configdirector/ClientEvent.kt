@@ -10,6 +10,9 @@ public enum class ConnectReason(
 
     /** The client reconnected to re-evaluate configs against a new context. */
     CONTEXT_UPDATE("context update"),
+
+    /** The client reconnected after its connection was resumed. */
+    NETWORK_RESUME("network resume"),
 }
 
 /** Something the client did, handed to every [ClientEventListener]. */

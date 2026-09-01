@@ -13,13 +13,20 @@ import kotlinx.coroutines.test.TestDispatchers;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.RobolectricTestRunner;
+import org.robolectric.RuntimeEnvironment;
+import org.robolectric.annotation.Config;
 
+@RunWith(RobolectricTestRunner.class)
+@Config(sdk = 34)
 public class ConfigDirectorClientObservationJavaTest {
 
   private final FakeSdkServer server = new FakeSdkServer();
 
   private final ConfigDirectorClient client =
       new ConfigDirectorClient(
+          RuntimeEnvironment.getApplication(),
           "client-sdk-key",
           ClientOptions.builder()
               .logger(new RecordingLogger(LogLevel.OFF))

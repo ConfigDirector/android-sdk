@@ -30,6 +30,7 @@ class SampleApplication : Application() {
         super.onCreate()
 
         client = ConfigDirectorClient(
+            androidContext = this,
             clientSdkKey = BuildConfig.CLIENT_SDK_KEY.ifEmpty { PLACEHOLDER_SDK_KEY },
             // The SDK logs at WARN by default; turned up here so the connection can be followed
             // in logcat.

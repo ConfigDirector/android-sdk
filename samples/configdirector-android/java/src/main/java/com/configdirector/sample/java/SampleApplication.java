@@ -40,6 +40,7 @@ public final class SampleApplication extends Application {
 
     client =
         new ConfigDirectorClient(
+            this,
             clientSdkKey,
             ClientOptions.builder()
                 .metadata(new Metadata("ConfigDirector Java Sample", "1.0"))

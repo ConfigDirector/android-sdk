@@ -12,8 +12,14 @@ import org.junit.After
 import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class ConfigDirectorClientTest {
 
     private val server = FakeSdkServer()
@@ -39,6 +45,7 @@ class ConfigDirectorClientTest {
         metadata: Metadata = Metadata.empty(),
         baseUrl: String = server.baseUrl,
     ): ConfigDirectorClient = ConfigDirectorClient(
+        RuntimeEnvironment.getApplication(),
         "client-sdk-key",
         ClientOptions.build {
             logger(logger)
@@ -70,7 +77,7 @@ class ConfigDirectorClientTest {
     @Test
     fun `rejects a blank client SDK key`() {
         val failure = assertThrows(ConfigDirectorValidationException::class.java) {
-            ConfigDirectorClient("   ")
+            ConfigDirectorClient(RuntimeEnvironment.getApplication(), "   ")
         }
 
         assertThat(failure).hasMessageThat().contains("No client SDK key was provided")

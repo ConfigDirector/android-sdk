@@ -182,7 +182,7 @@ public final class MainActivity extends Activity {
   }
 
   private void exerciseEveryApi() {
-    ApiTour.run(log);
+    ApiTour.run(this, log);
     render();
   }
 

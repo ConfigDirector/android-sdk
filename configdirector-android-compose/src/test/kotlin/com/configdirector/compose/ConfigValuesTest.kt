@@ -19,6 +19,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
@@ -32,6 +33,7 @@ class ConfigValuesTest {
     private val server = FakeSdkServer()
 
     private val client = ConfigDirectorClient(
+        RuntimeEnvironment.getApplication(),
         "client-sdk-key",
         ClientOptions.build {
             logger(AndroidLogger(LogLevel.OFF))

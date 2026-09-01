@@ -68,6 +68,10 @@ internal class ConfigStore(
         ready.value = false
     }
 
+    fun markNotReady() {
+        ready.value = false
+    }
+
     fun setContext(context: ConfigDirectorContext?) {
         contextHolder.set(context)
         emit(ClientEvent.ContextUpdated(context))

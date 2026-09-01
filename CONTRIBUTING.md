@@ -36,8 +36,12 @@ its own. It depends on `androidx.compose.runtime` alone, deliberately: bindings 
 `minSdk 21` as well; only Java 11 bytecode differs, because that is what AndroidX ships.
 
 Compose is a Kotlin compiler plugin, so the Compose artifact has no Java source set and the Java
-test rule below does not apply to it. Its tests need a composition to run in, which on the JVM means
-Robolectric — that is the one place the build uses it.
+test rule below does not apply to it.
+
+Both artifacts use Robolectric in their tests, and only there. The Compose bindings need a
+composition to run in; the core needs a real `Application`, because the client takes a `Context` and
+watches the application behind it to tell when the app is backgrounded. Tests that never build a
+client — the options, the context, the parsers, the telemetry queue — stay plain JVM tests.
 
 ## Building and testing
 

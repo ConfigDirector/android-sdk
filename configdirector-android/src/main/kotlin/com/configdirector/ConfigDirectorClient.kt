@@ -1,8 +1,12 @@
 package com.configdirector
 
+import android.content.Context
 import com.configdirector.internal.ConfigSet
 import com.configdirector.internal.ConfigStore
 import com.configdirector.internal.Constants
+import com.configdirector.internal.lifecycle.AppLifecycleObserver
+import com.configdirector.internal.lifecycle.AppLifecyclePhase
+import com.configdirector.internal.lifecycle.appLifecycleObserver
 import com.configdirector.internal.transport.PollingTransport
 import com.configdirector.internal.transport.StreamingTransport
 import com.configdirector.internal.transport.Transport
@@ -31,27 +35,32 @@ import okhttp3.OkHttpClient
  * Applications should create a single instance and initialize it during startup.
  *
  * ```kotlin
- * val client = ConfigDirectorClient("YOUR-SDK-KEY")
+ * val client = ConfigDirectorClient(application, "YOUR-SDK-KEY")
  * client.initialize(ConfigDirectorContext.build { id("user-123") })
  *
  * val darkMode = client.getBoolean("dark-mode", false)
  * ```
  *
  * ```java
- * ConfigDirectorClient client = new ConfigDirectorClient("YOUR-SDK-KEY");
+ * ConfigDirectorClient client = new ConfigDirectorClient(application, "YOUR-SDK-KEY");
  * client.initialize(context, () -> {
  *   boolean darkMode = client.getBoolean("dark-mode", false);
  * });
  * ```
  *
  * After initialization, call [updateContext] to re-evaluate configs against a new context, and
- * [close] when the client is no longer needed.
+ * [close] when the client is no longer needed. While the app is in the background the client pauses
+ * its connection and resumes it on the way back, which
+ * `ConnectionOptions.pausesWhileBackgrounded` turns off.
  *
+ * @param androidContext any Android context; the application behind it is what the client watches
+ *   to tell when the app is backgrounded
  * @param clientSdkKey the client SDK key from the ConfigDirector dashboard
  * @param options settings for this client, read once here
  * @throws ConfigDirectorValidationException if [clientSdkKey] is blank
  */
 public class ConfigDirectorClient @JvmOverloads constructor(
+    androidContext: Context,
     clientSdkKey: String,
     options: ClientOptions = ClientOptions.defaults(),
 ) : Closeable {
@@ -65,6 +74,10 @@ public class ConfigDirectorClient @JvmOverloads constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val closed = AtomicBoolean(false)
     private val initializing = AtomicBoolean(false)
+    private val hasConnected = AtomicBoolean(false)
+    private val pausedWhileBackgrounded = AtomicBoolean(false)
+    private val pausesWhileBackgrounded: Boolean = options.connection.pausesWhileBackgrounded
+    private val lifecycle: AppLifecycleObserver = appLifecycleObserver(androidContext, options.logger)
 
     init {
         if (clientSdkKey.isBlank()) {
@@ -99,6 +112,8 @@ public class ConfigDirectorClient @JvmOverloads constructor(
         transport = transportFor(options.connection.mode, transportOptions) { configSet ->
             store.handleConfigSet(configSet)
         }
+
+        lifecycle.start(::handleLifecyclePhase)
     }
 
     /**
@@ -275,6 +290,36 @@ public class ConfigDirectorClient @JvmOverloads constructor(
     ): Subscription = store.watch(key, listener) { store.getJsonArray(key, defaultValue) }
 
     /**
+     * Pauses the connection to the server without discarding config state, watches, or listeners.
+     *
+     * Reads keep serving the last config state the client received, and [isReady] turns false until
+     * [resumeNetwork] reconnects. The client does this on its own while the app is backgrounded,
+     * unless that was turned off with `ConnectionOptions.pausesWhileBackgrounded`.
+     */
+    public fun pauseNetwork() {
+        logger.debug { "pauseNetwork() called, pausing the connection to the server" }
+        transport.disconnect()
+        store.markNotReady()
+    }
+
+    /**
+     * Reconnects a connection paused by [pauseNetwork], re-evaluating configs against the context
+     * the client already had.
+     */
+    @JvmSynthetic
+    public suspend fun resumeNetwork() {
+        connect(store.context, ConnectReason.NETWORK_RESUME)
+    }
+
+    /**
+     * Reconnects a connection paused by [pauseNetwork], calling [callback] on the main thread once
+     * the client is ready again or the attempt times out.
+     */
+    public fun resumeNetwork(callback: CompletionCallback) {
+        launchThenCallBack(callback) { resumeNetwork() }
+    }
+
+    /**
      * Registers [listener] for everything the client does, from now on. Close the returned
      * subscription to stop listening.
      */
@@ -299,6 +344,7 @@ public class ConfigDirectorClient @JvmOverloads constructor(
         if (closed.getAndSet(true)) return
 
         logger.debug { "close() called, closing the connection to the server" }
+        lifecycle.stop()
         telemetry.close()
         store.close()
         transport.close()
@@ -337,6 +383,7 @@ public class ConfigDirectorClient @JvmOverloads constructor(
             return
         }
 
+        hasConnected.set(true)
         telemetry.updateContext(context)
         store.setContext(context)
 
@@ -349,6 +396,30 @@ public class ConfigDirectorClient @JvmOverloads constructor(
             logger.warn {
                 "Timed out waiting for ${reason.description} after ${timeoutMillis}ms. Configs " +
                     "return their default value until the connection succeeds."
+            }
+        }
+    }
+
+    private fun handleLifecyclePhase(phase: AppLifecyclePhase) {
+        when (phase) {
+            AppLifecyclePhase.BACKGROUND -> {
+                // The app may not come back, so telemetry goes out at the first sign of it leaving.
+                scope.launch { telemetry.flush() }
+
+                if (closed.get() || !hasConnected.get() || !pausesWhileBackgrounded) return
+                if (pausedWhileBackgrounded.getAndSet(true)) return
+
+                logger.info { "The app entered the background, pausing the connection to the server" }
+                pauseNetwork()
+            }
+
+            AppLifecyclePhase.FOREGROUND -> {
+                if (closed.get() || !pausedWhileBackgrounded.getAndSet(false)) return
+
+                logger.info {
+                    "The app returned to the foreground, resuming the connection to the server"
+                }
+                scope.launch { resumeNetwork() }
             }
         }
     }

@@ -1,5 +1,6 @@
 package com.configdirector.sample.java;
 
+import android.content.Context;
 import com.configdirector.AndroidLogger;
 import com.configdirector.ClientOptions;
 import com.configdirector.ConfigDirectorClient;
@@ -21,11 +22,11 @@ final class ApiTour {
 
   private ApiTour() {}
 
-  static void run(SampleLog log) {
+  static void run(Context context, SampleLog log) {
     describeDefaults(log);
     describeContexts(log);
-    describeOptions(log);
-    describeKeyValidation(log);
+    describeOptions(context, log);
+    describeKeyValidation(context, log);
   }
 
   private static void describeDefaults(SampleLog log) {
@@ -69,7 +70,7 @@ final class ApiTour {
     log.add("anonymous context: anonymous=" + anonymous.isAnonymous());
   }
 
-  private static void describeOptions(SampleLog log) {
+  private static void describeOptions(Context context, SampleLog log) {
     ClientOptions polling =
         ClientOptions.builder()
             .metadata("ConfigDirector Java Sample", "1.0")
@@ -90,15 +91,20 @@ final class ApiTour {
             + "ms via "
             + polling.getConnection().getBaseUrl());
 
-    // The key-only constructor, which every other call in the sample skips over.
-    ConfigDirectorClient client = new ConfigDirectorClient("sample-client-sdk-key");
-    log.add("one-argument constructor: ready=" + client.isReady());
+    // The shortest constructor, which every other call in the sample skips over.
+    ConfigDirectorClient client = new ConfigDirectorClient(context, "sample-client-sdk-key");
+    log.add("two-argument constructor: ready=" + client.isReady());
+    // A connection can be paused and resumed by hand, which is what
+    // pausesWhileBackgrounded(false) leaves to the app.
+    client.pauseNetwork();
+    log.add("pauseNetwork(): ready=" + client.isReady());
+    client.resumeNetwork(() -> log.add("resumeNetwork() finished: ready=" + client.isReady()));
     client.close();
   }
 
-  private static void describeKeyValidation(SampleLog log) {
+  private static void describeKeyValidation(Context context, SampleLog log) {
     try {
-      new ConfigDirectorClient("   ");
+      new ConfigDirectorClient(context, "   ");
       log.add("a blank SDK key was accepted, which it should not have been");
     } catch (ConfigDirectorValidationException rejected) {
       log.add("blank SDK key rejected: " + rejected.getMessage());

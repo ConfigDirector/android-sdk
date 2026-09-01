@@ -16,13 +16,20 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class ConfigDirectorClientObservationTest {
 
     private val server = FakeSdkServer()
 
     private val client = ConfigDirectorClient(
+        RuntimeEnvironment.getApplication(),
         "client-sdk-key",
         ClientOptions.build {
             logger(RecordingLogger(LogLevel.OFF))

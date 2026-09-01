@@ -29,6 +29,7 @@ android {
     testOptions {
         unitTests {
             isReturnDefaultValues = true
+            isIncludeAndroidResources = true
         }
     }
 }
@@ -54,6 +55,9 @@ dependencies {
     testImplementation(libs.truth)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
+    // Only the tests that build a client through its public constructor need an Android
+    // environment: that constructor takes a Context, and watching it needs a real Application.
+    testImplementation(libs.robolectric)
     // Android ships org.json in the framework, so the SDK adds no JSON dependency. The framework
     // classes are stubs under unit tests, so the tests supply a real implementation instead.
     testImplementation(libs.org.json)

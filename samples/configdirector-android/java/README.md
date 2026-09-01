@@ -76,8 +76,8 @@ is not: a whole number is a number, so that one resolves.
 
 **Every API** runs [`ApiTour`](src/main/java/com/configdirector/sample/java/ApiTour.java): every call
 the screen itself has no reason to make, gathered in one place so the compiler covers it too — the
-defaults, `ConfigDirectorContext.empty()`, the key-only constructor, options built for polling
-through a proxy, and the two validation failures:
+defaults, `ConfigDirectorContext.empty()`, the shortest constructor, pausing and resuming the
+connection by hand, options built for polling through a proxy, and the two validation failures:
 
 ```
 blank SDK key rejected: No client SDK key was provided. ...

@@ -71,9 +71,3 @@ to follow — the two have to be kept in step deliberately.
 
 The app targets SDK 37, where edge-to-edge is enforced, so the screen keeps clear of the system bars
 itself with `Modifier.safeDrawingPadding()`. Without it the content draws underneath the status bar.
-
-## It will move onto the Compose artifact
-
-The SDK will grow a second artifact, `configdirector-android-compose`, holding Compose bindings over
-the same client. This app switches to it then, and the flow-into-state plumbing above becomes the
-binding's job rather than the app's.

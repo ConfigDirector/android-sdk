@@ -3,8 +3,8 @@
 Two Android apps showing how to use the ConfigDirector Android client SDK: each reads the same
 handful of configs and re-renders as their values change.
 
-[**compose**](compose) is the modern one — Kotlin and Jetpack Compose, where each config is a
-`Flow` collected into Compose state.
+[**compose**](compose) is the modern one — Kotlin and Jetpack Compose, reading each config through
+the `configdirector-android-compose` bindings, which recompose the screen when a value changes.
 
 [**java**](java) is the other half of the SDK's audience — plain Java, framework views, no AndroidX
 and no Kotlin sources at all. It exists to keep the Java surface honest: Kotlin tests cannot tell
@@ -114,11 +114,15 @@ against `role` behaves the same everywhere.
 
 ## Which SDK they build against
 
-Both depend on the module in this repository:
+Each depends on the module in this repository it demonstrates:
 
 ```kotlin
-implementation(project(":configdirector-android"))
+implementation(project(":configdirector-android-compose"))  // the Compose sample
+implementation(project(":configdirector-android"))          // the Java sample
 ```
+
+The Compose artifact depends on the core and re-exposes it, so the Compose sample gets both from
+that one line.
 
 The other ConfigDirector SDKs point their samples at the released artifact and swap in the local
 one behind a flag, so a breaking API change fails in a real consumer before it ships. This SDK has

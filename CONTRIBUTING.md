@@ -25,22 +25,37 @@
 
 Nothing else. The build brings its own Gradle through the wrapper.
 
+## The two artifacts
+
+`configdirector-android` is the whole SDK: Kotlin, no Compose, consumable from Java, `minSdk 21` and
+Java 8 bytecode.
+
+`configdirector-android-compose` adds Compose bindings over it and nothing else — no client logic of
+its own. It depends on `androidx.compose.runtime` alone, deliberately: bindings that pulled in
+`compose-ui` or `material3` would put those versions in every consumer's dependency graph. It keeps
+`minSdk 21` as well; only Java 11 bytecode differs, because that is what AndroidX ships.
+
+Compose is a Kotlin compiler plugin, so the Compose artifact has no Java source set and the Java
+test rule below does not apply to it. Its tests need a composition to run in, which on the JVM means
+Robolectric — that is the one place the build uses it.
+
 ## Building and testing
 
 ```sh
 ./gradlew build
 ```
 
-That is the whole check, and it is what CI and the pre-push hook run. It compiles the SDK, both of
-its test source sets, and both sample apps; runs the unit tests; and runs Android lint, whose
+That is the whole check, and it is what CI and the pre-push hook run. It compiles both artifacts,
+the core's two test source sets, and both sample apps; runs the unit tests; and runs Android lint, whose
 failures fail the build — lint is what catches an API that needs a newer Android than the SDK's
 `minSdk 21`.
 
 Narrower loops while working:
 
 ```sh
-./gradlew :configdirector-android:testDebugUnitTest      # the tests alone
-./gradlew :configdirector-android:assembleDebug          # the AAR alone
+./gradlew :configdirector-android:testDebugUnitTest          # the core's tests alone
+./gradlew :configdirector-android-compose:testDebugUnitTest  # the Compose bindings' tests
+./gradlew :configdirector-android:assembleDebug              # the AAR alone
 ```
 
 Running the sample apps is covered in [their README](samples/configdirector-android/README.md).

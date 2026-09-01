@@ -14,7 +14,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -23,54 +22,34 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.configdirector.ClientEvent
-import com.configdirector.ConfigDirectorClient
 import com.configdirector.ConfigDirectorContext
-import com.configdirector.events
-import com.configdirector.values
+import com.configdirector.compose.LocalConfigDirectorClient
+import com.configdirector.compose.configContext
+import com.configdirector.compose.configValue
+import com.configdirector.compose.isClientReady
 import kotlinx.coroutines.launch
 
 /**
- * Each config is read as a flow, which emits its current value and then every change. The flows are
- * remembered: building one on each recomposition would unsubscribe and resubscribe every frame.
+ * Every config is read with `configValue` from the Compose artifact, which subscribes to the client
+ * and recomposes this screen when a value changes -- from an edit in the dashboard, or from the
+ * context update the chips below make.
  */
 @Composable
-fun SampleScreen(
-    client: ConfigDirectorClient,
-    hasSdkKey: Boolean = true,
-    modifier: Modifier = Modifier,
-) {
-    val featureFlag by remember(client) { client.values("temporary-feature-flag", true) }
-        .collectAsStateWithLifecycle(true)
-    val killSwitch by remember(client) { client.values("permanent-kill-switch", false) }
-        .collectAsStateWithLifecycle(false)
-    val integerConfig by remember(client) { client.values("integer-config", 10) }
-        .collectAsStateWithLifecycle(10)
-    val dayOfTheWeek by remember(client) { client.values("day-of-the-week-config", "Friday") }
-        .collectAsStateWithLifecycle("Friday")
-    val jsonValue by remember(client) { client.values("json-value-config", "{}") }
-        .collectAsStateWithLifecycle("{}")
-    val integerAsDouble by remember(client) { client.values("integer-config", 0.0) }
-        .collectAsStateWithLifecycle(0.0)
-    val jsonDocument by remember(client) {
-        client.values("json-value-config", emptyMap<String, Any?>())
-    }.collectAsStateWithLifecycle(emptyMap())
+fun SampleScreen(hasSdkKey: Boolean = true, modifier: Modifier = Modifier) {
+    val featureFlag = configValue("temporary-feature-flag", true)
+    val killSwitch = configValue("permanent-kill-switch", false)
+    val integerConfig = configValue("integer-config", 10)
+    val dayOfTheWeek = configValue("day-of-the-week-config", "Friday")
+    val jsonValue = configValue("json-value-config", "{}")
+    val integerAsDouble = configValue("integer-config", 0.0)
+    val jsonDocument = configValue("json-value-config", emptyMap<String, Any?>())
 
-    var isReady by remember(client) { mutableStateOf(client.isReady) }
-    var context by remember(client) { mutableStateOf(client.context) }
+    val isReady = isClientReady()
+    val context = configContext()
+
+    val client = LocalConfigDirectorClient.current
     var selectedUser by remember { mutableStateOf(SampleUser.CONFIGURED) }
     val scope = rememberCoroutineScope()
-
-    LaunchedEffect(client) {
-        client.events.collect { event ->
-            when (event) {
-                is ClientEvent.Ready -> isReady = true
-                is ClientEvent.ContextUpdated -> context = event.context
-                is ClientEvent.ConfigsUpdated -> Unit
-            }
-        }
-    }
 
     Column(
         modifier = modifier
@@ -110,7 +89,6 @@ fun SampleScreen(
                     selected = user == selectedUser,
                     onClick = {
                         selectedUser = user
-                        isReady = false
                         scope.launch { client.updateContext(user.context) }
                     },
                     label = { Text(user.label) },

@@ -18,41 +18,39 @@ gone earlier, on sign-out for instance, calls `close()` itself.
 ## Reading a config
 
 ```kotlin
-val featureFlag by remember(client) { client.values("temporary-feature-flag", true) }
-    .collectAsStateWithLifecycle(true)
+val featureFlag = configValue("temporary-feature-flag", true)
 ```
 
-`values` is a Kotlin-only extension: it hands back a `Flow` built on the same listener registration
-Java calls, emitting the config's current value straight away and then every change. Consecutive
-identical values are not re-emitted, so a config that did not change does not recompose anything.
+`configValue` comes from `configdirector-android-compose`, the Compose artifact. It subscribes to
+the config, returns its current value, and recomposes this screen whenever that value changes —
+from an edit in the dashboard, or from a context update. Until the client is ready, and for a value
+that cannot be read as this type, it returns the default it was given.
 
-**`remember` is not optional.** `values` builds a new `Flow` each time it is called, and
-`collectAsStateWithLifecycle` subscribes per flow instance — without `remember` every recomposition
-would tear down the subscription and start another one.
+There is one overload per type a config can be read as, so a default of any other type is a compile
+error rather than a failure at runtime. `json-value-config` is read twice below, once with a
+`String` default for the raw document and once with a `Map` default for the parsed one.
 
-The default passed to `values` and the one passed to `collectAsStateWithLifecycle` are the same
-value for a reason: the first is what the config falls back to, the second is what the composable
-shows in the frame before the flow's first emission arrives.
+The binding does the subscribing, so there is no `remember` to get wrong here. Reading the same
+config from the core artifact directly means `remember(client) { client.values(key, default) }` and
+collecting it yourself — the Compose artifact exists to make that unnecessary.
 
-There is one overload of `values` per type a config can be read as — `Boolean`, `String`, `Int`,
-`Double` — so a default of any other type is a compile error rather than a failure at runtime.
+## The client comes from the composition
 
-## Readiness and context come from events
+[`MainActivity`](src/main/kotlin/com/configdirector/sample/compose/MainActivity.kt) wraps the
+content in `ConfigDirectorProvider(client)`, and every binding reads from there rather than being
+handed the client. A binding takes an explicit `client` parameter too, for a screen that has one
+without a provider above it.
+
+## Readiness and context are bindings as well
 
 ```kotlin
-LaunchedEffect(client) {
-    client.events.collect { event ->
-        when (event) {
-            is ClientEvent.Ready -> isReady = true
-            is ClientEvent.ContextUpdated -> context = event.context
-            is ClientEvent.ConfigsUpdated -> Unit
-        }
-    }
-}
+val isReady = isClientReady()
+val context = configContext()
 ```
 
-`ClientEvent` is a sealed class, so the `when` is exhaustive and a new event kind would be a compile
-error here rather than something silently ignored.
+Both follow the client's own events, so the header switches from `Connecting…` to `Ready` and the
+context line updates when an identity change takes effect, without this screen collecting events
+itself.
 
 Switching identity calls `updateContext` from `rememberCoroutineScope()`. It is a suspend function,
 and the screen sets `isReady = false` before it because the client is genuinely not ready while it

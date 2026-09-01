@@ -53,10 +53,9 @@ kotlin {
 }
 
 dependencies {
-    implementation(project(":configdirector-android"))
+    implementation(project(":configdirector-android-compose"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
-    implementation(libs.androidx.lifecycle.runtime.compose)
 }

@@ -50,12 +50,12 @@ jobs:
       - name: Check the Java tests ran
         run: ./.github/scripts/check-java-tests-ran.sh
 
-      - name: Upload the AAR
+      - name: Upload the AARs
         if: matrix.java == '25'
         uses: actions/upload-artifact@v4
         with:
           name: aar
-          path: configdirector-android/build/outputs/aar/*.aar
+          path: configdirector-android*/build/outputs/aar/*.aar
 
       - name: Upload the sample APKs
         if: matrix.java == '25'
@@ -70,7 +70,7 @@ jobs:
         with:
           name: reports-jdk${{ matrix.java }}
           path: |
-            configdirector-android/build/reports/tests/testDebugUnitTest
-            configdirector-android/build/test-results/testDebugUnitTest
+            configdirector-android*/build/reports/tests/testDebugUnitTest
+            configdirector-android*/build/test-results/testDebugUnitTest
             */build/reports/lint-results-*.html
             samples/configdirector-android/*/build/reports/lint-results-*.html

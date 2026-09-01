@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
+import com.configdirector.compose.ConfigDirectorProvider
 
 class MainActivity : ComponentActivity() {
 
@@ -12,8 +13,11 @@ class MainActivity : ComponentActivity() {
 
         val sample = application as SampleApplication
         setContent {
-            MaterialTheme {
-                SampleScreen(sample.client, sample.hasSdkKey)
+            // Every binding below reads the client from here rather than being handed it.
+            ConfigDirectorProvider(sample.client) {
+                MaterialTheme {
+                    SampleScreen(sample.hasSdkKey)
+                }
             }
         }
     }

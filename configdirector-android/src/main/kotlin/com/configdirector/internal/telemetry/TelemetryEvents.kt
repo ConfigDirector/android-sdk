@@ -2,7 +2,7 @@ package com.configdirector.internal.telemetry
 
 import com.configdirector.EvaluationReason
 import com.configdirector.internal.ConfigType
-import com.configdirector.internal.JsonValues
+import com.configdirector.internal.toJsonText
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -30,7 +30,7 @@ internal data class TelemetryValue(
         if (value.isNullOrEmpty()) return TelemetryValue(valueId = valueId)
 
         return if (mustUseId) {
-            TelemetryValue(valueId = ValueIds.generate(value))
+            TelemetryValue(valueId = valueIdFor(value))
         } else {
             TelemetryValue(value = value)
         }
@@ -47,7 +47,7 @@ internal data class TelemetryValue(
         const val MAX_VALUE_LENGTH: Int = 500
 
         fun of(value: Any?, valueId: String?, type: ConfigType?): TelemetryValue =
-            TelemetryValue(value = JsonValues.toJsonText(value), valueId = valueId, type = type)
+            TelemetryValue(value = value.toJsonText(), valueId = valueId, type = type)
     }
 }
 
@@ -91,7 +91,7 @@ internal data class EvaluatedConfigEvent(
 }
 
 /** A group of identical events, reported once with the number of times it occurred. */
-internal class AggregatedEvent(
+internal data class AggregatedEvent(
     val startTime: Long,
     val endTime: Long,
     val count: Int,

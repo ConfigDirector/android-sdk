@@ -40,8 +40,6 @@ internal class ConfigStore(
     private val telemetry: TelemetryClient,
 ) {
 
-    private class Watcher(val reevaluate: () -> Unit)
-
     private val configs = AtomicReference<Map<String, ConfigState>>(emptyMap())
     private val contextHolder = AtomicReference<ConfigDirectorContext?>(null)
     private val pendingReason = AtomicReference(ConnectReason.INITIALIZATION)
@@ -51,7 +49,7 @@ internal class ConfigStore(
 
     private val eventListeners = CopyOnWriteArrayList<ClientEventListener>()
     private val evaluationListeners = CopyOnWriteArrayList<EvaluationListener>()
-    private val watchers = ConcurrentHashMap<String, ConcurrentHashMap<Long, Watcher>>()
+    private val watchers = ConcurrentHashMap<String, ConcurrentHashMap<Long, () -> Unit>>()
     private val nextWatcherId = AtomicLong()
 
     // Listeners are handed back on the main thread, so an old Java codebase can update views from
@@ -83,7 +81,7 @@ internal class ConfigStore(
 
         markReady()
         emit(ClientEvent.ConfigsUpdated(keys))
-        keys.forEach { key -> watchers[key]?.values?.forEach { it.reevaluate() } }
+        keys.forEach { key -> watchers[key]?.values?.forEach { reevaluate -> reevaluate() } }
 
         logger.debug { "Config state received from the server: $keys" }
     }
@@ -96,22 +94,22 @@ internal class ConfigStore(
     }
 
     fun getBoolean(key: String, defaultValue: Boolean): Boolean =
-        evaluate(key, defaultValue) { ConfigValueParser.parseBoolean(it, defaultValue) }
+        evaluate(key, defaultValue) { it.asBoolean(defaultValue) }
 
     fun getString(key: String, defaultValue: String): String =
-        evaluate(key, defaultValue) { ConfigValueParser.parseString(it, defaultValue) }
+        evaluate(key, defaultValue) { it.asString(defaultValue) }
 
     fun getInt(key: String, defaultValue: Int): Int =
-        evaluate(key, defaultValue) { ConfigValueParser.parseInt(it, defaultValue) }
+        evaluate(key, defaultValue) { it.asInt(defaultValue) }
 
     fun getDouble(key: String, defaultValue: Double): Double =
-        evaluate(key, defaultValue) { ConfigValueParser.parseDouble(it, defaultValue) }
+        evaluate(key, defaultValue) { it.asDouble(defaultValue) }
 
     fun getJsonObject(key: String, defaultValue: Map<String, Any?>): Map<String, Any?> =
-        evaluate(key, defaultValue) { ConfigValueParser.parseJsonObject(it, defaultValue) }
+        evaluate(key, defaultValue) { it.asJsonObject(defaultValue) }
 
     fun getJsonArray(key: String, defaultValue: List<Any?>): List<Any?> =
-        evaluate(key, defaultValue) { ConfigValueParser.parseJsonArray(it, defaultValue) }
+        evaluate(key, defaultValue) { it.asJsonArray(defaultValue) }
 
     fun <T : Any> watch(key: String, listener: ConfigListener<T>, evaluate: () -> T): Subscription {
         if (closedState.value) return Subscription {}
@@ -126,10 +124,10 @@ internal class ConfigStore(
         }
 
         // computeIfAbsent is API 24, and the SDK runs on 21.
-        val forKey = watchers[key] ?: ConcurrentHashMap<Long, Watcher>().let { created ->
+        val forKey = watchers[key] ?: ConcurrentHashMap<Long, () -> Unit>().let { created ->
             watchers.putIfAbsent(key, created) ?: created
         }
-        forKey[id] = Watcher(deliverIfChanged)
+        forKey[id] = deliverIfChanged
         deliverIfChanged()
 
         return Subscription { watchers[key]?.remove(id) }

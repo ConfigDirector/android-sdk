@@ -21,7 +21,7 @@ class TelemetryEventsTest {
         val compacted = TelemetryValue(value = long, type = ConfigType.STRING).compacted()
 
         assertThat(compacted.value).isNull()
-        assertThat(compacted.valueId).isEqualTo(ValueIds.generate(long))
+        assertThat(compacted.valueId).isEqualTo(valueIdFor(long))
     }
 
     @Test
@@ -38,7 +38,7 @@ class TelemetryEventsTest {
         val compacted = TelemetryValue(value = document, type = ConfigType.JSON).compacted()
 
         assertThat(compacted.value).isNull()
-        assertThat(compacted.valueId).isEqualTo(ValueIds.generate(document))
+        assertThat(compacted.valueId).isEqualTo(valueIdFor(document))
     }
 
     @Test

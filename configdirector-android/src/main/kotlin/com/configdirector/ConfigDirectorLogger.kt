@@ -51,23 +51,25 @@ public class AndroidLogger @JvmOverloads constructor(
     }
 }
 
-internal fun ConfigDirectorLogger.error(error: Throwable? = null, message: () -> String) {
+internal inline fun ConfigDirectorLogger.error(error: Throwable? = null, message: () -> String) {
     write(LogLevel.ERROR, error, message)
 }
 
-internal fun ConfigDirectorLogger.warn(error: Throwable? = null, message: () -> String) {
+internal inline fun ConfigDirectorLogger.warn(error: Throwable? = null, message: () -> String) {
     write(LogLevel.WARN, error, message)
 }
 
-internal fun ConfigDirectorLogger.info(error: Throwable? = null, message: () -> String) {
+internal inline fun ConfigDirectorLogger.info(error: Throwable? = null, message: () -> String) {
     write(LogLevel.INFO, error, message)
 }
 
-internal fun ConfigDirectorLogger.debug(error: Throwable? = null, message: () -> String) {
+internal inline fun ConfigDirectorLogger.debug(error: Throwable? = null, message: () -> String) {
     write(LogLevel.DEBUG, error, message)
 }
 
-private fun ConfigDirectorLogger.write(
+// Inline so that a message the level drops costs nothing: the lambda is never built, and neither is
+// the string it would have interpolated. Config evaluation logs on every read.
+internal inline fun ConfigDirectorLogger.write(
     messageLevel: LogLevel,
     error: Throwable?,
     message: () -> String,

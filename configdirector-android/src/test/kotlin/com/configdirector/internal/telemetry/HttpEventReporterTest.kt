@@ -110,7 +110,7 @@ class HttpEventReporterTest {
             .getJSONObject("event")
             .getJSONObject("evaluatedValue")
         assertThat(event.has("value")).isFalse()
-        assertThat(event.getString("valueId")).isEqualTo(ValueIds.generate(long))
+        assertThat(event.getString("valueId")).isEqualTo(valueIdFor(long))
     }
 
     @Test

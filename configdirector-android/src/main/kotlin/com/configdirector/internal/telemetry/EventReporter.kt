@@ -1,7 +1,7 @@
 package com.configdirector.internal.telemetry
 
 import com.configdirector.ConfigDirectorContext
-import com.configdirector.internal.JsonValues
+import com.configdirector.internal.toJson
 import com.configdirector.internal.transport.TransportOptions
 import com.configdirector.internal.transport.await
 import com.configdirector.internal.transport.isFatalHttpStatus
@@ -16,7 +16,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 
-internal class EventReport(
+internal data class EventReport(
     val snapshot: EventQueueSnapshot,
     val context: ConfigDirectorContext?,
 )
@@ -84,7 +84,7 @@ internal class HttpEventReporter(
                     .put("sdkName", options.metaContext.sdkName)
                     .put("sdkVersion", options.metaContext.sdkVersion),
             )
-            .apply { report.context?.let { put("context", JsonValues.contextJson(it)) } }
+            .apply { report.context?.let { put("context", it.toJson()) } }
             .put("discreteEvents", JSONObject())
             .put("aggregatedEvents", JSONObject().put("evaluatedConfig", events))
             .put(

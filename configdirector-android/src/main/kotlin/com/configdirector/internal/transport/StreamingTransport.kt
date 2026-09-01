@@ -136,7 +136,7 @@ internal class StreamingTransport(
 
     private fun dispatch(data: String) {
         try {
-            onConfigSet(ConfigSetParser.parse(data))
+            onConfigSet(parseConfigSet(data))
         } catch (malformed: JSONException) {
             options.logger.error(malformed) {
                 "[StreamingTransport] Error parsing and dispatching the config state update"

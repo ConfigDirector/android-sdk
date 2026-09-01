@@ -19,19 +19,19 @@ class ValueIdsTest {
     @Test
     fun `derives the id every other SDK derives for the same value`() {
         knownIds.forEach { (value, id) ->
-            assertThat(ValueIds.generate(value)).isEqualTo(id)
+            assertThat(valueIdFor(value)).isEqualTo(id)
         }
     }
 
     @Test
     fun `is always the same width, whatever the digest starts with`() {
-        val ids = (0 until 200).map { ValueIds.generate("value-$it") }
+        val ids = (0 until 200).map { valueIdFor("value-$it") }
 
         assertThat(ids.map { it.length }.toSet()).containsExactly(22)
     }
 
     @Test
     fun `gives different values different ids`() {
-        assertThat(ValueIds.generate("one")).isNotEqualTo(ValueIds.generate("two"))
+        assertThat(valueIdFor("one")).isNotEqualTo(valueIdFor("two"))
     }
 }

@@ -2,19 +2,32 @@ package com.configdirector.internal.transport
 
 import com.configdirector.ConfigDirectorContext
 import com.configdirector.ConfigDirectorLogger
-import com.configdirector.internal.JsonValues
+import com.configdirector.Metadata
+import com.configdirector.internal.Constants
+import com.configdirector.internal.toJson
 import org.json.JSONObject
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 
+/** The platform name, matching what the other ConfigDirector client SDKs report. */
+private const val USER_AGENT = "Android"
+
 /** Metadata about the SDK and the app it runs in, sent with every request. */
-internal class SdkMetaContext(
+internal data class SdkMetaContext(
     val sdkName: String,
     val sdkVersion: String,
     val appName: String?,
     val appVersion: String?,
     val userAgent: String?,
+)
+
+internal fun Metadata.toSdkMetaContext(): SdkMetaContext = SdkMetaContext(
+    sdkName = Constants.SDK_NAME,
+    sdkVersion = Constants.SDK_VERSION,
+    appName = appName,
+    appVersion = appVersion,
+    userAgent = USER_AGENT,
 )
 
 /** Everything a [Transport] needs to reach the ConfigDirector server. */
@@ -34,7 +47,7 @@ internal class TransportOptions(
 
     fun payload(context: ConfigDirectorContext, lastUpdateTimestamp: String? = null): String {
         val payload = JSONObject()
-            .put("givenContext", JsonValues.contextJson(context))
+            .put("givenContext", context.toJson())
             .put("metaContext", metaContextJson())
             .put("clientSdkKey", clientSdkKey)
             .put("instanceId", instanceId)
@@ -53,7 +66,6 @@ internal class TransportOptions(
         metaContext.userAgent?.let { json.put("userAgent", it) }
         return json
     }
-
 }
 
 /** 2^9 seconds is a little over 8 minutes, which caps the backoff to under 10. */

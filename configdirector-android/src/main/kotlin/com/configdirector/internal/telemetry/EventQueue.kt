@@ -1,7 +1,7 @@
 package com.configdirector.internal.telemetry
 
 /** Everything an [EventQueue] had collected when a report was prepared. */
-internal class EventQueueSnapshot(
+internal data class EventQueueSnapshot(
     /** When the first of the [events] was collected. */
     val startTime: Long,
     /** When the snapshot was taken. */
@@ -16,12 +16,9 @@ internal class EventQueueSnapshot(
      * Collapses identical events into one entry each, carrying how many times the event occurred
      * over the window this snapshot covers.
      */
-    fun aggregated(): List<AggregatedEvent> {
-        val counts = LinkedHashMap<EvaluatedConfigEvent, Int>()
-        events.forEach { event -> counts[event] = (counts[event] ?: 0) + 1 }
-
-        return counts.map { (event, count) -> AggregatedEvent(startTime, endTime, count, event) }
-    }
+    fun aggregated(): List<AggregatedEvent> =
+        events.groupingBy { it }.eachCount()
+            .map { (event, count) -> AggregatedEvent(startTime, endTime, count, event) }
 }
 
 /**

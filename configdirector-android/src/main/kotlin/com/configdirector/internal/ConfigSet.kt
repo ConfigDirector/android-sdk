@@ -19,7 +19,7 @@ internal enum class ConfigType(val wireName: String) {
 }
 
 /** The evaluated state of a single config, as returned by the server. */
-internal class ConfigState(
+internal data class ConfigState(
     val key: String,
     val type: ConfigType,
     /** The evaluated value, serialized as a string, or null when the config has no value. */
@@ -36,7 +36,7 @@ internal class ConfigState(
 internal enum class ConfigSetKind { FULL, DELTA }
 
 /** A batch of config state received from the ConfigDirector server. */
-internal class ConfigSet(
+internal data class ConfigSet(
     val configs: Map<String, ConfigState>,
     val kind: ConfigSetKind = ConfigSetKind.FULL,
     /**

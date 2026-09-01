@@ -31,12 +31,9 @@ import org.json.JSONException
  */
 internal class PollingTransport(
     private val options: TransportOptions,
-    private val pollingIntervalMillis: Long?,
+    private val pollingIntervalMillis: Long? = options.pollingIntervalMillis,
     private val onConfigSet: (ConfigSet) -> Unit,
 ) : Transport {
-
-    constructor(options: TransportOptions, onConfigSet: (ConfigSet) -> Unit) :
-        this(options, options.pollingIntervalMillis, onConfigSet)
 
     private val url = options.endpoint(PATH)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -144,7 +141,7 @@ internal class PollingTransport(
 
     private fun dispatch(body: String) {
         val configSet = try {
-            ConfigSetParser.parse(body)
+            parseConfigSet(body)
         } catch (malformed: JSONException) {
             throw ConnectionFailedException(
                 "Failed to parse the response from the server: $malformed",

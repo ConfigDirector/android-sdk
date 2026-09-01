@@ -1,6 +1,6 @@
 package com.configdirector.internal.eventsource
 
-internal class EventSourceMessage(
+internal data class EventSourceMessage(
     val id: String?,
     val event: String?,
     val data: String,
@@ -18,7 +18,7 @@ internal sealed class EventSourceEvent {
 }
 
 /** What the connection looked like when it ended, which decides whether and when to reconnect. */
-internal class EventSourceReconnection(
+internal data class EventSourceReconnection(
     /**
      * 1 for the first attempt after a connection drops, growing while attempts keep failing, and
      * reset once a connection opens.

@@ -1,6 +1,5 @@
 package com.configdirector
 
-import com.configdirector.internal.AppInfo
 import com.configdirector.internal.ConfigSet
 import com.configdirector.internal.ConfigStore
 import com.configdirector.internal.Constants
@@ -12,6 +11,7 @@ import com.configdirector.internal.telemetry.TelemetryClient
 import com.configdirector.internal.telemetry.TelemetryEventCollector
 import com.configdirector.internal.transport.TransportOptions
 import com.configdirector.internal.transport.sdkHttpClient
+import com.configdirector.internal.transport.toSdkMetaContext
 import java.io.Closeable
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
@@ -87,7 +87,7 @@ public class ConfigDirectorClient @JvmOverloads constructor(
         val transportOptions = TransportOptions(
             clientSdkKey = clientSdkKey,
             baseUrl = baseUrl,
-            metaContext = AppInfo.metaContext(options.metadata),
+            metaContext = options.metadata.toSdkMetaContext(),
             instanceId = UUID.randomUUID().toString(),
             logger = logger,
             pollingIntervalMillis = options.connection.pollingIntervalMillis,
@@ -362,7 +362,7 @@ public class ConfigDirectorClient @JvmOverloads constructor(
             onConfigSet: (ConfigSet) -> Unit,
         ): Transport = when (mode) {
             ConnectionMode.STREAMING -> StreamingTransport(options, onConfigSet)
-            ConnectionMode.POLLING -> PollingTransport(options, onConfigSet)
+            ConnectionMode.POLLING -> PollingTransport(options, onConfigSet = onConfigSet)
             ConnectionMode.ONE_TIME -> PollingTransport.oneTime(options, onConfigSet)
         }
     }

@@ -5,6 +5,14 @@
 - **A JDK 17 or newer.** CI builds on 21 and 25 — 21 because that is what Android Studio ships,
   25 because it is current. The Android Gradle plugin is fussier about the JDK running Gradle than
   about anything else in this build.
+- **A JDK 21 as well, if you can.** The two versions disagree about more than they look like they
+  should: a javac lint category that exists in one and not the other is an error rather than a
+  warning, so a build that is green on 25 can fail on 21. The pre-push hook compiles on 21 when it
+  finds one, and says it skipped when it does not.
+
+  ```sh
+  sdk install java 21.0.12+1.1-tem   # or set JAVA21_HOME to one you already have
+  ```
 - **The Android SDK.** Opening the project in Android Studio writes `local.properties` for you;
   otherwise write it yourself, or export `ANDROID_HOME`:
 
@@ -88,8 +96,9 @@ Install it once:
 git config core.hooksPath .githooks
 ```
 
-It runs the same two checks CI does, against your working tree rather than the commits being
-pushed. Bypass it for a single push with `git push --no-verify`.
+It runs the same checks CI does, against your working tree rather than the commits being pushed:
+`./gradlew build`, the Java test check, and — when a JDK 21 is installed — a compile pass on 21.
+Bypass it for a single push with `git push --no-verify`.
 
 ## What CI runs
 

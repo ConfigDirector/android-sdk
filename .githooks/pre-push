@@ -88,4 +88,23 @@ run "./gradlew build" ./gradlew build
 # Java surface uncovered. CI runs this same script.
 run "the Java tests ran" ./.github/scripts/check-java-tests-ran.sh
 
+# CI builds on JDK 21 as well as 25, and the two disagree about more than they look like they
+# should: a javac lint category that exists in one and not the other is an error rather than a
+# warning. Compiling on the older one here catches that before it reaches CI. Skipped, with a
+# note, when no JDK 21 is installed.
+jdk21=${JAVA21_HOME:-}
+if [ -z "$jdk21" ]; then
+    for candidate in "$HOME"/.sdkman/candidates/java/21.*/ /Library/Java/JavaVirtualMachines/*21*/Contents/Home/; do
+        [ -x "$candidate/bin/javac" ] && jdk21=${candidate%/} && break
+    done
+fi
+
+if [ -n "$jdk21" ]; then
+    run "compile on JDK 21" ./gradlew assembleDebug -Dorg.gradle.java.home="$jdk21"
+else
+    printf '\n%s> skipped: compile on JDK 21%s\n' "$bold" "$reset"
+    printf '  No JDK 21 found. Install one (sdk install java 21.0.12+1.1-tem) or set JAVA21_HOME\n'
+    printf '  to have this run; CI builds on 21 either way.\n'
+fi
+
 printf '\n%spre-push checks passed%s\n' "$green" "$reset"

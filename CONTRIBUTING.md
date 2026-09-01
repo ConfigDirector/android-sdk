@@ -130,6 +130,33 @@ A test that passes against a bug is worse than no test. Either write it before t
 it fail for the right reason, or write it after and then break the implementation on purpose to
 watch it fail. Test names say what the code does, not which method they call.
 
+## Releasing
+
+Both artifacts share one version, in `gradle.properties`:
+
+```properties
+GROUP=com.configdirector
+VERSION_NAME=0.1.0
+```
+
+They are released together, because the Compose bindings depend on the core of the same version.
+
+A release is two steps: merge the `VERSION_NAME` bump, then run the **Release configdirector-android**
+workflow against `main`. It builds and tests everything CI does, uploads a signed bundle to the
+Maven Central Portal, and tags the commit `v<version>`. It refuses to run when that tag already
+exists, so a version cannot be released twice by accident.
+
+The bundle is not a published version: the deployment waits in the
+[Central Portal](https://central.sonatype.com) until someone releases it by hand, which is the last
+look at what is about to become permanent. Dropping it there instead means deleting the tag before
+running the workflow again.
+
+The workflow needs four repository secrets: `MAVEN_CENTRAL_USERNAME` and `MAVEN_CENTRAL_PASSWORD`
+(a Portal user token, not the account password), and `SIGNING_KEY` and `SIGNING_KEY_PASSWORD` (an
+ASCII-armoured GPG secret key and its passphrase). Signing is skipped when no key is configured, so
+a local `./gradlew publishToMavenLocal` works without one — useful for trying a change against a
+real consuming app before it is released.
+
 ## The pre-push hook
 
 Install it once:
@@ -147,3 +174,6 @@ Bypass it for a single push with `git push --no-verify`.
 [`configdirector-android.yml`](.github/workflows/configdirector-android.yml) runs `./gradlew build`
 and the Java test check on JDK 21 and 25, and keeps the AAR and the sample APKs as artifacts. Test
 and lint reports are uploaded when a job fails.
+
+[`release.yml`](.github/workflows/release.yml) is the manual release described above. It is the only
+workflow that touches Maven Central, and the only one that needs secrets.

@@ -1,13 +1,17 @@
 import com.android.build.api.artifact.SingleArtifact
+import com.vanniktech.maven.publish.AndroidSingleVariantLibrary
 import com.configdirector.gradle.registerApiValidation
 
 plugins {
     alias(libs.plugins.android.library)
+    alias(libs.plugins.maven.publish)
     alias(libs.plugins.compose.compiler)
 }
 
-group = "com.configdirector"
-version = "0.1.0"
+group = providers.gradleProperty("GROUP").get()
+version = providers.gradleProperty("VERSION_NAME").get()
+
+private val REPOSITORY_URL = "https://github.com/ConfigDirector/android-sdk"
 
 android {
     namespace = "com.configdirector.compose"
@@ -71,4 +75,51 @@ dependencies {
     testImplementation(libs.org.json)
     debugImplementation(platform(libs.androidx.compose.bom))
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+}
+
+mavenPublishing {
+    // Uploads a signed bundle to the Central Portal and stops there: the deployment is released by
+    // hand, so a green pipeline is not by itself a published version.
+    publishToMavenCentral()
+
+    // Central requires signatures, and only the release pipeline holds the key. Publishing to the
+    // local cache to try a build against a consumer must not need one, so this is conditional; an
+    // unsigned bundle is rejected by the Portal rather than published.
+    if (providers.gradleProperty("signingInMemoryKey").isPresent ||
+        providers.gradleProperty("signing.keyId").isPresent
+    ) {
+        signAllPublications()
+    }
+
+    // The release variant is what consumers get; the debug one carries nothing they can use.
+    configure(AndroidSingleVariantLibrary("release", sourcesJar = true, publishJavadocJar = true))
+
+    pom {
+        name.set("ConfigDirector Android Compose bindings")
+        description.set("Jetpack Compose bindings for the ConfigDirector Android SDK. ConfigDirector is a remote configuration and feature flag service.")
+        url.set(REPOSITORY_URL)
+        inceptionYear.set("2026")
+
+        licenses {
+            license {
+                name.set("MIT License")
+                url.set("$REPOSITORY_URL/blob/main/LICENSE")
+                distribution.set("repo")
+            }
+        }
+
+        developers {
+            developer {
+                id.set("configdirector")
+                name.set("ConfigDirector")
+                url.set("https://www.configdirector.com")
+            }
+        }
+
+        scm {
+            url.set(REPOSITORY_URL)
+            connection.set("scm:git:$REPOSITORY_URL.git")
+            developerConnection.set("scm:git:ssh://git@github.com/ConfigDirector/android-sdk.git")
+        }
+    }
 }

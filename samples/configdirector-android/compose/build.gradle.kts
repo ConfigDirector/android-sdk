@@ -73,7 +73,7 @@ dependencies {
     // deliberately lag the version in gradle.properties between a version bump and the release
     // that publishes it -- naming an unpublished version here leaves the sample unresolvable for
     // everyone who is not passing -PuseLocalSdk above. The core arrives with them.
-    implementation("com.configdirector:configdirector-android-compose:1.1.0")
+    implementation("com.configdirector:configdirector-android-compose:1.2.0")
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)

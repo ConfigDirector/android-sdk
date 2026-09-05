@@ -141,40 +141,53 @@ watch it fail. Test names say what the code does, not which method they call.
 
 ## Releasing
 
-Both artifacts share one version, in `gradle.properties`:
+Both artifacts share the one `VERSION_NAME` in `gradle.properties` and are always released
+together, because the Compose bindings depend on the core of the same version.
 
-```properties
-GROUP=com.configdirector
-VERSION_NAME=1.1.0
-```
+1. **Prepare the release on `main`.** In one PR:
+   - Move the `[Unreleased]` entries in `CHANGELOG.md` under a new `## [<version>] - <date>`
+     heading.
+   - Bump `VERSION_NAME` in `gradle.properties`.
+   - Bump `Constants.SDK_VERSION` in
+     [`Constants.kt`](configdirector-android/src/main/kotlin/com/configdirector/internal/Constants.kt)
+     to the same version — it is what the SDK reports to the server, and `ConstantsTest` fails the
+     build when the two disagree.
 
-They are released together, because the Compose bindings depend on the core of the same version.
+   Merge it.
 
-A release is two steps: merge the `VERSION_NAME` bump, then run the **Release configdirector-android**
-workflow against `main`. It builds and tests everything CI does, uploads a signed bundle per
-artifact to the Maven Central Portal, and tags the commit `v<version>`. It refuses to run when that
-tag already exists, so a version cannot be released twice by accident.
+2. **Run the [Release configdirector-android](.github/workflows/release.yml) workflow against
+   `main`** (Actions tab → Release configdirector-android → Run workflow). It runs everything CI
+   runs, uploads a signed bundle per artifact to the Maven Central Portal, and tags the commit
+   `v<version>`. It refuses to run if that tag already exists, so a version cannot be released
+   twice by accident.
 
-The artifacts are uploaded one Gradle invocation each, so that the Portal names each deployment
-after the artifact it carries — `com.configdirector-configdirector-android-<version>` —
-rather than after the group. A build that publishes both at once is named after the group and the
-version instead, which says nothing about which artifact it holds.
+3. **Release both deployments in the [Central Portal](https://central.sonatype.com).** The
+   workflow only uploads; each deployment waits there until someone releases it by hand, which is
+   the last look at what is about to become permanent. There are two —
+   `com.configdirector-configdirector-android-<version>` and
+   `com.configdirector-configdirector-android-compose-<version>` — and **both** must be released,
+   or the version is unusable.
 
-A bundle is not a published version: each deployment waits in the
-[Central Portal](https://central.sonatype.com) until someone releases it by hand, which is the last
-look at what is about to become permanent. **Both have to be released** for the version to be
-usable, since the Compose bindings depend on the core of the same version. Dropping them there
-instead means deleting the tag before running the workflow again.
+4. **Once the version resolves on Central, bump both samples to it** in a follow-up PR. The
+   samples deliberately lag the SDK: naming a version that is not published yet leaves them
+   unresolvable for anyone not passing `-PuseLocalSdk`.
 
-Once the version resolves on Central, bump both samples to it. They deliberately lag the SDK:
-naming a version that is not published yet leaves them unresolvable for anyone who is not passing
-`-PuseLocalSdk`.
+If something looks wrong in the Portal, drop both deployments instead of releasing them, delete
+the `v<version>` tag, fix the problem, and run the workflow again.
+
+### One-time setup
 
 The workflow needs four repository secrets: `MAVEN_CENTRAL_USERNAME` and `MAVEN_CENTRAL_PASSWORD`
 (a Portal user token, not the account password), and `SIGNING_KEY` and `SIGNING_KEY_PASSWORD` (an
 ASCII-armoured GPG secret key and its passphrase). Signing is skipped when no key is configured, so
 a local `./gradlew publishToMavenLocal` works without one — useful for trying a change against a
 real consuming app before it is released.
+
+### Why one Gradle invocation per artifact
+
+The artifacts are uploaded one Gradle invocation each, so that the Portal names each deployment
+after the artifact it carries rather than after the group. A build that publishes both at once is
+named after the group and the version instead, which says nothing about which artifact it holds.
 
 ## The pre-push hook
 

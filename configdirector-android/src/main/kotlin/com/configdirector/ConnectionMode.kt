@@ -10,7 +10,4 @@ public enum class ConnectionMode {
 
     /** Fetches config state during initialization and then on a fixed interval. */
     POLLING,
-
-    /** Fetches config state during initialization and on context updates only. */
-    ONE_TIME,
 }

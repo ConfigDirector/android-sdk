@@ -25,13 +25,9 @@ import org.json.JSONException
 
 /**
  * A [Transport] that fetches config state on connect and then re-fetches it on a fixed interval.
- *
- * A null polling interval disables the interval, which is how the one-time transport fetches config
- * state on connect only.
  */
 internal class PollingTransport(
     private val options: TransportOptions,
-    private val pollingIntervalMillis: Long? = options.pollingIntervalMillis,
     private val onConfigSet: (ConfigSet) -> Unit,
 ) : Transport {
 
@@ -76,12 +72,11 @@ internal class PollingTransport(
     }
 
     private fun schedulePolling(context: ConfigDirectorContext, timeoutMillis: Long) {
-        val interval = pollingIntervalMillis ?: return
-        if (interval <= 0 || hasFatalError.get() || closed.get()) return
+        if (hasFatalError.get() || closed.get()) return
 
         val job = scope.launch {
             while (isActive) {
-                delay(interval)
+                delay(options.pollingIntervalMillis)
                 try {
                     fetch(context, timeoutMillis)
                 } catch (cancellation: CancellationException) {
@@ -157,9 +152,5 @@ internal class PollingTransport(
         private const val PATH = "client/polling/v1"
         private const val HTTP_OK = 200
         private val JSON = "application/json".toMediaType()
-
-        /** A transport that fetches config state on connect only, never polling afterwards. */
-        fun oneTime(options: TransportOptions, onConfigSet: (ConfigSet) -> Unit) =
-            PollingTransport(options, pollingIntervalMillis = null, onConfigSet = onConfigSet)
     }
 }

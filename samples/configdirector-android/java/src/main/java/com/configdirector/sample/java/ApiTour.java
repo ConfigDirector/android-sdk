@@ -77,7 +77,7 @@ final class ApiTour {
             .connection(
                 ConnectionOptions.builder()
                     .mode(ConnectionMode.POLLING)
-                    .pollingIntervalMillis(30_000L)
+                    .pollingIntervalMillis(120_000L)
                     .baseUrl("https://proxy.example.com")
                     .build())
             .logger(new AndroidLogger(LogLevel.WARN))

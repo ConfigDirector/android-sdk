@@ -50,12 +50,15 @@ class ConfigDirectorClientTest {
         ClientOptions.build {
             logger(logger)
             metadata(metadata)
-            connection {
-                mode(mode)
-                pollingIntervalMillis(pollingIntervalMillis)
-                timeoutMillis(timeoutMillis)
-                baseUrl(baseUrl)
-            }
+            connection(
+                ConnectionOptions(
+                    mode = mode,
+                    pollingIntervalMillis = pollingIntervalMillis,
+                    timeoutMillis = timeoutMillis,
+                    baseUrl = baseUrl,
+                    pausesWhileBackgrounded = true,
+                ),
+            )
         },
     ).also { client = it }
 
@@ -365,14 +368,6 @@ class ConfigDirectorClientTest {
         client(mode = ConnectionMode.POLLING, pollingIntervalMillis = 50).initialize()
 
         waitFor("a second fetch") { server.requestCount >= 2 }
-    }
-
-    @Test
-    fun `fetches once only when it connects one time`() = runBlocking {
-        client(mode = ConnectionMode.ONE_TIME, pollingIntervalMillis = 50).initialize()
-
-        Thread.sleep(300)
-        assertThat(server.requestCount).isEqualTo(1)
     }
 
     @Test

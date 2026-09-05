@@ -433,8 +433,7 @@ public class ConfigDirectorClient @JvmOverloads constructor(
             onConfigSet: (ConfigSet) -> Unit,
         ): Transport = when (mode) {
             ConnectionMode.STREAMING -> StreamingTransport(options, onConfigSet)
-            ConnectionMode.POLLING -> PollingTransport(options, onConfigSet = onConfigSet)
-            ConnectionMode.ONE_TIME -> PollingTransport.oneTime(options, onConfigSet)
+            ConnectionMode.POLLING -> PollingTransport(options, onConfigSet)
         }
     }
 }

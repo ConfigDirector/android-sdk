@@ -163,7 +163,6 @@ public final class com/configdirector/ConnectReason : java/lang/Enum {
 }
 
 public final class com/configdirector/ConnectionMode : java/lang/Enum {
-	public static final field ONE_TIME Lcom/configdirector/ConnectionMode;
 	public static final field POLLING Lcom/configdirector/ConnectionMode;
 	public static final field STREAMING Lcom/configdirector/ConnectionMode;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
@@ -173,7 +172,6 @@ public final class com/configdirector/ConnectionMode : java/lang/Enum {
 
 public final class com/configdirector/ConnectionOptions {
 	public static final field Companion Lcom/configdirector/ConnectionOptions$Companion;
-	public synthetic fun <init> (Lcom/configdirector/ConnectionMode;JJLjava/lang/String;ZLkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public static final fun builder ()Lcom/configdirector/ConnectionOptions$Builder;
 	public static final fun defaults ()Lcom/configdirector/ConnectionOptions;
 	public fun equals (Ljava/lang/Object;)Z

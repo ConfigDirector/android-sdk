@@ -12,14 +12,14 @@ public class OptionsJavaTest {
     ConnectionOptions connection =
         ConnectionOptions.builder()
             .mode(ConnectionMode.POLLING)
-            .pollingIntervalMillis(30_000L)
+            .pollingIntervalMillis(120_000L)
             .timeoutMillis(5_000L)
             .baseUrl("https://proxy.example.com")
             .pausesWhileBackgrounded(false)
             .build();
 
     assertThat(connection.getMode()).isEqualTo(ConnectionMode.POLLING);
-    assertThat(connection.getPollingIntervalMillis()).isEqualTo(30_000L);
+    assertThat(connection.getPollingIntervalMillis()).isEqualTo(120_000L);
     assertThat(connection.getTimeoutMillis()).isEqualTo(5_000L);
     assertThat(connection.getBaseUrl()).isEqualTo("https://proxy.example.com");
     assertThat(connection.getPausesWhileBackgrounded()).isFalse();
@@ -30,20 +30,20 @@ public class OptionsJavaTest {
     ConnectionOptions connection = ConnectionOptions.defaults();
 
     assertThat(connection.getMode()).isEqualTo(ConnectionMode.STREAMING);
-    assertThat(connection.getPollingIntervalMillis()).isEqualTo(60_000L);
+    assertThat(connection.getPollingIntervalMillis()).isEqualTo(300_000L);
     assertThat(connection.getTimeoutMillis()).isEqualTo(3_000L);
     assertThat(connection.getBaseUrl()).isNull();
     assertThat(connection.getPausesWhileBackgrounded()).isTrue();
   }
 
   @Test
-  public void rejectsAPollingIntervalThatWouldNeverComeRound() {
-    ConnectionOptions.Builder builder = ConnectionOptions.builder().pollingIntervalMillis(0L);
+  public void rejectsAPollingIntervalShorterThanSixtySeconds() {
+    ConnectionOptions.Builder builder = ConnectionOptions.builder().pollingIntervalMillis(59_999L);
 
     ConfigDirectorValidationException failure =
         assertThrows(ConfigDirectorValidationException.class, builder::build);
 
-    assertThat(failure).hasMessageThat().contains("pollingIntervalMillis '0'");
+    assertThat(failure).hasMessageThat().contains("pollingIntervalMillis '59999'");
   }
 
   @Test
@@ -61,12 +61,12 @@ public class OptionsJavaTest {
     ClientOptions options =
         ClientOptions.builder()
             .metadata("Checkout", "4.2.0")
-            .connection(ConnectionOptions.builder().mode(ConnectionMode.ONE_TIME).build())
+            .connection(ConnectionOptions.builder().mode(ConnectionMode.POLLING).build())
             .logger(new AndroidLogger(LogLevel.DEBUG))
             .build();
 
     assertThat(options.getMetadata()).isEqualTo(new Metadata("Checkout", "4.2.0"));
-    assertThat(options.getConnection().getMode()).isEqualTo(ConnectionMode.ONE_TIME);
+    assertThat(options.getConnection().getMode()).isEqualTo(ConnectionMode.POLLING);
     assertThat(options.getLogger().getLevel()).isEqualTo(LogLevel.DEBUG);
   }
 

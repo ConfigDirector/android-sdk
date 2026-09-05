@@ -9,6 +9,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- The polling interval now defaults to 5 minutes instead of 60 seconds, and an interval shorter
+  than 60 seconds is rejected when the options are built.
+
+### Removed
+
+- `ConnectionMode.ONE_TIME`. Use `STREAMING`, or `POLLING` with an interval of at least 60
+  seconds; both fetch config state during initialization and on context updates.
+
 ## [1.1.0] - 2026-09-01
 
 ### Changed

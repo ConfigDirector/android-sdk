@@ -7,11 +7,11 @@ import org.junit.Test
 class OptionsTest {
 
     @Test
-    fun `connects by streaming with a 60 second poll and a 3 second timeout by default`() {
+    fun `connects by streaming with a 5 minute poll and a 3 second timeout by default`() {
         val connection = ConnectionOptions.defaults()
 
         assertThat(connection.mode).isEqualTo(ConnectionMode.STREAMING)
-        assertThat(connection.pollingIntervalMillis).isEqualTo(60_000)
+        assertThat(connection.pollingIntervalMillis).isEqualTo(300_000)
         assertThat(connection.timeoutMillis).isEqualTo(3_000)
         assertThat(connection.baseUrl).isNull()
         assertThat(connection.pausesWhileBackgrounded).isTrue()
@@ -21,26 +21,34 @@ class OptionsTest {
     fun `builds connection options from the Kotlin DSL`() {
         val connection = ConnectionOptions.build {
             mode(ConnectionMode.POLLING)
-            pollingIntervalMillis(30_000)
+            pollingIntervalMillis(120_000)
             timeoutMillis(5_000)
             baseUrl("https://proxy.example.com")
             pausesWhileBackgrounded(false)
         }
 
         assertThat(connection.mode).isEqualTo(ConnectionMode.POLLING)
-        assertThat(connection.pollingIntervalMillis).isEqualTo(30_000)
+        assertThat(connection.pollingIntervalMillis).isEqualTo(120_000)
         assertThat(connection.timeoutMillis).isEqualTo(5_000)
         assertThat(connection.baseUrl).isEqualTo("https://proxy.example.com")
         assertThat(connection.pausesWhileBackgrounded).isFalse()
     }
 
     @Test
-    fun `rejects a polling interval that would never come round`() {
+    fun `rejects a polling interval shorter than 60 seconds`() {
         val failure = assertThrows(ConfigDirectorValidationException::class.java) {
-            ConnectionOptions.build { pollingIntervalMillis(0) }
+            ConnectionOptions.build { pollingIntervalMillis(59_999) }
         }
 
-        assertThat(failure).hasMessageThat().contains("pollingIntervalMillis '0'")
+        assertThat(failure).hasMessageThat().contains("pollingIntervalMillis '59999'")
+        assertThat(failure).hasMessageThat().contains("at least 60000ms")
+    }
+
+    @Test
+    fun `accepts a polling interval of exactly 60 seconds`() {
+        val connection = ConnectionOptions.build { pollingIntervalMillis(60_000) }
+
+        assertThat(connection.pollingIntervalMillis).isEqualTo(60_000)
     }
 
     @Test
@@ -102,12 +110,12 @@ class OptionsTest {
 
         val options = ClientOptions.build {
             metadata("Checkout", "4.2.0")
-            connection { mode(ConnectionMode.ONE_TIME) }
+            connection { mode(ConnectionMode.POLLING) }
             logger(logger)
         }
 
         assertThat(options.metadata).isEqualTo(Metadata("Checkout", "4.2.0"))
-        assertThat(options.connection.mode).isEqualTo(ConnectionMode.ONE_TIME)
+        assertThat(options.connection.mode).isEqualTo(ConnectionMode.POLLING)
         assertThat(options.logger).isSameInstanceAs(logger)
     }
 

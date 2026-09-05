@@ -62,9 +62,6 @@ class PollingTransportTest {
         PollingTransport(options(pollingIntervalMillis)) { received += it }
             .also { transport = it }
 
-    private fun oneTime(): PollingTransport =
-        PollingTransport.oneTime(options()) { received += it }.also { transport = it }
-
     private fun configSetResponse(
         body: String = """
         {
@@ -186,16 +183,6 @@ class PollingTransportTest {
         assertThat(server.takeRequest(2, TimeUnit.SECONDS)).isNotNull()
         assertThat(server.takeRequest(2, TimeUnit.SECONDS)).isNotNull()
         assertThat(server.takeRequest(2, TimeUnit.SECONDS)).isNotNull()
-    }
-
-    @Test
-    fun `fetches once only when it is one-time`() = runBlocking {
-        repeat(2) { server.enqueue(configSetResponse()) }
-
-        oneTime().connect(context, timeoutMillis = 3_000)
-
-        assertThat(server.takeRequest(1, TimeUnit.SECONDS)).isNotNull()
-        assertThat(server.takeRequest(500, TimeUnit.MILLISECONDS)).isNull()
     }
 
     @Test

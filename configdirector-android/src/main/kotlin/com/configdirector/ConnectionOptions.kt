@@ -9,7 +9,7 @@ import java.net.URISyntaxException
  * Settings are checked when they are built, so an unusable one is reported where it was written
  * rather than as a client that quietly never updates.
  */
-public class ConnectionOptions private constructor(
+public class ConnectionOptions internal constructor(
     /** How the client keeps its config state current. */
     public val mode: ConnectionMode,
 
@@ -20,7 +20,7 @@ public class ConnectionOptions private constructor(
      * How long initialization and context updates wait for config state.
      *
      * When streaming, the operation may still succeed after it elapses as long as nothing
-     * unrecoverable happened. In the other modes a timed-out operation is not retried.
+     * unrecoverable happened. When polling, a timed-out operation is not retried.
      */
     public val timeoutMillis: Long,
 
@@ -76,8 +76,7 @@ public class ConnectionOptions private constructor(
 
         /**
          * How long to wait between polls, in milliseconds. Used only in [ConnectionMode.POLLING];
-         * defaults to 60 seconds. Must be positive: [ConnectionMode.ONE_TIME] is how to ask for a
-         * single fetch instead.
+         * defaults to 5 minutes. Must be at least 60 seconds.
          */
         public fun pollingIntervalMillis(pollingIntervalMillis: Long): Builder =
             apply { this.pollingIntervalMillis = pollingIntervalMillis }
@@ -101,11 +100,12 @@ public class ConnectionOptions private constructor(
         /**
          * Builds the settings.
          *
-         * @throws ConfigDirectorValidationException if a duration is not positive or is longer than
-         *   can be waited on, or if the base URL is not absolute or names no host.
+         * @throws ConfigDirectorValidationException if the polling interval is shorter than 60
+         *   seconds, the timeout is not positive or is longer than can be waited on, or the base
+         *   URL is not absolute or names no host.
          */
         public fun build(): ConnectionOptions {
-            requirePositive(pollingIntervalMillis, "pollingIntervalMillis")
+            requireAtLeastMinimumPollingInterval(pollingIntervalMillis)
             requirePositive(timeoutMillis, "timeoutMillis")
             requireAtMostMaxInt(timeoutMillis, "timeoutMillis")
             requireUsableUrl(baseUrl)
@@ -120,7 +120,7 @@ public class ConnectionOptions private constructor(
     }
 
     public companion object {
-        private const val DEFAULT_POLLING_INTERVAL_MILLIS = 60_000L
+        private const val DEFAULT_POLLING_INTERVAL_MILLIS = 300_000L
         private const val DEFAULT_TIMEOUT_MILLIS = 3_000L
         private val DEFAULTS: ConnectionOptions = Builder().build()
 
@@ -128,7 +128,7 @@ public class ConnectionOptions private constructor(
         @JvmStatic
         public fun builder(): Builder = Builder()
 
-        /** Streaming, a 60 second polling interval, and a 3 second timeout. */
+        /** Streaming, a 5 minute polling interval, and a 3 second timeout. */
         @JvmStatic
         public fun defaults(): ConnectionOptions = DEFAULTS
 
@@ -142,6 +142,17 @@ public class ConnectionOptions private constructor(
         @JvmSynthetic
         public fun build(configure: Builder.() -> Unit): ConnectionOptions =
             Builder().apply(configure).build()
+    }
+}
+
+private const val MINIMUM_POLLING_INTERVAL_MILLIS = 60_000L
+
+private fun requireAtLeastMinimumPollingInterval(value: Long) {
+    if (value < MINIMUM_POLLING_INTERVAL_MILLIS) {
+        throw ConfigDirectorValidationException(
+            "Invalid pollingIntervalMillis '$value'. It must be at least " +
+                "${MINIMUM_POLLING_INTERVAL_MILLIS}ms (60 seconds).",
+        )
     }
 }
 

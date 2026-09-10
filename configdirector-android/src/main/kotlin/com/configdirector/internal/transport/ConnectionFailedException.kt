@@ -11,6 +11,7 @@ internal class ConnectionFailedException(
 
 /**
  * Whether an HTTP status means the request itself is wrong, an invalid SDK key for instance, so
- * retrying it would fail the same way.
+ * retrying it would fail the same way. A 429 is the exception: the request is fine, there were just
+ * too many of them, so retrying later is expected to succeed.
  */
-internal fun Int.isFatalHttpStatus(): Boolean = this in 400..499
+internal fun Int.isFatalHttpStatus(): Boolean = this in 400..499 && this != 429

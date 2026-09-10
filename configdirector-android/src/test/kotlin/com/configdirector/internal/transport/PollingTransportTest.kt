@@ -231,6 +231,20 @@ class PollingTransportTest {
     }
 
     @Test
+    fun `keeps polling after being rate limited`() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(429).setBody("too many requests"))
+        server.enqueue(configSetResponse())
+        val transport = polling(pollingIntervalMillis = 50)
+
+        val failure = connectFailure(transport)
+
+        assertThat(failure.statusCode).isEqualTo(429)
+        assertThat(failure).hasMessageThat().doesNotContain("unrecoverable")
+        assertThat(server.takeRequest(2, TimeUnit.SECONDS)).isNotNull()
+        assertThat(server.takeRequest(2, TimeUnit.SECONDS)).isNotNull()
+    }
+
+    @Test
     fun `throws when the server sends something that is not a config set`() = runBlocking {
         server.enqueue(configSetResponse("this is not json"))
 

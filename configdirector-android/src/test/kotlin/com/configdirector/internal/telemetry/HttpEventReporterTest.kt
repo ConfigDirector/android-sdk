@@ -168,6 +168,19 @@ class HttpEventReporterTest {
     }
 
     @Test
+    fun `keeps reporting after being rate limited`() = runBlocking<Unit> {
+        server.enqueue(MockResponse().setResponseCode(429))
+        server.enqueue(MockResponse())
+        val reporter = reporter()
+
+        val first = reporter.report(report(listOf(evaluation("dark-mode"))))
+        val second = reporter.report(report(listOf(evaluation("dark-mode"))))
+
+        assertThat(first).isEqualTo(ReportOutcome.FAILED)
+        assertThat(second).isEqualTo(ReportOutcome.SUCCEEDED)
+    }
+
+    @Test
     fun `gives up on a report the server does not answer in time`() = runBlocking<Unit> {
         server.enqueue(MockResponse().setHeadersDelay(2, TimeUnit.SECONDS))
 

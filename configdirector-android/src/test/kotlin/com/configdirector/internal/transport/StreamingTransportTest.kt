@@ -144,6 +144,17 @@ class StreamingTransportTest {
     }
 
     @Test
+    fun `reconnects after being rate limited`() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(429))
+        server.enqueue(eventStream(configSetEvent))
+
+        streaming().connect(context, timeoutMillis = 3_000)
+        waitFor("the config set from the second connection") { received.size == 1 }
+
+        assertThat(server.requestCount).isEqualTo(2)
+    }
+
+    @Test
     fun `warns once reconnect attempts stop looking routine`() = runBlocking {
         repeat(6) { server.enqueue(MockResponse().setResponseCode(503)) }
         server.enqueue(eventStream(configSetEvent))

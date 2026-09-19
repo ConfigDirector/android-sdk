@@ -103,11 +103,11 @@ The Context row is where targeting shows: each identity calls `updateContext`, w
 re-evaluates every config against the new identity, and pushes the new values to whatever is
 watching — the way to watch a targeting rule take effect without rebuilding.
 
-| Identity     | Context                                                     |
-| ------------ | ----------------------------------------------------------- |
-| Configured   | the id, name and `role` trait from `local.properties`        |
-| Beta tester  | `beta-tester`, Beta Tester, `role: beta`                     |
-| Anonymous    | no id or name, anonymous                                     |
+| Identity    | Context                                               |
+| ----------- | ----------------------------------------------------- |
+| Configured  | the id, name and `role` trait from `local.properties` |
+| Beta tester | `beta-tester`, Beta Tester, `role: beta`              |
+| Anonymous   | no id or name, anonymous                              |
 
 These are the identities the other ConfigDirector sample apps offer, so a targeting rule written
 against `role` behaves the same everywhere.
@@ -117,8 +117,8 @@ against `role` behaves the same everywhere.
 Each depends on the released artifact it demonstrates, exactly as your own app would:
 
 ```kotlin
-implementation("com.configdirector:configdirector-android-compose:1.2.0")  // the Compose sample
-implementation("com.configdirector:configdirector-android:1.2.0")          // the Java sample
+implementation("com.configdirector:configdirector-android-compose:1.3.0")  // the Compose sample
+implementation("com.configdirector:configdirector-android:1.3.0")          // the Java sample
 ```
 
 The Compose artifact depends on the core and re-exposes it, so the Compose sample gets both from
@@ -139,8 +139,8 @@ unresolvable for anyone who is not passing the flag.
 
 ## They do not share a minSdk
 
-| Module                  | minSdk | Java bytecode |
-| ----------------------- | ------ | ------------- |
+| Module                   | minSdk | Java bytecode |
+| ------------------------ | ------ | ------------- |
 | `configdirector-android` | 21     | 8             |
 | `samples/.../java`       | 21     | 8             |
 | `samples/.../compose`    | 23     | 11            |

@@ -10,10 +10,10 @@ It is written in Kotlin and is meant to be used from Kotlin and Java alike, and 
 
 ```kotlin
 dependencies {
-    implementation("com.configdirector:configdirector-android:1.2.0")
+    implementation("com.configdirector:configdirector-android:1.3.0")
 
     // Optional, for Jetpack Compose applications
-    implementation("com.configdirector:configdirector-android-compose:1.2.0")
+    implementation("com.configdirector:configdirector-android-compose:1.3.0")
 }
 ```
 

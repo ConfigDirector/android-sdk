@@ -25,7 +25,7 @@
 
 Nothing else. The build brings its own Gradle through the wrapper.
 
-## The two artifacts
+## The three artifacts
 
 `configdirector-android` is the whole SDK: Kotlin, no Compose, consumable from Java, `minSdk 21` and
 Java 8 bytecode.
@@ -38,10 +38,17 @@ its own. It depends on `androidx.compose.runtime` alone, deliberately: bindings 
 Compose is a Kotlin compiler plugin, so the Compose artifact has no Java source set and the Java
 test rule below does not apply to it.
 
-Both artifacts use Robolectric in their tests, and only there. The Compose bindings need a
-composition to run in; the core needs a real `Application`, because the client takes a `Context` and
-watches the application behind it to tell when the app is backgrounded. Tests that never build a
-client — the options, the context, the parsers, the telemetry queue — stay plain JVM tests.
+`configdirector-openfeature-android-provider` is an [OpenFeature](https://openfeature.dev) provider
+over the core, for the OpenFeature Kotlin SDK. That SDK's provider contract is built on `suspend`
+functions and flows, so the provider is Kotlin-only and the Java test rule does not apply to it
+either. It ships Java 11 bytecode, because the OpenFeature Kotlin SDK does, and keeps `minSdk 21`.
+It is versioned and released apart from the other two; see [Releasing](#releasing).
+
+All three artifacts use Robolectric in their tests, and only there. The Compose bindings need a
+composition to run in; the core and the provider need a real `Application`, because the client takes
+a `Context` and watches the application behind it to tell when the app is backgrounded. Tests that
+never build a client — the options, the context, the parsers, the telemetry queue, the provider's
+mappings — stay plain JVM tests.
 
 ## Building and testing
 
@@ -49,8 +56,8 @@ client — the options, the context, the parsers, the telemetry queue — stay p
 ./gradlew build
 ```
 
-That is the whole check. It compiles both artifacts, the core's two test source sets, and both
-sample apps; runs the unit tests; and runs Android lint, whose failures fail the build — lint is
+That is the whole check. It compiles all three artifacts, the core's two test source sets, and every
+sample app; runs the unit tests; and runs Android lint, whose failures fail the build — lint is
 what catches an API that needs a newer Android than the SDK's `minSdk 21`.
 
 The samples resolve the SDK from Maven Central, the way a consumer does. Build them against the
@@ -66,12 +73,14 @@ it ships.
 Narrower loops while working:
 
 ```sh
-./gradlew :configdirector-android:testDebugUnitTest          # the core's tests alone
-./gradlew :configdirector-android-compose:testDebugUnitTest  # the Compose bindings' tests
-./gradlew :configdirector-android:assembleDebug              # the AAR alone
+./gradlew :configdirector-android:testDebugUnitTest                      # the core's tests alone
+./gradlew :configdirector-android-compose:testDebugUnitTest              # the Compose bindings' tests
+./gradlew :configdirector-openfeature-android-provider:testDebugUnitTest # the provider's tests
+./gradlew :configdirector-android:assembleDebug                          # the AAR alone
 ```
 
-Running the sample apps is covered in [their README](samples/configdirector-android/README.md).
+Running the sample apps is covered in [the SDK samples' README](samples/configdirector-android/README.md)
+and [the provider sample's](samples/configdirector-openfeature-android-provider/README.md).
 
 ## Dependencies
 
@@ -112,8 +121,8 @@ test results. CI and the hook both run it after `build`.
 
 ## The published API is locked down
 
-`api/configdirector-android.api` and `api/configdirector-android-compose.api` are the public API of
-each artifact, as Java and Kotlin consumers see it. `apiCheck` regenerates the signatures from the
+Each artifact's `api/<artifact>.api` is its public API, as Java and Kotlin consumers see it.
+`apiCheck` regenerates the signatures from the
 release AAR and fails when they differ from the committed file; `check` depends on it, so
 `./gradlew build`, CI and the hook all catch an accidental break.
 
@@ -159,8 +168,9 @@ watch it fail. Test names say what the code does, not which method they call.
 
 ## Releasing
 
-Both artifacts share the one `VERSION_NAME` in `gradle.properties` and are always released
-together, because the Compose bindings depend on the core of the same version.
+The core and the Compose bindings share the one `VERSION_NAME` in `gradle.properties` and are
+always released together, because the Compose bindings depend on the core of the same version. The
+OpenFeature provider is released on its own; see [below](#the-openfeature-provider).
 
 1. **Prepare the release on `main`.** In one PR:
    - Move the `[Unreleased]` entries in `CHANGELOG.md` under a new `## [<version>] - <date>`
@@ -192,6 +202,25 @@ together, because the Compose bindings depend on the core of the same version.
 
 If something looks wrong in the Portal, drop both deployments instead of releasing them, delete
 the `v<version>` tag, fix the problem, and run the workflow again.
+
+### The OpenFeature provider
+
+`configdirector-openfeature-android-provider` follows the same steps with its own version,
+`OPENFEATURE_PROVIDER_VERSION_NAME` in `gradle.properties`, its own
+[changelog](configdirector-openfeature-android-provider/CHANGELOG.md), its own version constant in
+[`Constants.kt`](configdirector-openfeature-android-provider/src/main/kotlin/com/configdirector/openfeature/internal/Constants.kt),
+which its `ConstantsTest` holds to the Gradle version, and the
+[Release configdirector-openfeature-android-provider](.github/workflows/release-openfeature-provider.yml)
+workflow, which tags the commit `configdirector-openfeature-android-provider-v<version>` and uploads
+one deployment.
+
+Its published POM depends on whatever `VERSION_NAME` the same commit declares, so that SDK version
+must already resolve on Central before the provider is released. Once the provider resolves, bump
+the sample under `samples/configdirector-openfeature-android-provider/` to it.
+
+It has a version of its own because it follows two things: the SDK it wraps, and the OpenFeature
+Kotlin SDK, which is 0.x and can break on a minor. A bump for either should not force a release of
+the other.
 
 ### One-time setup
 
@@ -225,5 +254,7 @@ pass on 21. Bypass it for a single push with `git push --no-verify`.
 and the Java test check on JDK 21 and 25, with `useLocalSdk` set for the whole workflow, and keeps
 the AAR and the sample APKs as artifacts. Test and lint reports are uploaded when a job fails.
 
-[`release.yml`](.github/workflows/release.yml) is the manual release described above. It is the only
-workflow that touches Maven Central, and the only one that needs secrets.
+[`release.yml`](.github/workflows/release.yml) and
+[`release-openfeature-provider.yml`](.github/workflows/release-openfeature-provider.yml) are the
+manual releases described above. They are the only workflows that touch Maven Central, and the only
+ones that need secrets.

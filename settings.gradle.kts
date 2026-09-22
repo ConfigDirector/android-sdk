@@ -25,6 +25,7 @@ rootProject.name = "configdirector-android-sdk"
 
 include("configdirector-android")
 include("configdirector-android-compose")
+include("configdirector-openfeature-android-provider")
 
 // Not published. Each depends on the release of the artifact it demonstrates, the way a real
 // consumer does; -PuseLocalSdk swaps in the modules above instead, which is how CI and the
@@ -32,3 +33,5 @@ include("configdirector-android-compose")
 // they demonstrate, since this repository will hold more than one.
 include("samples:configdirector-android:compose")
 include("samples:configdirector-android:java")
+
+include("samples:configdirector-openfeature-android-provider:compose")

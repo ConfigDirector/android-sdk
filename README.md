@@ -6,6 +6,8 @@ Android SDK for [ConfigDirector](https://www.configdirector.com), remote config 
 
 It is written in Kotlin and is meant to be used from Kotlin and Java alike, and it ships as two artifacts: `com.configdirector:configdirector-android`, the SDK, and `com.configdirector:configdirector-android-compose`, optional Jetpack Compose bindings over it.
 
+This repository also holds [`com.configdirector:configdirector-openfeature-android-provider`](configdirector-openfeature-android-provider/), an [OpenFeature](https://openfeature.dev) provider built on the SDK, released on its own.
+
 ## Install
 
 ```kotlin
@@ -46,6 +48,9 @@ this SDK, reading the same handful of configs and re-rendering as their values c
 [**compose**](samples/configdirector-android/compose) is Kotlin and Jetpack Compose;
 [**java**](samples/configdirector-android/java) is plain Java with framework views, no Kotlin
 sources at all.
+
+[`samples/configdirector-openfeature-android-provider/`](samples/configdirector-openfeature-android-provider/)
+holds a Compose app reading the same configs through the OpenFeature provider.
 
 They depend on the released artifacts, the way your own app would; `-PuseLocalSdk` builds them
 against this checkout instead. From the repository root, with a device or emulator running:

@@ -222,6 +222,11 @@ It has a version of its own because it follows two things: the SDK it wraps, and
 Kotlin SDK, which is 0.x and can break on a minor. A bump for either should not force a release of
 the other.
 
+The publish plugin reads `VERSION_NAME` from `gradle.properties` on its own and lets it override a
+module's `version`, which is how the provider once went out under the SDK's version. Its build
+script names its coordinates explicitly to stop that, and both release workflows generate each
+publication's POM and refuse to upload unless the version in it is the one being released.
+
 ### One-time setup
 
 The workflow needs four repository secrets: `MAVEN_CENTRAL_USERNAME` and `MAVEN_CENTRAL_PASSWORD`

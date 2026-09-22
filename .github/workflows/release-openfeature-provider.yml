@@ -75,6 +75,23 @@ jobs:
       - name: Check the Java tests ran
         run: ./.github/scripts/check-java-tests-ran.sh
 
+      # The publish plugin decides the version on its own, from Gradle properties, and it once
+      # disagreed with the version Gradle reports above. The POM is what Central receives, so the
+      # release refuses to upload unless the two agree.
+      - name: Check the publications carry the version being released
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          for module in configdirector-openfeature-android-provider; do
+            ./gradlew -q ":${module}:generatePomFileForMavenPublication"
+            published=$(sed -n 's:.*<version>\(.*\)</version>.*:\1:p' "${module}/build/publications/maven/pom-default.xml" | head -1)
+            if [[ $published != "$VERSION" ]]; then
+              echo "::error::$module would be published as $published, not as $VERSION"
+              exit 1
+            fi
+            echo "$module publishes as $published"
+          done
+
       # Uploads a signed bundle and stops there. Releasing it is a decision made in the Portal,
       # which is the last chance to look at what is about to become permanent.
       - name: Publish to the Central Portal

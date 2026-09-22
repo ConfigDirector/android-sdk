@@ -73,6 +73,23 @@ jobs:
       - name: Check the Java tests ran
         run: ./.github/scripts/check-java-tests-ran.sh
 
+      # The publish plugin decides the version on its own, from Gradle properties, and it once
+      # disagreed with the version Gradle reports above. The POM is what Central receives, so the
+      # release refuses to upload unless the two agree.
+      - name: Check the publications carry the version being released
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          for module in configdirector-android configdirector-android-compose; do
+            ./gradlew -q ":${module}:generatePomFileForMavenPublication"
+            published=$(sed -n 's:.*<version>\(.*\)</version>.*:\1:p' "${module}/build/publications/maven/pom-default.xml" | head -1)
+            if [[ $published != "$VERSION" ]]; then
+              echo "::error::$module would be published as $published, not as $VERSION"
+              exit 1
+            fi
+            echo "$module publishes as $published"
+          done
+
       # One artifact per invocation, deliberately: the Central Portal names a deployment after the
       # artifact only when a build publishes a single one, and after the group and version when it
       # publishes several. Two deployments both have to be released in the Portal for a version to

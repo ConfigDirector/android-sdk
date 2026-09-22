@@ -92,6 +92,15 @@ mavenPublishing {
     // The release variant is what consumers get; the debug one carries nothing they can use.
     configure(AndroidSingleVariantLibrary("release", sourcesJar = true, publishJavadocJar = true))
 
+    // The plugin reads the VERSION_NAME Gradle property on its own and lets it override the
+    // project version, which would publish the provider under the SDK's version. Naming the
+    // coordinates here is what makes the version above the one that ships.
+
+    // The plugin reads the VERSION_NAME Gradle property on its own and lets it override the
+    // project version, which would publish the provider under the SDK's version. Naming the
+    // coordinates here is what makes the version above the one that ships.
+    coordinates(group.toString(), name, version.toString())
+
     pom {
         name.set("ConfigDirector OpenFeature Android Provider")
         description.set("OpenFeature provider for Android and Kotlin, built on the ConfigDirector Android SDK. ConfigDirector is a remote configuration and feature flag service.")

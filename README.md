@@ -12,10 +12,10 @@ This repository also holds [`com.configdirector:configdirector-openfeature-andro
 
 ```kotlin
 dependencies {
-    implementation("com.configdirector:configdirector-android:1.3.0")
+    implementation("com.configdirector:configdirector-android:1.4.0")
 
     // Optional, for Jetpack Compose applications
-    implementation("com.configdirector:configdirector-android-compose:1.3.0")
+    implementation("com.configdirector:configdirector-android-compose:1.4.0")
 }
 ```
 

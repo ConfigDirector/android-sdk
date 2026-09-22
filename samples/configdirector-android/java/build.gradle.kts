@@ -73,5 +73,5 @@ dependencies {
     // lags the version in gradle.properties between a version bump and the release that publishes
     // it -- naming an unpublished version here leaves the sample unresolvable for everyone who is
     // not passing -PuseLocalSdk above.
-    implementation("com.configdirector:configdirector-android:1.3.0")
+    implementation("com.configdirector:configdirector-android:1.4.0")
 }

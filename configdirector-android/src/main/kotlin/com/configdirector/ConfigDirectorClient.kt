@@ -280,6 +280,56 @@ public class ConfigDirectorClient private constructor(
     ): List<Any?> = store.getJsonArray(key, defaultValue)
 
     /**
+     * Evaluates [key] the way [getBoolean] does, and says why it evaluated the way it did.
+     *
+     * The returned [ConfigEvaluation.value] is what [getBoolean] would have returned, so it is
+     * [defaultValue] whenever the config could not be served as a boolean, and
+     * [ConfigEvaluation.reason] says why. Use this where the reason matters at the point of the
+     * read, such as when reporting an evaluation to another system; [getBoolean] is enough
+     * everywhere else. Like every read, it is published to the evaluation listeners and counted
+     * in telemetry.
+     *
+     * There is a method per type a config can be read as, matching the getters. Kotlin callers have
+     * `client.evaluate(key, default)`, which takes the type from the default value.
+     *
+     * ```kotlin
+     * val evaluation = client.evaluateBoolean("dark-mode", false)
+     * if (evaluation.reason == EvaluationReason.CLIENT_NOT_READY) { ... }
+     * ```
+     *
+     * ```java
+     * ConfigEvaluation evaluation = client.evaluateBoolean("dark-mode", false);
+     * boolean darkMode = (Boolean) evaluation.getValue();
+     * ```
+     */
+    public fun evaluateBoolean(key: String, defaultValue: Boolean): ConfigEvaluation =
+        store.evaluateBoolean(key, defaultValue)
+
+    /** Evaluates [key] the way [getString] does, and says why. See [evaluateBoolean]. */
+    public fun evaluateString(key: String, defaultValue: String): ConfigEvaluation =
+        store.evaluateString(key, defaultValue)
+
+    /** Evaluates [key] the way [getInt] does, and says why. See [evaluateBoolean]. */
+    public fun evaluateInt(key: String, defaultValue: Int): ConfigEvaluation =
+        store.evaluateInt(key, defaultValue)
+
+    /** Evaluates [key] the way [getDouble] does, and says why. See [evaluateBoolean]. */
+    public fun evaluateDouble(key: String, defaultValue: Double): ConfigEvaluation =
+        store.evaluateDouble(key, defaultValue)
+
+    /** Evaluates [key] the way [getJsonObject] does, and says why. See [evaluateBoolean]. */
+    public fun evaluateJsonObject(
+        key: String,
+        defaultValue: Map<String, @JvmSuppressWildcards Any?>,
+    ): ConfigEvaluation = store.evaluateJsonObject(key, defaultValue)
+
+    /** Evaluates [key] the way [getJsonArray] does, and says why. See [evaluateBoolean]. */
+    public fun evaluateJsonArray(
+        key: String,
+        defaultValue: List<@JvmSuppressWildcards Any?>,
+    ): ConfigEvaluation = store.evaluateJsonArray(key, defaultValue)
+
+    /**
      * Watches [key] for changes, which can come from an update in the ConfigDirector dashboard or
      * from a call to [updateContext].
      *

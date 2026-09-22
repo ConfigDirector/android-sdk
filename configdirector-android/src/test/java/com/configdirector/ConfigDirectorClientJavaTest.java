@@ -164,6 +164,51 @@ public class ConfigDirectorClientJavaTest {
   }
 
   @Test
+  public void explainsWhyAConfigEvaluatedTheWayItDid() throws InterruptedException {
+    ConfigDirectorClient client = client();
+    ConfigDirectorContext context =
+        ConfigDirectorContext.builder().id("user-123").name("Ada").trait("plan", "pro").build();
+
+    ConfigEvaluation notReady = client.evaluateBoolean("dark-mode", true);
+    assertThat(notReady.getValue()).isEqualTo(true);
+    assertThat(notReady.isDefaultValue()).isTrue();
+    assertThat(notReady.getReason()).isEqualTo(EvaluationReason.CLIENT_NOT_READY);
+
+    CountDownLatch initialized = new CountDownLatch(1);
+    client.initialize(context, initialized::countDown);
+    assertThat(initialized.await(5, TimeUnit.SECONDS)).isTrue();
+
+    ConfigEvaluation served = client.evaluateBoolean("dark-mode", false);
+    assertThat(served.getKey()).isEqualTo("dark-mode");
+    assertThat(served.getValue()).isEqualTo(true);
+    assertThat(served.getValueId()).isEqualTo("dark-mode-pro");
+    assertThat(served.isDefaultValue()).isFalse();
+    assertThat(served.getReason()).isEqualTo(EvaluationReason.FOUND_MATCH);
+    assertThat(served.getContext()).isEqualTo(context);
+
+    assertThat(client.evaluateString("welcome-message", "fallback").getValue())
+        .isEqualTo("Hello, Ada");
+    assertThat(client.evaluateInt("max-items", 0).getValue()).isEqualTo(25);
+    assertThat(client.evaluateDouble("sample-rate", 0.0).getValue()).isEqualTo(0.25);
+
+    Map<String, Object> fallback = new LinkedHashMap<>();
+    fallback.put("fell", "back");
+    ConfigEvaluation theme = client.evaluateJsonObject("theme", fallback);
+    assertThat(theme.getReason()).isEqualTo(EvaluationReason.FOUND_MATCH);
+    assertThat(((Map<?, ?>) theme.getValue())).containsEntry("primary", "#101010");
+    ConfigEvaluation features =
+        client.evaluateJsonArray("feature-list", Collections.<Object>emptyList());
+    assertThat(features.getReason()).isEqualTo(EvaluationReason.FOUND_MATCH);
+    assertThat(((List<?>) features.getValue())).containsExactly("alpha", "beta").inOrder();
+
+    ConfigEvaluation mismatch = client.evaluateBoolean("max-items", true);
+    assertThat(mismatch.getValue()).isEqualTo(true);
+    assertThat(mismatch.isDefaultValue()).isTrue();
+    assertThat(mismatch.getReason()).isEqualTo(EvaluationReason.TYPE_MISMATCH);
+    client.close();
+  }
+
+  @Test
   public void identifiesItselfAsTheWrapperItWasBuiltFor() throws Exception {
     ConfigDirectorClient client =
         new ConfigDirectorClient(

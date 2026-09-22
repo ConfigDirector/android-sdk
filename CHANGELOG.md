@@ -16,6 +16,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   SDK's. The set of identities is closed: there is a factory per wrapper, and no way to build one
   from an arbitrary name. Both are behind the `@ConfigDirectorWrapperApi` opt-in marker, since an
   application has no use for them. This is groundwork for the OpenFeature provider.
+- An evaluation per readable type, `evaluateBoolean` through `evaluateJsonArray`, returning the
+  `ConfigEvaluation` the getter of the same type would have published: the value, whether it is
+  the default, the reason, and the value id. For Kotlin, `evaluate` reads the type from the
+  default value. Use it where the reason matters at the point of the read; the getters are enough
+  everywhere else.
 
 ## [1.3.0] - 2026-09-18
 

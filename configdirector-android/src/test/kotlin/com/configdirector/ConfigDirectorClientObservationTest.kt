@@ -217,6 +217,18 @@ class ConfigDirectorClientObservationTest {
     }
 
     @Test
+    fun `tells a listener about a config it explained`() = runBlocking<Unit> {
+        client.initialize(proContext)
+        val evaluations = CopyOnWriteArrayList<ConfigEvaluation>()
+        client.addEvaluationListener { evaluations += it }
+
+        val explained = client.evaluateBoolean("dark-mode", false)
+
+        waitFor("the evaluation") { evaluations.isNotEmpty() }
+        assertThat(evaluations.single()).isEqualTo(explained)
+    }
+
+    @Test
     fun `tells a listener about a config it fell back on`() = runBlocking<Unit> {
         client.initialize(proContext)
         val evaluations = CopyOnWriteArrayList<ConfigEvaluation>()
@@ -255,6 +267,22 @@ class ConfigDirectorClientObservationTest {
         assertThat(client.value("sample-rate", 0.0)).isEqualTo(0.25)
         assertThat(client.value("theme", emptyMap<String, Any?>())["primary"]).isEqualTo("#101010")
         assertThat(client.value("feature-list", emptyList<Any?>())).containsExactly("alpha", "beta")
+    }
+
+    @Test
+    fun `explains a config as the type of the default value`() = runBlocking<Unit> {
+        client.initialize(proContext)
+
+        assertThat(client.evaluate("dark-mode", false).value).isEqualTo(true)
+        assertThat(client.evaluate("welcome-message", "fallback").value).isEqualTo("Hello, Ada")
+        assertThat(client.evaluate("max-items", 0).value).isEqualTo(25)
+        assertThat(client.evaluate("sample-rate", 0.0).value).isEqualTo(0.25)
+        assertThat((client.evaluate("theme", emptyMap<String, Any?>()).value as Map<*, *>)["primary"])
+            .isEqualTo("#101010")
+        assertThat(client.evaluate("feature-list", emptyList<Any?>()).value as List<*>)
+            .containsExactly("alpha", "beta")
+        assertThat(client.evaluate("no-such-config", false).reason)
+            .isEqualTo(EvaluationReason.CONFIG_STATE_MISSING)
     }
 
     @Test

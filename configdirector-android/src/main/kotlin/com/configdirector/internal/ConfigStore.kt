@@ -98,22 +98,40 @@ internal class ConfigStore(
     }
 
     fun getBoolean(key: String, defaultValue: Boolean): Boolean =
-        evaluate(key, defaultValue) { it.asBoolean(defaultValue) }
+        evaluate(key, defaultValue) { it.asBoolean(defaultValue) }.value
 
     fun getString(key: String, defaultValue: String): String =
-        evaluate(key, defaultValue) { it.asString(defaultValue) }
+        evaluate(key, defaultValue) { it.asString(defaultValue) }.value
 
     fun getInt(key: String, defaultValue: Int): Int =
-        evaluate(key, defaultValue) { it.asInt(defaultValue) }
+        evaluate(key, defaultValue) { it.asInt(defaultValue) }.value
 
     fun getDouble(key: String, defaultValue: Double): Double =
-        evaluate(key, defaultValue) { it.asDouble(defaultValue) }
+        evaluate(key, defaultValue) { it.asDouble(defaultValue) }.value
 
     fun getJsonObject(key: String, defaultValue: Map<String, Any?>): Map<String, Any?> =
-        evaluate(key, defaultValue) { it.asJsonObject(defaultValue) }
+        evaluate(key, defaultValue) { it.asJsonObject(defaultValue) }.value
 
     fun getJsonArray(key: String, defaultValue: List<Any?>): List<Any?> =
-        evaluate(key, defaultValue) { it.asJsonArray(defaultValue) }
+        evaluate(key, defaultValue) { it.asJsonArray(defaultValue) }.value
+
+    fun evaluateBoolean(key: String, defaultValue: Boolean): ConfigEvaluation =
+        evaluate(key, defaultValue) { it.asBoolean(defaultValue) }.describe(key)
+
+    fun evaluateString(key: String, defaultValue: String): ConfigEvaluation =
+        evaluate(key, defaultValue) { it.asString(defaultValue) }.describe(key)
+
+    fun evaluateInt(key: String, defaultValue: Int): ConfigEvaluation =
+        evaluate(key, defaultValue) { it.asInt(defaultValue) }.describe(key)
+
+    fun evaluateDouble(key: String, defaultValue: Double): ConfigEvaluation =
+        evaluate(key, defaultValue) { it.asDouble(defaultValue) }.describe(key)
+
+    fun evaluateJsonObject(key: String, defaultValue: Map<String, Any?>): ConfigEvaluation =
+        evaluate(key, defaultValue) { it.asJsonObject(defaultValue) }.describe(key)
+
+    fun evaluateJsonArray(key: String, defaultValue: List<Any?>): ConfigEvaluation =
+        evaluate(key, defaultValue) { it.asJsonArray(defaultValue) }.describe(key)
 
     fun <T : Any> watch(key: String, listener: ConfigListener<T>, evaluate: () -> T): Subscription {
         if (closedState.value) return Subscription {}
@@ -166,7 +184,7 @@ internal class ConfigStore(
         key: String,
         defaultValue: T,
         parse: (ConfigState) -> EvaluationResult<T>,
-    ): T {
+    ): EvaluationResult<T> {
         val configState = configs.get()[key]
         val result = configState?.let(parse) ?: EvaluationResult.usedDefault(
             defaultValue,
@@ -188,20 +206,22 @@ internal class ConfigStore(
         )
 
         if (evaluationListeners.isNotEmpty()) {
-            val evaluation = ConfigEvaluation(
-                key = key,
-                value = result.value,
-                valueId = result.valueId,
-                isDefaultValue = result.usedDefault,
-                reason = result.reason,
-                context = context,
-            )
+            val evaluation = result.describe(key)
             evaluationListeners.forEach { listener -> deliver { listener.onEvaluation(evaluation) } }
         }
 
         logger.debug { "Evaluated '$key' to '${result.value}' (${result.reason.wireName})" }
-        return result.value
+        return result
     }
+
+    private fun EvaluationResult<*>.describe(key: String): ConfigEvaluation = ConfigEvaluation(
+        key = key,
+        value = checkNotNull(value),
+        valueId = valueId,
+        isDefaultValue = usedDefault,
+        reason = reason,
+        context = context,
+    )
 
     private fun markReady() {
         if (ready.value || closedState.value) return

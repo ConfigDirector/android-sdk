@@ -7,8 +7,8 @@ public class ConfigEvaluation internal constructor(
 
     /**
      * The value the config evaluated to, which is the default value supplied by the caller when
-     * [isDefaultValue] is true. It is a `Boolean`, `String`, `Integer` or `Double`, matching the
-     * accessor the config was read with.
+     * [isDefaultValue] is true. It is a `Boolean`, `String`, `Integer`, `Double`, `Map` or `List`,
+     * matching the accessor the config was read with.
      */
     public val value: Any,
 

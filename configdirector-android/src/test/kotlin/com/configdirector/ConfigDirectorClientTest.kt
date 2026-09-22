@@ -290,6 +290,109 @@ class ConfigDirectorClientTest {
     }
 
     @Test
+    fun `explains a config it served`() = runBlocking {
+        val client = client()
+
+        client.initialize(proContext)
+
+        val evaluation = client.evaluateBoolean("dark-mode", false)
+        assertThat(evaluation.key).isEqualTo("dark-mode")
+        assertThat(evaluation.value).isEqualTo(true)
+        assertThat(evaluation.valueId).isEqualTo("dark-mode-pro")
+        assertThat(evaluation.isDefaultValue).isFalse()
+        assertThat(evaluation.reason).isEqualTo(EvaluationReason.FOUND_MATCH)
+        assertThat(evaluation.context).isEqualTo(proContext)
+    }
+
+    @Test
+    fun `explains a config of every readable type`() = runBlocking {
+        val client = client()
+
+        client.initialize(proContext)
+
+        val string = client.evaluateString("welcome-message", "fallback")
+        assertThat(string.value).isEqualTo("Hello, Ada")
+        assertThat(string.valueId).isEqualTo("welcome-message-pro")
+        assertThat(string.reason).isEqualTo(EvaluationReason.FOUND_MATCH)
+
+        val int = client.evaluateInt("max-items", 0)
+        assertThat(int.value).isEqualTo(25)
+        assertThat(int.valueId).isEqualTo("max-items-pro")
+        assertThat(int.reason).isEqualTo(EvaluationReason.FOUND_MATCH)
+
+        val double = client.evaluateDouble("sample-rate", 0.0)
+        assertThat(double.value).isEqualTo(0.25)
+        assertThat(double.valueId).isEqualTo("sample-rate-only")
+        assertThat(double.reason).isEqualTo(EvaluationReason.FOUND_MATCH)
+
+        val jsonObject = client.evaluateJsonObject("theme", emptyMap<String, Any?>())
+        assertThat((jsonObject.value as Map<*, *>)["primary"]).isEqualTo("#101010")
+        assertThat(jsonObject.valueId).isEqualTo("theme-only")
+        assertThat(jsonObject.reason).isEqualTo(EvaluationReason.FOUND_MATCH)
+
+        val jsonArray = client.evaluateJsonArray("feature-list", emptyList<Any?>())
+        assertThat(jsonArray.value as List<*>).containsExactly("alpha", "beta").inOrder()
+        assertThat(jsonArray.valueId).isEqualTo("feature-list-only")
+        assertThat(jsonArray.reason).isEqualTo(EvaluationReason.FOUND_MATCH)
+    }
+
+    @Test
+    fun `explains why it fell back on the default value`() = runBlocking {
+        val client = client()
+
+        val notReady = client.evaluateBoolean("dark-mode", true)
+        assertThat(notReady.value).isEqualTo(true)
+        assertThat(notReady.valueId).isNull()
+        assertThat(notReady.isDefaultValue).isTrue()
+        assertThat(notReady.reason).isEqualTo(EvaluationReason.CLIENT_NOT_READY)
+        assertThat(notReady.context).isNull()
+
+        client.initialize(proContext)
+
+        assertThat(client.evaluateBoolean("no-such-config", true).reason)
+            .isEqualTo(EvaluationReason.CONFIG_STATE_MISSING)
+        assertThat(client.evaluateBoolean("max-items", true).reason)
+            .isEqualTo(EvaluationReason.TYPE_MISMATCH)
+        assertThat(client.evaluateBoolean("beta-banner", true).reason)
+            .isEqualTo(EvaluationReason.VALUE_MISSING)
+        assertThat(client.evaluateBoolean("welcome-message", true).reason)
+            .isEqualTo(EvaluationReason.INVALID_BOOLEAN)
+        assertThat(client.evaluateInt("welcome-message", 7).reason)
+            .isEqualTo(EvaluationReason.INVALID_NUMBER)
+        assertThat(client.evaluateDouble("welcome-message", 1.5).reason)
+            .isEqualTo(EvaluationReason.INVALID_NUMBER)
+        assertThat(client.evaluateJsonObject("broken-json", emptyMap<String, Any?>()).reason)
+            .isEqualTo(EvaluationReason.INVALID_JSON)
+        assertThat(client.evaluateJsonArray("theme", emptyList<Any?>()).reason)
+            .isEqualTo(EvaluationReason.INVALID_JSON)
+        assertThat(client.evaluateJsonObject("welcome-message", emptyMap<String, Any?>()).reason)
+            .isEqualTo(EvaluationReason.TYPE_MISMATCH)
+
+        val fallback = client.evaluateInt("welcome-message", 7)
+        assertThat(fallback.value).isEqualTo(7)
+        assertThat(fallback.isDefaultValue).isTrue()
+        assertThat(fallback.context).isEqualTo(proContext)
+    }
+
+    @Test
+    fun `counts an explained evaluation in telemetry`() = runBlocking {
+        val client = client()
+        client.initialize(proContext)
+        client.evaluateBoolean("dark-mode", false)
+
+        client.close()
+
+        waitFor("the telemetry report") { server.telemetryReports.isNotEmpty() }
+        val events = server.telemetryReports.first()
+            .getJSONObject("aggregatedEvents")
+            .getJSONArray("evaluatedConfig")
+        assertThat(events.length()).isEqualTo(1)
+        val event = events.getJSONObject(0).getJSONObject("event")
+        assertThat(event.getString("key")).isEqualTo("dark-mode")
+        assertThat(event.getString("evaluationReason")).isEqualTo("found-match")
+    }
+
+    @Test
     fun `truncates a decimal read as a whole number`() = runBlocking {
         val client = client()
 

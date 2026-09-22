@@ -72,6 +72,12 @@ public final class com/configdirector/ConfigDirectorClient : java/io/Closeable {
 	public final fun addEvaluationListener (Lcom/configdirector/EvaluationListener;)Lcom/configdirector/Subscription;
 	public final fun addEventListener (Lcom/configdirector/ClientEventListener;)Lcom/configdirector/Subscription;
 	public fun close ()V
+	public final fun evaluateBoolean (Ljava/lang/String;Z)Lcom/configdirector/ConfigEvaluation;
+	public final fun evaluateDouble (Ljava/lang/String;D)Lcom/configdirector/ConfigEvaluation;
+	public final fun evaluateInt (Ljava/lang/String;I)Lcom/configdirector/ConfigEvaluation;
+	public final fun evaluateJsonArray (Ljava/lang/String;Ljava/util/List;)Lcom/configdirector/ConfigEvaluation;
+	public final fun evaluateJsonObject (Ljava/lang/String;Ljava/util/Map;)Lcom/configdirector/ConfigEvaluation;
+	public final fun evaluateString (Ljava/lang/String;Ljava/lang/String;)Lcom/configdirector/ConfigEvaluation;
 	public final fun getBoolean (Ljava/lang/String;Z)Z
 	public final fun getContext ()Lcom/configdirector/ConfigDirectorContext;
 	public final fun getDouble (Ljava/lang/String;D)D
@@ -223,6 +229,12 @@ public final class com/configdirector/EvaluationReason : java/lang/Enum {
 }
 
 public final class com/configdirector/KotlinExtensionsKt {
+	public static final synthetic fun evaluate (Lcom/configdirector/ConfigDirectorClient;Ljava/lang/String;D)Lcom/configdirector/ConfigEvaluation;
+	public static final synthetic fun evaluate (Lcom/configdirector/ConfigDirectorClient;Ljava/lang/String;I)Lcom/configdirector/ConfigEvaluation;
+	public static final synthetic fun evaluate (Lcom/configdirector/ConfigDirectorClient;Ljava/lang/String;Ljava/lang/String;)Lcom/configdirector/ConfigEvaluation;
+	public static final synthetic fun evaluate (Lcom/configdirector/ConfigDirectorClient;Ljava/lang/String;Ljava/util/List;)Lcom/configdirector/ConfigEvaluation;
+	public static final synthetic fun evaluate (Lcom/configdirector/ConfigDirectorClient;Ljava/lang/String;Ljava/util/Map;)Lcom/configdirector/ConfigEvaluation;
+	public static final synthetic fun evaluate (Lcom/configdirector/ConfigDirectorClient;Ljava/lang/String;Z)Lcom/configdirector/ConfigEvaluation;
 	public static final synthetic fun getEvaluations (Lcom/configdirector/ConfigDirectorClient;)Lkotlinx/coroutines/flow/Flow;
 	public static final synthetic fun getEvents (Lcom/configdirector/ConfigDirectorClient;)Lkotlinx/coroutines/flow/Flow;
 	public static final synthetic fun value (Lcom/configdirector/ConfigDirectorClient;Ljava/lang/String;D)D

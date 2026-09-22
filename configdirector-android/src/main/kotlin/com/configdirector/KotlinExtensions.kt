@@ -49,6 +49,50 @@ public fun ConfigDirectorClient.value(key: String, defaultValue: List<Any?>): Li
     getJsonArray(key, defaultValue)
 
 /**
+ * Evaluates [key] against the current context, reading the value as a boolean, and says why it
+ * evaluated the way it did.
+ *
+ * ```kotlin
+ * val evaluation = client.evaluate("dark-mode", false)
+ * if (evaluation.reason == EvaluationReason.CLIENT_NOT_READY) { ... }
+ * ```
+ *
+ * The value inside is what [value] would have returned. There is one overload per type a config
+ * can be read as, so a default of any other type is a compile error rather than a failure at
+ * runtime.
+ */
+@JvmSynthetic
+public fun ConfigDirectorClient.evaluate(key: String, defaultValue: Boolean): ConfigEvaluation =
+    evaluateBoolean(key, defaultValue)
+
+/** Evaluates [key], reading the value as a string, and says why. See [evaluate]. */
+@JvmSynthetic
+public fun ConfigDirectorClient.evaluate(key: String, defaultValue: String): ConfigEvaluation =
+    evaluateString(key, defaultValue)
+
+/** Evaluates [key], reading the value as a whole number, and says why. See [evaluate]. */
+@JvmSynthetic
+public fun ConfigDirectorClient.evaluate(key: String, defaultValue: Int): ConfigEvaluation =
+    evaluateInt(key, defaultValue)
+
+/** Evaluates [key], reading the value as a decimal number, and says why. See [evaluate]. */
+@JvmSynthetic
+public fun ConfigDirectorClient.evaluate(key: String, defaultValue: Double): ConfigEvaluation =
+    evaluateDouble(key, defaultValue)
+
+/** Evaluates [key], reading a JSON config's document as a map, and says why. See [evaluate]. */
+@JvmSynthetic
+public fun ConfigDirectorClient.evaluate(
+    key: String,
+    defaultValue: Map<String, Any?>,
+): ConfigEvaluation = evaluateJsonObject(key, defaultValue)
+
+/** Evaluates [key], reading a JSON config's document as a list, and says why. See [evaluate]. */
+@JvmSynthetic
+public fun ConfigDirectorClient.evaluate(key: String, defaultValue: List<Any?>): ConfigEvaluation =
+    evaluateJsonArray(key, defaultValue)
+
+/**
  * Watches [key] for changes, reading each value as a boolean.
  *
  * The flow emits the config's current value straight away and then every time the evaluated value

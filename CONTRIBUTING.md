@@ -133,6 +133,24 @@ ids, and the Android Gradle plugin brings its own Kotlin instead, so
 the release AAR directly. Reading the AAR rather than the compiled classes means the check sees
 exactly what we publish.
 
+## Wrappers identify themselves through a closed API
+
+The SDK sends its name and version with every request, and a wrapper built on it, such as the
+OpenFeature provider, has to send its own instead, so the server's SDK usage tells the two apart.
+`SdkIdentity` is how: a wrapper builds its client with the constructor that takes one.
+
+The set of identities is closed on purpose. There is a factory per wrapper ConfigDirector
+maintains, taking only the version that wrapper is published under, and no constructor an
+application could hand an arbitrary name to. Adding a wrapper means adding a factory here, not
+opening the type up.
+
+Both the type and the constructor sit behind `@ConfigDirectorWrapperApi`, a Kotlin opt-in marker. A
+Kotlin caller that has not opted in gets a compile error rather than an API that looks meant for
+them; a wrapper opts in with `@OptIn(ConfigDirectorWrapperApi::class)` where it builds its client.
+Java does not enforce opt-in, which is fine: the closed set is what keeps the name honest, and the
+marker is there to keep the API out of an application's way. Both still count as public API, so
+they are in the API dump and exercised from the Java test source set like everything else.
+
 ## Tests have to be shown to work
 
 A test that passes against a bug is worse than no test. Either write it before the code and watch

@@ -142,6 +142,47 @@ class ConfigDirectorClientTest {
         assertThat(meta.getString("userAgent")).isEqualTo("Android")
     }
 
+    @OptIn(ConfigDirectorWrapperApi::class)
+    private fun wrapperClient(identity: SdkIdentity): ConfigDirectorClient = ConfigDirectorClient(
+        RuntimeEnvironment.getApplication(),
+        "client-sdk-key",
+        ClientOptions.build {
+            logger(logger)
+            metadata("Checkout", "4.2.0")
+            connection { baseUrl(server.baseUrl) }
+        },
+        identity,
+    ).also { client = it }
+
+    @OptIn(ConfigDirectorWrapperApi::class)
+    @Test
+    fun `identifies itself as the wrapper it was built for`() = runBlocking {
+        wrapperClient(SdkIdentity.openFeatureProvider("9.9.9")).initialize(proContext)
+
+        val request = checkNotNull(server.takeRequest())
+        val meta = JSONObject(request.body.readUtf8()).getJSONObject("metaContext")
+        assertThat(meta.getString("sdkName")).isEqualTo("android-openfeature-client-provider")
+        assertThat(meta.getString("sdkVersion")).isEqualTo("9.9.9")
+        assertThat(meta.getString("appName")).isEqualTo("Checkout")
+        assertThat(meta.getString("appVersion")).isEqualTo("4.2.0")
+        assertThat(meta.getString("userAgent")).isEqualTo("Android")
+    }
+
+    @OptIn(ConfigDirectorWrapperApi::class)
+    @Test
+    fun `reports telemetry as the wrapper it was built for`() = runBlocking {
+        val client = wrapperClient(SdkIdentity.openFeatureProvider("9.9.9"))
+        client.initialize(proContext)
+        client.getBoolean("dark-mode", false)
+
+        client.close()
+
+        waitFor("the telemetry report") { server.telemetryReports.isNotEmpty() }
+        val meta = server.telemetryReports.first().getJSONObject("metaContext")
+        assertThat(meta.getString("sdkName")).isEqualTo("android-openfeature-client-provider")
+        assertThat(meta.getString("sdkVersion")).isEqualTo("9.9.9")
+    }
+
     @Test
     fun `serves a JSON config as its raw document`() = runBlocking {
         val client = client()

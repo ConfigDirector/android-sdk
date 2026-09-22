@@ -68,6 +68,7 @@ public final class com/configdirector/ConfigDirectorClient : java/io/Closeable {
 	public fun <init> (Landroid/content/Context;Ljava/lang/String;)V
 	public fun <init> (Landroid/content/Context;Ljava/lang/String;Lcom/configdirector/ClientOptions;)V
 	public synthetic fun <init> (Landroid/content/Context;Ljava/lang/String;Lcom/configdirector/ClientOptions;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Landroid/content/Context;Ljava/lang/String;Lcom/configdirector/ClientOptions;Lcom/configdirector/SdkIdentity;)V
 	public final fun addEvaluationListener (Lcom/configdirector/EvaluationListener;)Lcom/configdirector/Subscription;
 	public final fun addEventListener (Lcom/configdirector/ClientEventListener;)Lcom/configdirector/Subscription;
 	public fun close ()V
@@ -134,6 +135,9 @@ public abstract interface class com/configdirector/ConfigDirectorLogger {
 }
 
 public final class com/configdirector/ConfigDirectorValidationException : com/configdirector/ConfigDirectorException {
+}
+
+public abstract interface annotation class com/configdirector/ConfigDirectorWrapperApi : java/lang/annotation/Annotation {
 }
 
 public final class com/configdirector/ConfigEvaluation {
@@ -262,6 +266,19 @@ public final class com/configdirector/Metadata {
 
 public final class com/configdirector/Metadata$Companion {
 	public final fun empty ()Lcom/configdirector/Metadata;
+}
+
+public final class com/configdirector/SdkIdentity {
+	public static final field Companion Lcom/configdirector/SdkIdentity$Companion;
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getName ()Ljava/lang/String;
+	public final fun getVersion ()Ljava/lang/String;
+	public static final fun openFeatureProvider (Ljava/lang/String;)Lcom/configdirector/SdkIdentity;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/configdirector/SdkIdentity$Companion {
+	public final fun openFeatureProvider (Ljava/lang/String;)Lcom/configdirector/SdkIdentity;
 }
 
 public abstract interface class com/configdirector/Subscription : java/io/Closeable {

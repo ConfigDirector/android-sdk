@@ -8,6 +8,7 @@ import com.configdirector.internal.lifecycle.AppLifecycleObserver
 import com.configdirector.internal.lifecycle.AppLifecyclePhase
 import com.configdirector.internal.lifecycle.appLifecycleObserver
 import com.configdirector.internal.transport.PollingTransport
+import com.configdirector.internal.transport.SdkMetaContext
 import com.configdirector.internal.transport.StreamingTransport
 import com.configdirector.internal.transport.Transport
 import com.configdirector.internal.telemetry.HttpEventReporter
@@ -52,18 +53,57 @@ import okhttp3.OkHttpClient
  * [close] when the client is no longer needed. While the app is in the background the client pauses
  * its connection and resumes it on the way back, which
  * `ConnectionOptions.pausesWhileBackgrounded` turns off.
- *
- * @param androidContext any Android context; the application behind it is what the client watches
- *   to tell when the app is backgrounded
- * @param clientSdkKey the client SDK key from the ConfigDirector dashboard
- * @param options settings for this client, read once here
- * @throws ConfigDirectorValidationException if [clientSdkKey] is blank
  */
-public class ConfigDirectorClient @JvmOverloads constructor(
+public class ConfigDirectorClient private constructor(
     androidContext: Context,
     clientSdkKey: String,
-    options: ClientOptions = ClientOptions.defaults(),
+    options: ClientOptions,
+    metaContext: SdkMetaContext,
 ) : Closeable {
+
+    /**
+     * Creates a client.
+     *
+     * @param androidContext any Android context; the application behind it is what the client
+     *   watches to tell when the app is backgrounded
+     * @param clientSdkKey the client SDK key from the ConfigDirector dashboard
+     * @param options settings for this client, read once here
+     * @throws ConfigDirectorValidationException if [clientSdkKey] is blank
+     */
+    @OptIn(ConfigDirectorWrapperApi::class)
+    @JvmOverloads
+    public constructor(
+        androidContext: Context,
+        clientSdkKey: String,
+        options: ClientOptions = ClientOptions.defaults(),
+    ) : this(
+        androidContext,
+        clientSdkKey,
+        options,
+        SdkIdentity.ANDROID_CLIENT_SDK.toSdkMetaContext(options.metadata),
+    )
+
+    /**
+     * Creates a client that reports [identity] to the server instead of this SDK's own name and
+     * version. Otherwise identical to the constructor without it.
+     *
+     * This is how a wrapper maintained by ConfigDirector, such as the OpenFeature provider, shows
+     * up as itself in the server's SDK usage. An application has no use for it.
+     *
+     * @param androidContext any Android context; the application behind it is what the client
+     *   watches to tell when the app is backgrounded
+     * @param clientSdkKey the client SDK key from the ConfigDirector dashboard
+     * @param options settings for this client, read once here
+     * @param identity the wrapper the client reports itself as
+     * @throws ConfigDirectorValidationException if [clientSdkKey] is blank
+     */
+    @ConfigDirectorWrapperApi
+    public constructor(
+        androidContext: Context,
+        clientSdkKey: String,
+        options: ClientOptions,
+        identity: SdkIdentity,
+    ) : this(androidContext, clientSdkKey, options, identity.toSdkMetaContext(options.metadata))
 
     private val logger: ConfigDirectorLogger = options.logger
     private val timeoutMillis: Long = options.connection.timeoutMillis
@@ -100,7 +140,7 @@ public class ConfigDirectorClient @JvmOverloads constructor(
         val transportOptions = TransportOptions(
             clientSdkKey = clientSdkKey,
             baseUrl = baseUrl,
-            metaContext = options.metadata.toSdkMetaContext(),
+            metaContext = metaContext,
             instanceId = UUID.randomUUID().toString(),
             logger = logger,
             pollingIntervalMillis = options.connection.pollingIntervalMillis,

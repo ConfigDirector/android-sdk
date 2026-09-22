@@ -11,6 +11,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import kotlinx.coroutines.Dispatchers;
 import kotlinx.coroutines.test.TestDispatchers;
+import okhttp3.mockwebserver.RecordedRequest;
+import org.json.JSONObject;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -158,6 +160,29 @@ public class ConfigDirectorClientJavaTest {
     assertThat(client.getString("welcome-message", "fallback")).isEqualTo("fallback");
     assertThat(client.getInt("max-items", 7)).isEqualTo(7);
     assertThat(client.getDouble("sample-rate", 1.5)).isEqualTo(1.5);
+    client.close();
+  }
+
+  @Test
+  public void identifiesItselfAsTheWrapperItWasBuiltFor() throws Exception {
+    ConfigDirectorClient client =
+        new ConfigDirectorClient(
+            RuntimeEnvironment.getApplication(),
+            "client-sdk-key",
+            ClientOptions.builder()
+                .logger(logger)
+                .connection(ConnectionOptions.builder().baseUrl(server.getBaseUrl()).build())
+                .build(),
+            SdkIdentity.openFeatureProvider("9.9.9"));
+    CountDownLatch initialized = new CountDownLatch(1);
+    client.initialize(null, initialized::countDown);
+    assertThat(initialized.await(5, TimeUnit.SECONDS)).isTrue();
+
+    RecordedRequest request = server.takeRequest(5_000);
+    assertThat(request).isNotNull();
+    JSONObject meta = new JSONObject(request.getBody().readUtf8()).getJSONObject("metaContext");
+    assertThat(meta.getString("sdkName")).isEqualTo("android-openfeature-client-provider");
+    assertThat(meta.getString("sdkVersion")).isEqualTo("9.9.9");
     client.close();
   }
 

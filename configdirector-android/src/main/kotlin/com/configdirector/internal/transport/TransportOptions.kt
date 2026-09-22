@@ -2,8 +2,9 @@ package com.configdirector.internal.transport
 
 import com.configdirector.ConfigDirectorContext
 import com.configdirector.ConfigDirectorLogger
+import com.configdirector.ConfigDirectorWrapperApi
 import com.configdirector.Metadata
-import com.configdirector.internal.Constants
+import com.configdirector.SdkIdentity
 import com.configdirector.internal.toJson
 import org.json.JSONObject
 import okhttp3.HttpUrl
@@ -22,11 +23,12 @@ internal data class SdkMetaContext(
     val userAgent: String?,
 )
 
-internal fun Metadata.toSdkMetaContext(): SdkMetaContext = SdkMetaContext(
-    sdkName = Constants.SDK_NAME,
-    sdkVersion = Constants.SDK_VERSION,
-    appName = appName,
-    appVersion = appVersion,
+@OptIn(ConfigDirectorWrapperApi::class)
+internal fun SdkIdentity.toSdkMetaContext(metadata: Metadata): SdkMetaContext = SdkMetaContext(
+    sdkName = name,
+    sdkVersion = version,
+    appName = metadata.appName,
+    appVersion = metadata.appVersion,
     userAgent = USER_AGENT,
 )
 

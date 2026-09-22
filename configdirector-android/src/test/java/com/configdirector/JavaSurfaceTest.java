@@ -43,6 +43,7 @@ public class JavaSurfaceTest {
     LogLevel.class,
     Subscription.class,
     Metadata.class,
+    SdkIdentity.class,
   };
 
   // An internal Kotlin member is public bytecode under a mangled name, so it shows up in Java

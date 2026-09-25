@@ -193,6 +193,23 @@ class ConfigDirectorClientTest {
     }
 
     @Test
+    fun `serves the default when a boolean or numeric config is read as a string`() = runBlocking {
+        val client = client()
+
+        client.initialize()
+
+        val booleanAsString = client.evaluateString("dark-mode", "fallback")
+        assertThat(booleanAsString.value).isEqualTo("fallback")
+        assertThat(booleanAsString.isDefaultValue).isTrue()
+        assertThat(booleanAsString.valueId).isNull()
+        assertThat(booleanAsString.reason).isEqualTo(EvaluationReason.TYPE_MISMATCH)
+        assertThat(client.evaluateString("max-items", "fallback").reason)
+            .isEqualTo(EvaluationReason.TYPE_MISMATCH)
+        assertThat(client.evaluateString("sample-rate", "fallback").reason)
+            .isEqualTo(EvaluationReason.TYPE_MISMATCH)
+    }
+
+    @Test
     fun `serves a JSON config as a map`() = runBlocking {
         val client = client()
 

@@ -30,8 +30,17 @@ internal enum class ConfigValueKind(
         EvaluationReason.INVALID_BOOLEAN,
     ),
 
-    /** Every config: each value is a string on the wire, including a JSON config's raw document. */
-    STRING(ConfigType.entries.toSet(), EvaluationReason.TYPE_MISMATCH),
+    /** Text configs, and a JSON config as its raw document. */
+    STRING(
+        setOf(
+            ConfigType.STRING,
+            ConfigType.ENUMERATION,
+            ConfigType.URL,
+            ConfigType.CUSTOM,
+            ConfigType.JSON,
+        ),
+        EvaluationReason.TYPE_MISMATCH,
+    ),
 
     /** JSON configs only: a JSON document is not something another type happens to spell. */
     JSON(setOf(ConfigType.JSON), EvaluationReason.INVALID_JSON),

@@ -55,7 +55,7 @@ anonymous flag, so a targeting rule written against `role` behaves as it does in
 ## Which artifact it builds against
 
 ```kotlin
-implementation("com.configdirector:configdirector-openfeature-android-provider:1.0.0")
+implementation("com.configdirector:configdirector-openfeature-android-provider:1.1.0")
 ```
 
 The provider depends on the OpenFeature Kotlin SDK and the ConfigDirector SDK and re-exposes both,

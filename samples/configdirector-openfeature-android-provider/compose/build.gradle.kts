@@ -73,7 +73,7 @@ dependencies {
     // that publishes it -- naming an unpublished version here leaves the sample unresolvable for
     // everyone who is not passing -PuseLocalSdk above. The OpenFeature Kotlin SDK and the
     // ConfigDirector SDK arrive with it.
-    implementation("com.configdirector:configdirector-openfeature-android-provider:1.0.0")
+    implementation("com.configdirector:configdirector-openfeature-android-provider:1.1.0")
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)

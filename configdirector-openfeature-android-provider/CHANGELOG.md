@@ -9,6 +9,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-25
+
+- Bump dependency on client SDK with fix for evaluation type mismatches
+
+## [1.0.0] - 2026-09-21
+
 ### Added
 
 - `ConfigDirectorProvider`, an [OpenFeature](https://openfeature.dev) provider for the OpenFeature

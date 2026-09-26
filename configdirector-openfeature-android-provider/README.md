@@ -12,7 +12,7 @@ Android 5.0 (API 21) and up.
 
 ```kotlin
 dependencies {
-    implementation("com.configdirector:configdirector-openfeature-android-provider:1.1.0")
+    implementation("com.configdirector:configdirector-openfeature-android-provider:1.1.1")
 }
 ```
 

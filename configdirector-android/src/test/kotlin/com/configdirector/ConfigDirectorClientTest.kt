@@ -181,6 +181,9 @@ class ConfigDirectorClientTest {
         val meta = server.telemetryReports.first().getJSONObject("metaContext")
         assertThat(meta.getString("sdkName")).isEqualTo("android-openfeature-client-provider")
         assertThat(meta.getString("sdkVersion")).isEqualTo("9.9.9")
+        assertThat(meta.getString("appName")).isEqualTo("Checkout")
+        assertThat(meta.getString("appVersion")).isEqualTo("4.2.0")
+        assertThat(meta.getString("userAgent")).isEqualTo("Android")
     }
 
     @Test

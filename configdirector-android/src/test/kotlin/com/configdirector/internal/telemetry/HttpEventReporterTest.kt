@@ -73,7 +73,10 @@ class HttpEventReporterTest {
         assertThat(body.getString("clientSdkKey")).isEqualTo("client-sdk-key")
         assertThat(body.getJSONObject("metaContext").getString("sdkName"))
             .isEqualTo("android-client-sdk")
-        assertThat(body.getJSONObject("metaContext").has("appName")).isFalse()
+        assertThat(body.getJSONObject("metaContext").getString("sdkVersion")).isEqualTo("9.9.9")
+        assertThat(body.getJSONObject("metaContext").getString("appName")).isEqualTo("Sample")
+        assertThat(body.getJSONObject("metaContext").getString("appVersion")).isEqualTo("1.0")
+        assertThat(body.getJSONObject("metaContext").getString("userAgent")).isEqualTo("Android")
         assertThat(body.getJSONObject("context").getString("id")).isEqualTo("user-123")
         assertThat(body.getJSONObject("droppedEvents").getInt("evaluatedConfig")).isEqualTo(0)
 

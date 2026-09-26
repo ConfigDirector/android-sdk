@@ -78,12 +78,7 @@ internal class HttpEventReporter(
 
         return JSONObject()
             .put("clientSdkKey", options.clientSdkKey)
-            .put(
-                "metaContext",
-                JSONObject()
-                    .put("sdkName", options.metaContext.sdkName)
-                    .put("sdkVersion", options.metaContext.sdkVersion),
-            )
+            .put("metaContext", options.metaContext.toJson())
             .apply { report.context?.let { put("context", it.toJson()) } }
             .put("discreteEvents", JSONObject())
             .put("aggregatedEvents", JSONObject().put("evaluatedConfig", events))

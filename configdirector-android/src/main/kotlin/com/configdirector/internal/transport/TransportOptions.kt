@@ -21,7 +21,17 @@ internal data class SdkMetaContext(
     val appName: String?,
     val appVersion: String?,
     val userAgent: String?,
-)
+) {
+    fun toJson(): JSONObject {
+        val json = JSONObject()
+            .put("sdkName", sdkName)
+            .put("sdkVersion", sdkVersion)
+        appName?.let { json.put("appName", it) }
+        appVersion?.let { json.put("appVersion", it) }
+        userAgent?.let { json.put("userAgent", it) }
+        return json
+    }
+}
 
 @OptIn(ConfigDirectorWrapperApi::class)
 internal fun SdkIdentity.toSdkMetaContext(metadata: Metadata): SdkMetaContext = SdkMetaContext(
@@ -50,23 +60,13 @@ internal class TransportOptions(
     fun payload(context: ConfigDirectorContext, lastUpdateTimestamp: String? = null): String {
         val payload = JSONObject()
             .put("givenContext", context.toJson())
-            .put("metaContext", metaContextJson())
+            .put("metaContext", metaContext.toJson())
             .put("clientSdkKey", clientSdkKey)
             .put("instanceId", instanceId)
 
         lastUpdateTimestamp?.let { payload.put("lastUpdateTimestamp", it) }
 
         return payload.toString()
-    }
-
-    private fun metaContextJson(): JSONObject {
-        val json = JSONObject()
-            .put("sdkName", metaContext.sdkName)
-            .put("sdkVersion", metaContext.sdkVersion)
-        metaContext.appName?.let { json.put("appName", it) }
-        metaContext.appVersion?.let { json.put("appVersion", it) }
-        metaContext.userAgent?.let { json.put("userAgent", it) }
-        return json
     }
 }
 

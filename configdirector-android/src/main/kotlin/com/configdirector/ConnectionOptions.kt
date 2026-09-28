@@ -13,7 +13,12 @@ public class ConnectionOptions internal constructor(
     /** How the client keeps its config state current. */
     public val mode: ConnectionMode,
 
-    /** How long the client waits between polls, used only in [ConnectionMode.POLLING]. */
+    /**
+     * How long the client waits between polls, in milliseconds. Used only in
+     * [ConnectionMode.POLLING]; defaults to 60 seconds and the minimum is 30 seconds. A value
+     * below the minimum is raised to the minimum and a warning is logged when the client is
+     * created.
+     */
     public val pollingIntervalMillis: Long,
 
     /**
@@ -76,7 +81,8 @@ public class ConnectionOptions internal constructor(
 
         /**
          * How long to wait between polls, in milliseconds. Used only in [ConnectionMode.POLLING];
-         * defaults to 5 minutes. Must be at least 60 seconds.
+         * defaults to 60 seconds and the minimum is 30 seconds. A value below the minimum is
+         * raised to the minimum and a warning is logged when the client is created.
          */
         public fun pollingIntervalMillis(pollingIntervalMillis: Long): Builder =
             apply { this.pollingIntervalMillis = pollingIntervalMillis }
@@ -100,12 +106,10 @@ public class ConnectionOptions internal constructor(
         /**
          * Builds the settings.
          *
-         * @throws ConfigDirectorValidationException if the polling interval is shorter than 60
-         *   seconds, the timeout is not positive or is longer than can be waited on, or the base
-         *   URL is not absolute or names no host.
+         * @throws ConfigDirectorValidationException if the timeout is not positive or is longer
+         *   than can be waited on, or the base URL is not absolute or names no host.
          */
         public fun build(): ConnectionOptions {
-            requireAtLeastMinimumPollingInterval(pollingIntervalMillis)
             requirePositive(timeoutMillis, "timeoutMillis")
             requireAtMostMaxInt(timeoutMillis, "timeoutMillis")
             requireUsableUrl(baseUrl)
@@ -120,7 +124,7 @@ public class ConnectionOptions internal constructor(
     }
 
     public companion object {
-        private const val DEFAULT_POLLING_INTERVAL_MILLIS = 300_000L
+        private const val DEFAULT_POLLING_INTERVAL_MILLIS = 60_000L
         private const val DEFAULT_TIMEOUT_MILLIS = 3_000L
         private val DEFAULTS: ConnectionOptions = Builder().build()
 
@@ -128,7 +132,7 @@ public class ConnectionOptions internal constructor(
         @JvmStatic
         public fun builder(): Builder = Builder()
 
-        /** Streaming, a 5 minute polling interval, and a 3 second timeout. */
+        /** Streaming, a 60 second polling interval, and a 3 second timeout. */
         @JvmStatic
         public fun defaults(): ConnectionOptions = DEFAULTS
 
@@ -145,16 +149,7 @@ public class ConnectionOptions internal constructor(
     }
 }
 
-private const val MINIMUM_POLLING_INTERVAL_MILLIS = 60_000L
-
-private fun requireAtLeastMinimumPollingInterval(value: Long) {
-    if (value < MINIMUM_POLLING_INTERVAL_MILLIS) {
-        throw ConfigDirectorValidationException(
-            "Invalid pollingIntervalMillis '$value'. It must be at least " +
-                "${MINIMUM_POLLING_INTERVAL_MILLIS}ms (60 seconds).",
-        )
-    }
-}
+internal const val MINIMUM_POLLING_INTERVAL_MILLIS = 30_000L
 
 private fun requirePositive(value: Long, name: String) {
     if (value <= 0) {

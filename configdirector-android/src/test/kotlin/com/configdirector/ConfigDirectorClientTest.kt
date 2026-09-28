@@ -1,5 +1,7 @@
 package com.configdirector
 
+import com.configdirector.internal.transport.PollingTransport
+import com.configdirector.internal.transport.TransportOptions
 import com.google.common.truth.Truth.assertThat
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
@@ -26,6 +28,27 @@ class ConfigDirectorClientTest {
     private val server = FakeSdkServer()
     private val logger = RecordingLogger()
     private var client: ConfigDirectorClient? = null
+    private var transportOptions: TransportOptions? = null
+
+    private val capturingTransportFactory: TransportFactory = { mode, options, onConfigSet ->
+        transportOptions = options
+        transportFor(mode, options, onConfigSet)
+    }
+
+    private val fastPollingTransportFactory: TransportFactory = { _, options, onConfigSet ->
+        PollingTransport(options.pollingEvery(50), onConfigSet)
+    }
+
+    private fun TransportOptions.pollingEvery(pollingIntervalMillis: Long) = TransportOptions(
+        clientSdkKey = clientSdkKey,
+        baseUrl = baseUrl,
+        metaContext = metaContext,
+        instanceId = instanceId,
+        logger = logger,
+        pollingIntervalMillis = pollingIntervalMillis,
+        httpClient = httpClient,
+        retryDelayMillis = retryDelayMillis,
+    )
 
     @Before
     fun setUpMainDispatcher() {
@@ -45,6 +68,7 @@ class ConfigDirectorClientTest {
         timeoutMillis: Long = 3_000,
         metadata: Metadata = Metadata.empty(),
         baseUrl: String = server.baseUrl,
+        transportFactory: TransportFactory = capturingTransportFactory,
     ): ConfigDirectorClient = ConfigDirectorClient(
         RuntimeEnvironment.getApplication(),
         "client-sdk-key",
@@ -61,7 +85,11 @@ class ConfigDirectorClientTest {
                 ),
             )
         },
+        transportFactory,
     ).also { client = it }
+
+    private fun fastPollingClient(): ConfigDirectorClient =
+        client(mode = ConnectionMode.POLLING, transportFactory = fastPollingTransportFactory)
 
     private fun waitFor(description: String, condition: () -> Boolean) {
         val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
@@ -99,6 +127,69 @@ class ConfigDirectorClientTest {
         client(baseUrl = "https://proxy.example.com")
 
         assertThat(logger.messagesContaining("is not HTTPS")).isEmpty()
+    }
+
+    @Test
+    fun `polls every 60 seconds by default`() {
+        client = ConfigDirectorClient(
+            RuntimeEnvironment.getApplication(),
+            "client-sdk-key",
+            ClientOptions.build {
+                logger(logger)
+                connection { mode(ConnectionMode.POLLING) }
+            },
+            capturingTransportFactory,
+        )
+
+        assertThat(transportOptions?.pollingIntervalMillis).isEqualTo(60_000)
+        assertThat(logger.messagesContaining("below the minimum")).isEmpty()
+    }
+
+    @Test
+    fun `raises a polling interval below the minimum and warns once`() = runBlocking {
+        val client = client(mode = ConnectionMode.POLLING, pollingIntervalMillis = 10_000)
+
+        assertThat(transportOptions?.pollingIntervalMillis).isEqualTo(30_000)
+        assertThat(logger.messagesContaining("below the minimum")).containsExactly(
+            "WARN: pollingIntervalMillis of 10000 ms is below the minimum of 30000 ms. " +
+                "Using 30000 ms.",
+        )
+
+        client.initialize()
+        client.updateContext(proContext)
+
+        assertThat(logger.messagesContaining("below the minimum")).hasSize(1)
+    }
+
+    @Test
+    fun `uses a polling interval of exactly the minimum unchanged`() {
+        client(mode = ConnectionMode.POLLING, pollingIntervalMillis = 30_000)
+
+        assertThat(transportOptions?.pollingIntervalMillis).isEqualTo(30_000)
+        assertThat(logger.messagesContaining("below the minimum")).isEmpty()
+    }
+
+    @Test
+    fun `raises a zero polling interval to the minimum`() {
+        client(mode = ConnectionMode.POLLING, pollingIntervalMillis = 0)
+
+        assertThat(transportOptions?.pollingIntervalMillis).isEqualTo(30_000)
+        assertThat(logger.messagesContaining("below the minimum")).hasSize(1)
+    }
+
+    @Test
+    fun `raises a negative polling interval to the minimum`() {
+        client(mode = ConnectionMode.POLLING, pollingIntervalMillis = -1)
+
+        assertThat(transportOptions?.pollingIntervalMillis).isEqualTo(30_000)
+        assertThat(logger.messagesContaining("below the minimum")).hasSize(1)
+    }
+
+    @Test
+    fun `says nothing about a low polling interval when streaming`() {
+        client(mode = ConnectionMode.STREAMING, pollingIntervalMillis = 10_000)
+
+        assertThat(logger.messagesContaining("below the minimum")).isEmpty()
     }
 
     @Test
@@ -593,7 +684,7 @@ class ConfigDirectorClientTest {
 
     @Test
     fun `merges a config set that carries only what changed`() = runBlocking {
-        val client = client(mode = ConnectionMode.POLLING, pollingIntervalMillis = 50)
+        val client = fastPollingClient()
         client.initialize()
         assertThat(client.getBoolean("dark-mode", false)).isFalse()
 
@@ -605,7 +696,7 @@ class ConfigDirectorClientTest {
 
     @Test
     fun `fetches again on the polling interval`() = runBlocking {
-        client(mode = ConnectionMode.POLLING, pollingIntervalMillis = 50).initialize()
+        fastPollingClient().initialize()
 
         waitFor("a second fetch") { server.requestCount >= 2 }
     }
@@ -679,7 +770,7 @@ class ConfigDirectorClientTest {
 
     @Test
     fun `stops talking to the server once closed`() = runBlocking {
-        val client = client(mode = ConnectionMode.POLLING, pollingIntervalMillis = 50)
+        val client = fastPollingClient()
         client.initialize()
         waitFor("a second fetch") { server.requestCount >= 2 }
 

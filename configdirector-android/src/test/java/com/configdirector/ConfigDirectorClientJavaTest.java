@@ -261,4 +261,47 @@ public class ConfigDirectorClientJavaTest {
 
     assertThat(closed.isReady()).isFalse();
   }
+
+  @Test
+  public void raisesAPollingIntervalBelowTheMinimumAndWarnsOnce() {
+    ConfigDirectorClient client =
+        new ConfigDirectorClient(
+            RuntimeEnvironment.getApplication(),
+            "client-sdk-key",
+            ClientOptions.builder()
+                .logger(logger)
+                .connection(
+                    ConnectionOptions.builder()
+                        .mode(ConnectionMode.POLLING)
+                        .pollingIntervalMillis(10_000L)
+                        .baseUrl(server.getBaseUrl())
+                        .build())
+                .build());
+
+    assertThat(logger.messagesContaining("below the minimum"))
+        .containsExactly(
+            "WARN: pollingIntervalMillis of 10000 ms is below the minimum of 30000 ms."
+                + " Using 30000 ms.");
+    client.close();
+  }
+
+  @Test
+  public void saysNothingAboutALowPollingIntervalWhenStreaming() {
+    ConfigDirectorClient client =
+        new ConfigDirectorClient(
+            RuntimeEnvironment.getApplication(),
+            "client-sdk-key",
+            ClientOptions.builder()
+                .logger(logger)
+                .connection(
+                    ConnectionOptions.builder()
+                        .mode(ConnectionMode.STREAMING)
+                        .pollingIntervalMillis(10_000L)
+                        .baseUrl(server.getBaseUrl())
+                        .build())
+                .build());
+
+    assertThat(logger.messagesContaining("below the minimum")).isEmpty();
+    client.close();
+  }
 }

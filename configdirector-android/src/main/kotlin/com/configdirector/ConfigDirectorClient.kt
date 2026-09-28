@@ -60,6 +60,7 @@ public class ConfigDirectorClient private constructor(
     clientSdkKey: String,
     options: ClientOptions,
     metaContext: SdkMetaContext,
+    transportFactory: TransportFactory,
 ) : Closeable {
 
     /**
@@ -85,6 +86,23 @@ public class ConfigDirectorClient private constructor(
         SdkIdentity.ANDROID_CLIENT_SDK.toSdkMetaContext(
             options.metadata.filledFromApplication(androidContext, options.logger),
         ),
+        ::transportFor,
+    )
+
+    @OptIn(ConfigDirectorWrapperApi::class)
+    internal constructor(
+        androidContext: Context,
+        clientSdkKey: String,
+        options: ClientOptions,
+        transportFactory: TransportFactory,
+    ) : this(
+        androidContext,
+        clientSdkKey,
+        options,
+        SdkIdentity.ANDROID_CLIENT_SDK.toSdkMetaContext(
+            options.metadata.filledFromApplication(androidContext, options.logger),
+        ),
+        transportFactory,
     )
 
     /**
@@ -112,6 +130,7 @@ public class ConfigDirectorClient private constructor(
         clientSdkKey,
         options,
         identity.toSdkMetaContext(options.metadata.filledFromApplication(androidContext, options.logger)),
+        ::transportFor,
     )
 
     private val logger: ConfigDirectorLogger = options.logger
@@ -152,13 +171,13 @@ public class ConfigDirectorClient private constructor(
             metaContext = metaContext,
             instanceId = UUID.randomUUID().toString(),
             logger = logger,
-            pollingIntervalMillis = options.connection.pollingIntervalMillis,
+            pollingIntervalMillis = resolvePollingIntervalMillis(options.connection, logger),
             httpClient = httpClient,
         )
 
         telemetry = TelemetryEventCollector(HttpEventReporter(transportOptions), logger)
         store = ConfigStore(logger, telemetry)
-        transport = transportFor(options.connection.mode, transportOptions) { configSet ->
+        transport = transportFactory(options.connection.mode, transportOptions) { configSet ->
             store.handleConfigSet(configSet)
         }
 
@@ -526,13 +545,33 @@ public class ConfigDirectorClient private constructor(
     private companion object {
         private const val NANOS_PER_MILLISECOND = 1_000_000L
 
-        private fun transportFor(
-            mode: ConnectionMode,
-            options: TransportOptions,
-            onConfigSet: (ConfigSet) -> Unit,
-        ): Transport = when (mode) {
-            ConnectionMode.STREAMING -> StreamingTransport(options, onConfigSet)
-            ConnectionMode.POLLING -> PollingTransport(options, onConfigSet)
+        private fun resolvePollingIntervalMillis(
+            connection: ConnectionOptions,
+            logger: ConfigDirectorLogger,
+        ): Long {
+            val configuredPollingIntervalMillis = connection.pollingIntervalMillis
+            if (connection.mode != ConnectionMode.POLLING) return configuredPollingIntervalMillis
+            if (configuredPollingIntervalMillis >= MINIMUM_POLLING_INTERVAL_MILLIS) {
+                return configuredPollingIntervalMillis
+            }
+
+            logger.warn {
+                "pollingIntervalMillis of $configuredPollingIntervalMillis ms is below the minimum " +
+                    "of $MINIMUM_POLLING_INTERVAL_MILLIS ms. Using $MINIMUM_POLLING_INTERVAL_MILLIS ms."
+            }
+            return MINIMUM_POLLING_INTERVAL_MILLIS
         }
     }
+}
+
+internal typealias TransportFactory =
+    (mode: ConnectionMode, options: TransportOptions, onConfigSet: (ConfigSet) -> Unit) -> Transport
+
+internal fun transportFor(
+    mode: ConnectionMode,
+    options: TransportOptions,
+    onConfigSet: (ConfigSet) -> Unit,
+): Transport = when (mode) {
+    ConnectionMode.STREAMING -> StreamingTransport(options, onConfigSet)
+    ConnectionMode.POLLING -> PollingTransport(options, onConfigSet)
 }

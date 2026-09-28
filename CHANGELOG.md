@@ -11,6 +11,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `ConnectionOptions.pollingIntervalMillis` now defaults to 60 seconds instead of 5 minutes, and
+  its minimum is 30 seconds instead of 60. An interval below the minimum is no longer rejected when
+  the options are built: the options keep the configured value, and a client created in `POLLING`
+  mode raises it to the minimum and logs one warning.
 - Whichever of the app name and version `Metadata` leaves unset is now read from the application:
   the name from its label and the version from its `versionName`, as the Swift and Flutter SDKs
   already do. Setting a field still sends that value instead. When one cannot be read, the client

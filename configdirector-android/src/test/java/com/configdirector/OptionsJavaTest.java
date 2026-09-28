@@ -30,20 +30,24 @@ public class OptionsJavaTest {
     ConnectionOptions connection = ConnectionOptions.defaults();
 
     assertThat(connection.getMode()).isEqualTo(ConnectionMode.STREAMING);
-    assertThat(connection.getPollingIntervalMillis()).isEqualTo(300_000L);
+    assertThat(connection.getPollingIntervalMillis()).isEqualTo(60_000L);
     assertThat(connection.getTimeoutMillis()).isEqualTo(3_000L);
     assertThat(connection.getBaseUrl()).isNull();
     assertThat(connection.getPausesWhileBackgrounded()).isTrue();
   }
 
   @Test
-  public void rejectsAPollingIntervalShorterThanSixtySeconds() {
-    ConnectionOptions.Builder builder = ConnectionOptions.builder().pollingIntervalMillis(59_999L);
+  public void keepsAPollingIntervalBelowTheMinimumAsConfigured() {
+    ConnectionOptions connection = ConnectionOptions.builder().pollingIntervalMillis(10_000L).build();
 
-    ConfigDirectorValidationException failure =
-        assertThrows(ConfigDirectorValidationException.class, builder::build);
+    assertThat(connection.getPollingIntervalMillis()).isEqualTo(10_000L);
+  }
 
-    assertThat(failure).hasMessageThat().contains("pollingIntervalMillis '59999'");
+  @Test
+  public void keepsAZeroPollingIntervalAsConfigured() {
+    ConnectionOptions connection = ConnectionOptions.builder().pollingIntervalMillis(0L).build();
+
+    assertThat(connection.getPollingIntervalMillis()).isEqualTo(0L);
   }
 
   @Test

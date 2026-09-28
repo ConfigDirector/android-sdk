@@ -7,11 +7,11 @@ import org.junit.Test
 class OptionsTest {
 
     @Test
-    fun `connects by streaming with a 5 minute poll and a 3 second timeout by default`() {
+    fun `connects by streaming with a 60 second poll and a 3 second timeout by default`() {
         val connection = ConnectionOptions.defaults()
 
         assertThat(connection.mode).isEqualTo(ConnectionMode.STREAMING)
-        assertThat(connection.pollingIntervalMillis).isEqualTo(300_000)
+        assertThat(connection.pollingIntervalMillis).isEqualTo(60_000)
         assertThat(connection.timeoutMillis).isEqualTo(3_000)
         assertThat(connection.baseUrl).isNull()
         assertThat(connection.pausesWhileBackgrounded).isTrue()
@@ -35,20 +35,31 @@ class OptionsTest {
     }
 
     @Test
-    fun `rejects a polling interval shorter than 60 seconds`() {
-        val failure = assertThrows(ConfigDirectorValidationException::class.java) {
-            ConnectionOptions.build { pollingIntervalMillis(59_999) }
-        }
+    fun `keeps a polling interval below the minimum as configured`() {
+        val connection = ConnectionOptions.build { pollingIntervalMillis(10_000) }
 
-        assertThat(failure).hasMessageThat().contains("pollingIntervalMillis '59999'")
-        assertThat(failure).hasMessageThat().contains("at least 60000ms")
+        assertThat(connection.pollingIntervalMillis).isEqualTo(10_000)
     }
 
     @Test
-    fun `accepts a polling interval of exactly 60 seconds`() {
-        val connection = ConnectionOptions.build { pollingIntervalMillis(60_000) }
+    fun `keeps a zero polling interval as configured`() {
+        val connection = ConnectionOptions.build { pollingIntervalMillis(0) }
 
-        assertThat(connection.pollingIntervalMillis).isEqualTo(60_000)
+        assertThat(connection.pollingIntervalMillis).isEqualTo(0)
+    }
+
+    @Test
+    fun `keeps a negative polling interval as configured`() {
+        val connection = ConnectionOptions.build { pollingIntervalMillis(-1) }
+
+        assertThat(connection.pollingIntervalMillis).isEqualTo(-1)
+    }
+
+    @Test
+    fun `accepts a polling interval of exactly 30 seconds`() {
+        val connection = ConnectionOptions.build { pollingIntervalMillis(30_000) }
+
+        assertThat(connection.pollingIntervalMillis).isEqualTo(30_000)
     }
 
     @Test

@@ -3,7 +3,8 @@ package com.configdirector
 /**
  * Metadata about your application, which targeting rules can be written against.
  *
- * A field left null is left out of what the SDK sends.
+ * A field left null is read from the application when the client is created: the name from the
+ * application label and the version from its `versionName`. Set a field to send something else.
  */
 public class Metadata @JvmOverloads constructor(
     /** Your application's name. */

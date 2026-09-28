@@ -9,6 +9,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Whichever of the app name and version `Metadata` leaves unset is now read from the application:
+  the name from its label and the version from its `versionName`, as the Swift and Flutter SDKs
+  already do. Setting a field still sends that value instead. When one cannot be read, the client
+  says so at `INFO` when it is created.
+
 ## [1.5.1] - 2026-09-26
 
 ### Fixed

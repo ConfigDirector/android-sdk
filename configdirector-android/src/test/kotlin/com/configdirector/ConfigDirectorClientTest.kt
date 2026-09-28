@@ -15,6 +15,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -142,13 +143,88 @@ class ConfigDirectorClientTest {
         assertThat(meta.getString("userAgent")).isEqualTo("Android")
     }
 
+    private fun installedApplication(label: String, versionName: String?) {
+        val application = RuntimeEnvironment.getApplication()
+        val packageInfo = shadowOf(application.packageManager)
+            .getInternalMutablePackageInfo(application.packageName)
+        packageInfo.versionName = versionName
+        checkNotNull(packageInfo.applicationInfo).nonLocalizedLabel = label
+    }
+
+    private fun sentMetaContext(): JSONObject =
+        JSONObject(checkNotNull(server.takeRequest()).body.readUtf8()).getJSONObject("metaContext")
+
+    @Test
+    fun `reads the app name and version from the application when metadata leaves them unset`() =
+        runBlocking {
+            installedApplication(label = "Robo Checkout", versionName = "7.1.0")
+
+            client().initialize(proContext)
+
+            val meta = sentMetaContext()
+            assertThat(meta.getString("appName")).isEqualTo("Robo Checkout")
+            assertThat(meta.getString("appVersion")).isEqualTo("7.1.0")
+            assertThat(logger.messagesContaining("could not find")).isEmpty()
+        }
+
+    @Test
+    fun `keeps the app name it was given and reads the version from the application`() = runBlocking {
+        installedApplication(label = "Robo Checkout", versionName = "7.1.0")
+
+        client(metadata = Metadata(appName = "Checkout")).initialize(proContext)
+
+        val meta = sentMetaContext()
+        assertThat(meta.getString("appName")).isEqualTo("Checkout")
+        assertThat(meta.getString("appVersion")).isEqualTo("7.1.0")
+    }
+
+    @Test
+    fun `keeps the app version it was given and reads the name from the application`() = runBlocking {
+        installedApplication(label = "Robo Checkout", versionName = "7.1.0")
+
+        client(metadata = Metadata(appVersion = "4.2.0")).initialize(proContext)
+
+        val meta = sentMetaContext()
+        assertThat(meta.getString("appName")).isEqualTo("Robo Checkout")
+        assertThat(meta.getString("appVersion")).isEqualTo("4.2.0")
+    }
+
+    @Test
+    fun `says which of the app name and version it could not find`() = runBlocking {
+        installedApplication(label = "Robo Checkout", versionName = null)
+
+        client().initialize(proContext)
+
+        val meta = sentMetaContext()
+        assertThat(meta.getString("appName")).isEqualTo("Robo Checkout")
+        assertThat(meta.has("appVersion")).isFalse()
+        assertThat(logger.messagesContaining("could not find an app version")).hasSize(1)
+        assertThat(logger.messagesContaining("could not find an app name")).isEmpty()
+    }
+
     @OptIn(ConfigDirectorWrapperApi::class)
-    private fun wrapperClient(identity: SdkIdentity): ConfigDirectorClient = ConfigDirectorClient(
+    @Test
+    fun `reads the app name and version from the application for a wrapper too`() = runBlocking {
+        installedApplication(label = "Robo Checkout", versionName = "7.1.0")
+
+        wrapperClient(SdkIdentity.openFeatureProvider("9.9.9"), Metadata.empty()).initialize(proContext)
+
+        val meta = sentMetaContext()
+        assertThat(meta.getString("sdkName")).isEqualTo("android-openfeature-client-provider")
+        assertThat(meta.getString("appName")).isEqualTo("Robo Checkout")
+        assertThat(meta.getString("appVersion")).isEqualTo("7.1.0")
+    }
+
+    @OptIn(ConfigDirectorWrapperApi::class)
+    private fun wrapperClient(
+        identity: SdkIdentity,
+        metadata: Metadata = Metadata("Checkout", "4.2.0"),
+    ): ConfigDirectorClient = ConfigDirectorClient(
         RuntimeEnvironment.getApplication(),
         "client-sdk-key",
         ClientOptions.build {
             logger(logger)
-            metadata("Checkout", "4.2.0")
+            metadata(metadata)
             connection { baseUrl(server.baseUrl) }
         },
         identity,

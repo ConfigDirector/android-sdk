@@ -4,6 +4,7 @@ import android.content.Context
 import com.configdirector.internal.ConfigSet
 import com.configdirector.internal.ConfigStore
 import com.configdirector.internal.Constants
+import com.configdirector.internal.filledFromApplication
 import com.configdirector.internal.lifecycle.AppLifecycleObserver
 import com.configdirector.internal.lifecycle.AppLifecyclePhase
 import com.configdirector.internal.lifecycle.appLifecycleObserver
@@ -67,7 +68,8 @@ public class ConfigDirectorClient private constructor(
      * @param androidContext any Android context; the application behind it is what the client
      *   watches to tell when the app is backgrounded
      * @param clientSdkKey the client SDK key from the ConfigDirector dashboard
-     * @param options settings for this client, read once here
+     * @param options settings for this client, read once here. Whichever of the app name and
+     *   version its [Metadata] leaves unset is read from the application behind [androidContext]
      * @throws ConfigDirectorValidationException if [clientSdkKey] is blank
      */
     @OptIn(ConfigDirectorWrapperApi::class)
@@ -80,7 +82,9 @@ public class ConfigDirectorClient private constructor(
         androidContext,
         clientSdkKey,
         options,
-        SdkIdentity.ANDROID_CLIENT_SDK.toSdkMetaContext(options.metadata),
+        SdkIdentity.ANDROID_CLIENT_SDK.toSdkMetaContext(
+            options.metadata.filledFromApplication(androidContext, options.logger),
+        ),
     )
 
     /**
@@ -103,7 +107,12 @@ public class ConfigDirectorClient private constructor(
         clientSdkKey: String,
         options: ClientOptions,
         identity: SdkIdentity,
-    ) : this(androidContext, clientSdkKey, options, identity.toSdkMetaContext(options.metadata))
+    ) : this(
+        androidContext,
+        clientSdkKey,
+        options,
+        identity.toSdkMetaContext(options.metadata.filledFromApplication(androidContext, options.logger)),
+    )
 
     private val logger: ConfigDirectorLogger = options.logger
     private val timeoutMillis: Long = options.connection.timeoutMillis

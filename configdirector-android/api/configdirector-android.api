@@ -12,6 +12,7 @@ public abstract class com/configdirector/ClientEvent {
 public final class com/configdirector/ClientEvent$ConfigsUpdated : com/configdirector/ClientEvent {
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getKeys ()Ljava/util/List;
+	public final fun getRemovedKeys ()Ljava/util/List;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }

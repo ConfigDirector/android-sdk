@@ -9,6 +9,18 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `ClientEvent.ConfigsUpdated.removedKeys` (`configdirector-android`): the keys a full update no
+  longer carried, so a listener can tell a config that was removed from one that was updated.
+  `keys` still lists only the keys the update carried.
+
+### Fixed
+
+- A watch on a config that a full update no longer carries is now handed its default value, as a
+  getter would now return it (`configdirector-android`). Before, the config silently stopped being
+  served and the watch kept its last value.
+
 ### Changed
 
 - `ConnectionOptions.pollingIntervalMillis` now defaults to 60 seconds instead of 5 minutes, and

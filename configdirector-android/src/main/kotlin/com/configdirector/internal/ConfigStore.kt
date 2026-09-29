@@ -78,16 +78,19 @@ internal class ConfigStore(
     }
 
     fun handleConfigSet(configSet: ConfigSet) {
+        val previous = configs.get()
         val isDelta = configSet.kind == ConfigSetKind.DELTA && hasReceivedConfigSet.get()
-        configs.set(if (isDelta) configs.get() + configSet.configs else configSet.configs)
+        val replacesPrevious = !isDelta && hasReceivedConfigSet.get()
+        configs.set(if (isDelta) previous + configSet.configs else configSet.configs)
         hasReceivedConfigSet.set(true)
         val keys = configSet.configs.keys.toList()
+        val removedKeys = if (replacesPrevious) previous.keys.filterNot { it in configSet.configs } else emptyList()
 
         markReady()
-        emit(ClientEvent.ConfigsUpdated(keys))
-        keys.forEach { key -> watchers[key]?.values?.forEach { reevaluate -> reevaluate() } }
+        emit(ClientEvent.ConfigsUpdated(keys, removedKeys))
+        (keys + removedKeys).forEach { key -> watchers[key]?.values?.forEach { reevaluate -> reevaluate() } }
 
-        logger.debug { "Config state received from the server: $keys" }
+        logger.debug { "Config state received from the server: $keys, removed: $removedKeys" }
     }
 
     /** Waits until config state arrives, at most [timeoutMillis], or until the client closes. */

@@ -57,6 +57,17 @@ class FakeSdkServer : Closeable {
         scripted += body
     }
 
+    /** A full config set holding only [key], so every other config the client held is removed. */
+    fun scriptFullWithOnly(key: String, type: String, value: String) {
+        script(
+            JSONObject()
+                .put("kind", "full")
+                .put("timestamp", TIMESTAMP)
+                .put("configs", JSONObject().put(key, configJson(key, type, value, "$key-only")))
+                .toString(),
+        )
+    }
+
     /** A config set carrying only what changed, which the client merges into what it already has. */
     fun scriptDelta(key: String, type: String, value: String) {
         script(

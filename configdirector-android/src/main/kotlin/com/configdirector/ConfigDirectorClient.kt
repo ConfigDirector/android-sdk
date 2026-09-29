@@ -362,9 +362,9 @@ public class ConfigDirectorClient private constructor(
      * from a call to [updateContext].
      *
      * [listener] is handed the config's current value straight away and then every time the
-     * evaluated value changes; consecutive identical values are not delivered again. Close the
-     * returned subscription to stop watching.
-     *
+     * evaluated value changes; consecutive identical values are not delivered again. When a full
+     * update no longer carries [key], the listener is handed [defaultValue], as a getter would now
+     * return it. Close the returned subscription to stop watching.
      */
     public fun watchBoolean(
         key: String,

@@ -9,6 +9,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- The configuration-changed event now lists the flags a full update removed in `flagsChanged`,
+  after the flags the update carried. Before, a removed flag was not reported as changed. Requires
+  the SDK release that adds `ClientEvent.ConfigsUpdated.removedKeys`.
+
 ## [1.1.1] - 2026-09-26
 
 - Bump dependency on client SDK with telemetry fix

@@ -31,17 +31,26 @@ public sealed class ClientEvent {
         override fun toString(): String = "Ready(reason=$reason)"
     }
 
-    /** Config state was received from the server, carrying the keys it contained. */
+    /**
+     * Config state was received from the server, carrying the keys it contained and the keys a full
+     * update no longer contained.
+     */
     public class ConfigsUpdated internal constructor(
         /** The keys the config state carried. */
         public val keys: List<String>,
+        /**
+         * The keys a full update no longer carried, so the client stopped serving them. Empty when
+         * nothing was removed, and always empty for a delta update.
+         */
+        public val removedKeys: List<String>,
     ) : ClientEvent() {
         override fun equals(other: Any?): Boolean =
-            this === other || (other is ConfigsUpdated && keys == other.keys)
+            this === other ||
+                (other is ConfigsUpdated && keys == other.keys && removedKeys == other.removedKeys)
 
-        override fun hashCode(): Int = keys.hashCode()
+        override fun hashCode(): Int = 31 * keys.hashCode() + removedKeys.hashCode()
 
-        override fun toString(): String = "ConfigsUpdated(keys=$keys)"
+        override fun toString(): String = "ConfigsUpdated(keys=$keys, removedKeys=$removedKeys)"
     }
 
     /** A new context has taken effect. */

@@ -327,6 +327,26 @@ class ConfigDirectorProviderTest {
     }
 
     @Test
+    fun `emits the keys a full update removed as changed after the keys it carried`() = runBlocking<Unit> {
+        val provider = provider()
+        val events = observing(provider)
+        provider.initialize(proContext)
+        waitFor("the first configuration change") {
+            events.any { it is OpenFeatureProviderEvents.ProviderConfigurationChanged }
+        }
+
+        server.scriptFullWithOnly("welcome-message", "string", "Hello again")
+        provider.onContextSet(proContext, ImmutableContext(targetingKey = "user-456"))
+
+        waitFor("the second configuration change") {
+            events.filterIsInstance<OpenFeatureProviderEvents.ProviderConfigurationChanged>().size == 2
+        }
+        val change = events.filterIsInstance<OpenFeatureProviderEvents.ProviderConfigurationChanged>()[1]
+        assertThat(change.eventDetails?.flagsChanged).containsAtLeast("welcome-message", "dark-mode", "theme")
+        assertThat(provider.getBooleanEvaluation("dark-mode", false, null).value).isFalse()
+    }
+
+    @Test
     fun `emits ready once the connection recovers`() = runBlocking<Unit> {
         server.status = 503
         val provider = provider(timeoutMillis = 200)

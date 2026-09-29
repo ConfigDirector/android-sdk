@@ -81,7 +81,7 @@ import kotlinx.coroutines.flow.mapNotNull
  * state received earlier, or to their default values when there is none.
  *
  * A configuration-changed event is emitted every time config state arrives, carrying the keys of
- * the configs in the update.
+ * the configs in the update followed by the keys a full update removed.
  *
  * Shutting the provider down, which the OpenFeature SDK does when it is replaced or shut down,
  * closes the connection to ConfigDirector. An instance serves a single registration: after that,
@@ -136,7 +136,7 @@ public class ConfigDirectorProvider(
         when (event) {
             is ClientEvent.Ready -> OpenFeatureProviderEvents.ProviderReady()
             is ClientEvent.ConfigsUpdated -> OpenFeatureProviderEvents.ProviderConfigurationChanged(
-                OpenFeatureProviderEvents.EventDetails(flagsChanged = event.keys.toSet()),
+                OpenFeatureProviderEvents.EventDetails(flagsChanged = (event.keys + event.removedKeys).toSet()),
             )
             is ClientEvent.ContextUpdated -> null
         }

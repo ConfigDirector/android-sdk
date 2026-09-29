@@ -163,6 +163,7 @@ public class ConfigDirectorClientObservationJavaTest {
     assertThat(readyEvent.getReason()).isEqualTo(ConnectReason.INITIALIZATION);
     assertThat(configsUpdated).isNotNull();
     assertThat(configsUpdated.getKeys()).contains("dark-mode");
+    assertThat(configsUpdated.getRemovedKeys()).isEmpty();
     assertThat(contextUpdated).isNotNull();
     assertThat(contextUpdated.getContext()).isEqualTo(proContext);
   }

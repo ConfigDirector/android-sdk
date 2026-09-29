@@ -163,6 +163,65 @@ class ConfigDirectorClientObservationTest {
                 "broken-json",
                 "beta-banner",
             )
+        assertThat(events.filterIsInstance<ClientEvent.ConfigsUpdated>().single().removedKeys).isEmpty()
+    }
+
+    @Test
+    fun `tells a listener which configs a full update removed and hands their watches the default`() =
+        runBlocking<Unit> {
+            val events = CopyOnWriteArrayList<ClientEvent>()
+            val darkMode = CopyOnWriteArrayList<Boolean>()
+            val maxItems = CopyOnWriteArrayList<Int>()
+            client.addEventListener { events += it }
+            client.watchBoolean("dark-mode", false) { darkMode += it }
+            client.watchInt("max-items", 7) { maxItems += it }
+            client.initialize(proContext)
+            waitFor("the values from the server") { darkMode.size == 2 && maxItems.size == 2 }
+
+            server.scriptFullWithOnly("welcome-message", "string", "Hello again")
+            client.updateContext(ConfigDirectorContext.build { name("Grace") })
+
+            waitFor("the second configs updated event") {
+                events.filterIsInstance<ClientEvent.ConfigsUpdated>().size == 2
+            }
+            val update = events.filterIsInstance<ClientEvent.ConfigsUpdated>()[1]
+            assertThat(update.keys).containsExactly("welcome-message")
+            assertThat(update.removedKeys).containsExactly(
+                "dark-mode",
+                "max-items",
+                "sample-rate",
+                "theme",
+                "feature-list",
+                "broken-json",
+                "beta-banner",
+            )
+            waitFor("the defaults") { darkMode.size == 3 && maxItems.size == 3 }
+            assertThat(darkMode).containsExactly(false, true, false).inOrder()
+            assertThat(maxItems).containsExactly(7, 25, 7).inOrder()
+            assertThat(client.getBoolean("dark-mode", false)).isFalse()
+        }
+
+    @Test
+    fun `does not report a config a delta update left out as removed`() = runBlocking<Unit> {
+        val events = CopyOnWriteArrayList<ClientEvent>()
+        val darkMode = CopyOnWriteArrayList<Boolean>()
+        client.addEventListener { events += it }
+        client.watchBoolean("dark-mode", false) { darkMode += it }
+        client.initialize(proContext)
+        waitFor("the value from the server") { darkMode.size == 2 }
+
+        server.scriptDelta("welcome-message", "string", "Hello again")
+        client.updateContext(ConfigDirectorContext.build { name("Grace"); trait("plan", "pro") })
+
+        waitFor("the second configs updated event") {
+            events.filterIsInstance<ClientEvent.ConfigsUpdated>().size == 2
+        }
+        val update = events.filterIsInstance<ClientEvent.ConfigsUpdated>()[1]
+        assertThat(update.keys).containsExactly("welcome-message")
+        assertThat(update.removedKeys).isEmpty()
+        settle()
+        assertThat(darkMode).containsExactly(false, true).inOrder()
+        assertThat(client.getBoolean("dark-mode", false)).isTrue()
     }
 
     @Test

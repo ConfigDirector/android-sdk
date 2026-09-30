@@ -1,8 +1,9 @@
 name: Release configdirector-android
 
 # Deliberately manual. The version is whatever gradle.properties says, so a release is two steps:
-# merge the version bump, then run this against main. Both artifacts carry that one version and go
-# out together, because the Compose bindings depend on the core of the same version.
+# merge the version bump, then run this against main. All three artifacts carry that one version
+# and go out together, because the Compose bindings and the testing tools depend on the core of the
+# same version.
 on:
   workflow_dispatch:
 
@@ -80,7 +81,7 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          for module in configdirector-android configdirector-android-compose; do
+          for module in configdirector-android configdirector-android-compose configdirector-android-testing; do
             ./gradlew -q ":${module}:generatePomFileForMavenPublication"
             published=$(sed -n 's:.*<version>\(.*\)</version>.*:\1:p' "${module}/build/publications/maven/pom-default.xml" | head -1)
             if [[ $published != "$VERSION" ]]; then
@@ -92,8 +93,9 @@ jobs:
 
       # One artifact per invocation, deliberately: the Central Portal names a deployment after the
       # artifact only when a build publishes a single one, and after the group and version when it
-      # publishes several. Two deployments both have to be released in the Portal for a version to
-      # be usable, since the Compose bindings depend on the core of the same version.
+      # publishes several. All three deployments have to be released in the Portal for a version
+      # to be usable, since the Compose bindings and the testing tools depend on the core of the
+      # same version.
       #
       # Each uploads a signed bundle and stops there. Releasing them is a decision made in the
       # Portal, which is the last chance to look at what is about to become permanent.
@@ -101,6 +103,7 @@ jobs:
         run: |
           ./gradlew :configdirector-android:publishToMavenCentral --no-configuration-cache
           ./gradlew :configdirector-android-compose:publishToMavenCentral --no-configuration-cache
+          ./gradlew :configdirector-android-testing:publishToMavenCentral --no-configuration-cache
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}

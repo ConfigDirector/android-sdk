@@ -25,7 +25,7 @@
 
 Nothing else. The build brings its own Gradle through the wrapper.
 
-## The three artifacts
+## The four artifacts
 
 `configdirector-android` is the whole SDK: Kotlin, no Compose, consumable from Java, `minSdk 21` and
 Java 8 bytecode.
@@ -38,17 +38,32 @@ its own. It depends on `androidx.compose.runtime` alone, deliberately: bindings 
 Compose is a Kotlin compiler plugin, so the Compose artifact has no Java source set and the Java
 test rule below does not apply to it.
 
+`configdirector-android-testing` is the testing tools: the SDK's real client over an in-memory
+connection that a test controls, wrapped in the test client API a consumer's tests use. It is the
+only consumer of the SDK's `@ConfigDirectorTestingApi` entry point, which is not part of the SDK's
+stable API, so it is released with the SDK, shares its version, pins that version in its published
+metadata, and refuses any other at runtime. Java 8 bytecode and `minSdk 21`, like the core, and
+consumable from Java, so the Java test rule applies to it. It depends on `org.json:json`, because
+the framework's `org.json` is a stub under a plain JVM unit test and JSON configs would not parse
+without a real one; on a device the framework's own wins, because the boot class loader is
+consulted first, so an instrumented test is unaffected. Android lint's `DuplicatePlatformClasses`
+check objects to that dependency all the same, so the module disables that one check, and only
+that one; a consumer's lint does not see the dependency, because it is transitive.
+
 `configdirector-openfeature-android-provider` is an [OpenFeature](https://openfeature.dev) provider
 over the core, for the OpenFeature Kotlin SDK. That SDK's provider contract is built on `suspend`
 functions and flows, so the provider is Kotlin-only and the Java test rule does not apply to it
 either. It ships Java 11 bytecode, because the OpenFeature Kotlin SDK does, and keeps `minSdk 21`.
-It is versioned and released apart from the other two; see [Releasing](#releasing).
+It is versioned and released apart from the other three; see [Releasing](#releasing).
 
-All three artifacts use Robolectric in their tests, and only there. The Compose bindings need a
-composition to run in; the core and the provider need a real `Application`, because the client takes
-a `Context` and watches the application behind it to tell when the app is backgrounded. Tests that
-never build a client — the options, the context, the parsers, the telemetry queue, the provider's
-mappings — stay plain JVM tests.
+The core, the Compose bindings, and the provider use Robolectric in their tests, and only there. The
+Compose bindings need a composition to run in; the core and the provider need a real `Application`,
+because the client takes a `Context` and watches the application behind it to tell when the app is
+backgrounded. Tests that never build a client — the options, the context, the parsers, the telemetry
+queue, the provider's mappings — stay plain JVM tests. So do the testing tools' own tests, on
+purpose: a consumer's plain JVM test is the first place the test client has to work, and that suite
+is what proves it needs nothing from Android. The Compose bindings' tests cover a composable over a
+test client, which is what a consumer's Compose test looks like.
 
 ## Building and testing
 
@@ -56,8 +71,8 @@ mappings — stay plain JVM tests.
 ./gradlew build
 ```
 
-That is the whole check. It compiles all three artifacts, the core's two test source sets, and every
-sample app; runs the unit tests; and runs Android lint, whose failures fail the build — lint is
+That is the whole check. It compiles all four artifacts, the two test source sets of the core and
+of the testing tools, and every sample app; runs the unit tests; and runs Android lint, whose failures fail the build — lint is
 what catches an API that needs a newer Android than the SDK's `minSdk 21`.
 
 The samples resolve the SDK from Maven Central, the way a consumer does. Build them against the
@@ -113,11 +128,12 @@ is invisible until a customer hits it.
 
 So every public API addition is exercised from `src/test/java` as well as `src/test/kotlin`, and
 `JavaSurfaceTest` guards the shape of what Java sees: no mangled `internal` names, no `Function1`
-or `Continuation` parameters, nothing from the Kotlin-only extensions.
+or `Continuation` parameters, nothing from the Kotlin-only extensions. The testing tools have a
+`src/test/java` and a `JavaSurfaceTest` of their own, for the same reason.
 
 A build can also go green with the Java tests silently not running at all, so
 [`check-java-tests-ran.sh`](.github/scripts/check-java-tests-ran.sh) fails when it finds no Java
-test results. CI and the hook both run it after `build`.
+test results for the core or for the testing tools. CI and the hook both run it after `build`.
 
 ## The published API is locked down
 
@@ -168,8 +184,9 @@ watch it fail. Test names say what the code does, not which method they call.
 
 ## Releasing
 
-The core and the Compose bindings share the one `VERSION_NAME` in `gradle.properties` and are
-always released together, because the Compose bindings depend on the core of the same version. The
+The core, the Compose bindings, and the testing tools share the one `VERSION_NAME` in
+`gradle.properties` and are always released together, because the Compose bindings and the testing
+tools depend on the core of the same version, and the testing tools refuse any other at runtime. The
 OpenFeature provider is released on its own; see [below](#the-openfeature-provider).
 
 1. **Prepare the release on `main`.** In one PR:
@@ -180,6 +197,10 @@ OpenFeature provider is released on its own; see [below](#the-openfeature-provid
      [`Constants.kt`](configdirector-android/src/main/kotlin/com/configdirector/internal/Constants.kt)
      to the same version — it is what the SDK reports to the server, and `ConstantsTest` fails the
      build when the two disagree.
+   - Bump `Constants.TESTING_VERSION` in
+     [`Constants.kt`](configdirector-android-testing/src/main/kotlin/com/configdirector/testing/internal/Constants.kt)
+     to the same version — it is what the testing tools check the SDK against, and their
+     `ConstantsTest` fails the build when it disagrees with the Gradle version.
 
    Merge it.
 
@@ -191,16 +212,17 @@ OpenFeature provider is released on its own; see [below](#the-openfeature-provid
 
 3. **Release both deployments in the [Central Portal](https://central.sonatype.com).** The
    workflow only uploads; each deployment waits there until someone releases it by hand, which is
-   the last look at what is about to become permanent. There are two —
-   `com.configdirector-configdirector-android-<version>` and
-   `com.configdirector-configdirector-android-compose-<version>` — and **both** must be released,
-   or the version is unusable.
+   the last look at what is about to become permanent. There are three —
+   `com.configdirector-configdirector-android-<version>`,
+   `com.configdirector-configdirector-android-compose-<version>`, and
+   `com.configdirector-configdirector-android-testing-<version>` — and **all three** must be
+   released, or the version is unusable.
 
 4. **Once the version resolves on Central, bump both samples to it** in a follow-up PR. The
    samples deliberately lag the SDK: naming a version that is not published yet leaves them
    unresolvable for anyone not passing `-PuseLocalSdk`.
 
-If something looks wrong in the Portal, drop both deployments instead of releasing them, delete
+If something looks wrong in the Portal, drop every deployment instead of releasing them, delete
 the `v<version>` tag, fix the problem, and run the workflow again.
 
 ### The OpenFeature provider
@@ -238,8 +260,8 @@ real consuming app before it is released.
 ### Why one Gradle invocation per artifact
 
 The artifacts are uploaded one Gradle invocation each, so that the Portal names each deployment
-after the artifact it carries rather than after the group. A build that publishes both at once is
-named after the group and the version instead, which says nothing about which artifact it holds.
+after the artifact it carries rather than after the group. A build that publishes several at once
+is named after the group and the version instead, which says nothing about which artifact it holds.
 
 ## The pre-push hook
 

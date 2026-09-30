@@ -1,0 +1,30 @@
+public final class com/configdirector/testing/ConfigDirectorTesting {
+	public static final fun createTestClient ()Lcom/configdirector/testing/TestClient;
+	public static final fun createTestClient (Ljava/util/Map;)Lcom/configdirector/testing/TestClient;
+	public static final fun createTestClient (Ljava/util/Map;J)Lcom/configdirector/testing/TestClient;
+	public static final fun createTestClient (Ljava/util/Map;JLcom/configdirector/ConfigDirectorLogger;)Lcom/configdirector/testing/TestClient;
+	public static synthetic fun createTestClient$default (Ljava/util/Map;JLcom/configdirector/ConfigDirectorLogger;ILjava/lang/Object;)Lcom/configdirector/testing/TestClient;
+}
+
+public final class com/configdirector/testing/StandardErrorLogger : com/configdirector/ConfigDirectorLogger {
+	public fun <init> ()V
+	public fun <init> (Lcom/configdirector/LogLevel;)V
+	public synthetic fun <init> (Lcom/configdirector/LogLevel;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun getLevel ()Lcom/configdirector/LogLevel;
+	public fun log (Lcom/configdirector/LogLevel;Ljava/lang/String;Ljava/lang/Throwable;)V
+}
+
+public final class com/configdirector/testing/TestClient {
+	public final fun completeContextUpdate ()V
+	public final fun completeInitialization ()V
+	public final fun failContextUpdate ()V
+	public final fun failInitialization ()V
+	public final fun getClient ()Lcom/configdirector/ConfigDirectorClient;
+	public final fun getContextUpdates ()Ljava/util/List;
+	public final fun holdContextUpdate ()V
+	public final fun holdInitialization ()V
+	public final fun removeValue (Ljava/lang/String;)V
+	public final fun replaceValues (Ljava/util/Map;)V
+	public final fun setValue (Ljava/lang/String;Ljava/lang/Object;)V
+}
+

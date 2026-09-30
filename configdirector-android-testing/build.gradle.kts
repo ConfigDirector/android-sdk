@@ -5,16 +5,17 @@ import com.configdirector.gradle.registerApiValidation
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.maven.publish)
-    alias(libs.plugins.compose.compiler)
 }
 
 group = providers.gradleProperty("GROUP").get()
 version = providers.gradleProperty("VERSION_NAME").get()
 
+private val publishedVersion = version.toString()
+
 private val REPOSITORY_URL = "https://github.com/ConfigDirector/android-sdk"
 
 android {
-    namespace = "com.configdirector.compose"
+    namespace = "com.configdirector.testing"
     compileSdk = 37
 
     defaultConfig {
@@ -25,21 +26,25 @@ android {
         }
     }
 
-    buildFeatures {
-        compose = true
+    compileOptions {
+        // The same bytecode as the SDK, so that a consumer still on Java 8 can test with it.
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
     }
 
     testOptions {
         unitTests {
-            isIncludeAndroidResources = true
+            // The version this artifact checks the SDK against is a constant in the source, and
+            // this is what lets a test hold it to the version the artifact is published under.
+            all { test -> test.systemProperty("configdirector.publishedVersion", publishedVersion) }
         }
     }
 
-    compileOptions {
-        // AndroidX ships Java 11 bytecode. The core artifact stays on 8, for consumers who have not
-        // moved; a consumer already using Compose is on 11 by definition.
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+    lint {
+        // org.json below duplicates classes the platform ships, which is exactly why it is here:
+        // the platform's copies are stubs under a plain JVM unit test. On a device the platform's
+        // win, so the crash this check warns about cannot happen. See the dependency for details.
+        disable += "DuplicatePlatformClasses"
     }
 }
 
@@ -51,32 +56,37 @@ androidComponents {
 
 kotlin {
     compilerOptions {
-        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8
         allWarningsAsErrors = true
         explicitApi()
     }
 }
 
+tasks.withType<JavaCompile>().configureEach {
+    options.encoding = "UTF-8"
+    options.compilerArgs.addAll(listOf("-Xlint:all", "-Xlint:-options", "-Werror"))
+}
+
 dependencies {
+    // The test client is the SDK's own client, so the SDK reaches the consumer's test classpath
+    // through this artifact. Pinned to the same version: this artifact drives an entry point that
+    // is not part of the SDK's stable API, and createTestClient refuses a mismatch at runtime.
     api(project(":configdirector-android"))
+    constraints {
+        api("com.configdirector:configdirector-android") {
+            version { strictly(publishedVersion) }
+        }
+    }
 
-    implementation(platform(libs.androidx.compose.bom))
-    // Only the runtime: these are bindings over the client, with no UI of their own, so nothing
-    // here should pull compose-ui or material into a consumer's build.
-    api(libs.androidx.compose.runtime)
+    // Android ships org.json in the framework, and the framework classes are stubs under a plain
+    // JVM unit test, so JSON configs would not parse without a real implementation. On a device the
+    // framework's own wins, because the boot class loader is consulted first, so an instrumented
+    // test is unaffected.
+    implementation(libs.org.json)
 
-    // Composables need a composition to run in, which on the JVM means Robolectric.
     testImplementation(libs.junit)
     testImplementation(libs.truth)
-    testImplementation(libs.robolectric)
-    testImplementation(platform(libs.androidx.compose.bom))
-    testImplementation(libs.androidx.compose.ui.test.junit4)
-    testImplementation(libs.okhttp.mockwebserver)
-    testImplementation(libs.org.json)
-    // The bindings over a test client, which is how a consumer tests a composable that reads configs.
-    testImplementation(project(":configdirector-android-testing"))
-    debugImplementation(platform(libs.androidx.compose.bom))
-    debugImplementation(libs.androidx.compose.ui.test.manifest)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
 
 mavenPublishing {
@@ -97,8 +107,8 @@ mavenPublishing {
     configure(AndroidSingleVariantLibrary("release", sourcesJar = true, publishJavadocJar = true))
 
     pom {
-        name.set("ConfigDirector Android Compose bindings")
-        description.set("Jetpack Compose bindings for the ConfigDirector Android SDK. ConfigDirector is a remote configuration and feature flag service.")
+        name.set("ConfigDirector Android SDK testing tools")
+        description.set("Testing tools for the ConfigDirector Android SDK: the SDK's real client over an in-memory connection a test controls. ConfigDirector is a remote configuration and feature flag service.")
         url.set(REPOSITORY_URL)
         inceptionYear.set("2026")
 

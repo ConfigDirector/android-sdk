@@ -4,7 +4,7 @@
 
 Android SDK for [ConfigDirector](https://www.configdirector.com), remote config and feature flags with typed values, JSON Schema validation, and safe renames of live flags. Start free, no card required.
 
-It is written in Kotlin and is meant to be used from Kotlin and Java alike, and it ships as two artifacts: `com.configdirector:configdirector-android`, the SDK, and `com.configdirector:configdirector-android-compose`, optional Jetpack Compose bindings over it.
+It is written in Kotlin and is meant to be used from Kotlin and Java alike, and it ships as three artifacts: `com.configdirector:configdirector-android`, the SDK; `com.configdirector:configdirector-android-compose`, optional Jetpack Compose bindings over it; and `com.configdirector:configdirector-android-testing`, tools for testing the code that reads your configs.
 
 This repository also holds [`com.configdirector:configdirector-openfeature-android-provider`](configdirector-openfeature-android-provider/), an [OpenFeature](https://openfeature.dev) provider built on the SDK, released on its own.
 
@@ -16,6 +16,9 @@ dependencies {
 
     // Optional, for Jetpack Compose applications
     implementation("com.configdirector:configdirector-android-compose:1.5.1")
+
+    // For your tests
+    testImplementation("com.configdirector:configdirector-android-testing:1.5.1")
 }
 ```
 
@@ -34,6 +37,25 @@ val darkMode = client.value("dark-mode", false)
 ```
 
 Full details are in the [official documentation](https://docs.configdirector.com/sdks/mobile/android).
+
+## Test your code
+
+`configdirector-android-testing` creates a **test client**: the SDK's real client connected to an in-memory server that your test controls. No network connection is opened, no telemetry is sent, and no Android `Context` is needed, so it runs in a plain JVM unit test.
+
+```kotlin
+import com.configdirector.testing.createTestClient
+
+val testClient = createTestClient(values = mapOf("dark-mode" to true, "max-items" to 20))
+testClient.client.initialize()
+
+val settings = Settings(testClient.client)
+assertThat(settings.isDarkMode).isTrue()
+
+testClient.setValue("dark-mode", false)
+assertThat(settings.isDarkMode).isFalse()
+```
+
+`testClient.client` is a `ConfigDirectorClient`, so it goes anywhere your code accepts one. From Java, `ConfigDirectorTesting.createTestClient(values)`. See [Test your code](https://docs.configdirector.com/sdks/mobile/android#test-your-code) in the documentation for holding and failing initialization, the Compose bindings under test, and what to expect.
 
 ## Documentation
 

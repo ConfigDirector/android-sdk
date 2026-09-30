@@ -1,8 +1,10 @@
 # Changelog
 
-Changes to `com.configdirector:configdirector-android` and
-`com.configdirector:configdirector-android-compose`. The two are released together and share a
-version, so they share this file; an entry says which artifact it belongs to when it is not both.
+Changes to `com.configdirector:configdirector-android`,
+`com.configdirector:configdirector-android-compose`, and
+`com.configdirector:configdirector-android-testing`. The three are released together and share a
+version, so they share this file; an entry says which artifact it belongs to when it is not all of
+them.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and these artifacts
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -11,9 +13,19 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `com.configdirector:configdirector-android-testing`, a new artifact for testing the code that
+  reads configs: `createTestClient(values, timeoutMillis, logger)` returns a `TestClient` whose
+  `client` is the SDK's real `ConfigDirectorClient` over an in-memory connection the test controls
+  through `setValue`, `removeValue`, `replaceValues`, `holdInitialization`,
+  `completeInitialization`, `failInitialization`, `holdContextUpdate`, `completeContextUpdate`,
+  `failContextUpdate`, and `contextUpdates`. It needs no Android `Context`, opens no connection,
+  sends no telemetry, and runs in a plain JVM unit test, under Robolectric, or on a device. Java
+  calls it as `ConfigDirectorTesting.createTestClient(values)`. The client logs to
+  `StandardErrorLogger` unless given a logger. The artifact must be the same version as the SDK,
+  which `createTestClient` checks.
 - `com.configdirector.internal.testing.InMemoryConnection` and the `@ConfigDirectorTestingApi`
-  opt-in marker (`configdirector-android`): the entry point the upcoming
-  `configdirector-android-testing` artifact builds on. It runs the SDK's real client over an
+  opt-in marker (`configdirector-android`): the entry point `configdirector-android-testing`
+  builds on. It runs the SDK's real client over an
   in-memory connection that a test controls, with no Android `Context`, network, or telemetry.
   Kotlin code that has not opted in cannot reach it; tests use the testing artifact instead.
 

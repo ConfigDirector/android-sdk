@@ -25,6 +25,7 @@ rootProject.name = "configdirector-android-sdk"
 
 include("configdirector-android")
 include("configdirector-android-compose")
+include("configdirector-android-testing")
 include("configdirector-openfeature-android-provider")
 
 // Not published. Each depends on the release of the artifact it demonstrates, the way a real

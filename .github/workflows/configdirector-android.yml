@@ -26,8 +26,8 @@ env:
 jobs:
   build:
     # `build` compiles the SDK's Kotlin, its Kotlin and Java test source sets, the Compose bindings,
-    # the OpenFeature provider, and every sample app -- the Java one being a Java-only module on
-    # the SDK's oldest supported Android and Java.
+    # the testing tools and their two test source sets, the OpenFeature provider, and every sample
+    # app -- the Java one being a Java-only module on the SDK's oldest supported Android and Java.
     # It runs the unit tests and Android lint too, and lint failures fail the build: it is what
     # catches an API that needs a newer Android than the SDK's minSdk 21.
     name: Build + Test (JDK ${{ matrix.java }})

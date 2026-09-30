@@ -39,6 +39,58 @@ mode and timeout, and logging.
 
 Full details are in the [official documentation](https://docs.configdirector.com/sdks/openfeature/android).
 
+## Test your code
+
+The OpenFeature Kotlin SDK ships no in-memory provider, so to test the code that reads flags through
+OpenFeature, create the provider over a **test client** from the SDK's testing tools,
+[`configdirector-android-testing`](../configdirector-android-testing/): the SDK's real client
+connected to an in-memory server your test controls. The constructor that takes a client sits
+behind the `@ConfigDirectorProviderTestingApi` opt-in, which keeps it out of application code:
+
+```kotlin
+dependencies {
+    testImplementation("com.configdirector:configdirector-android-testing:1.5.1")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
+}
+```
+
+```kotlin
+import com.configdirector.openfeature.ConfigDirectorProvider
+import com.configdirector.openfeature.ConfigDirectorProviderTestingApi
+import com.configdirector.testing.createTestClient
+import dev.openfeature.kotlin.sdk.OpenFeatureAPI
+
+@OptIn(ConfigDirectorProviderTestingApi::class)
+class CheckoutTest {
+
+    @Before
+    fun setUpMainDispatcher() = Dispatchers.setMain(UnconfinedTestDispatcher())
+
+    @After
+    fun tearDown() = runBlocking {
+        OpenFeatureAPI.shutdown()
+        Dispatchers.resetMain()
+    }
+
+    @Test
+    fun `shows the new checkout`() = runBlocking {
+        val testClient = createTestClient(values = mapOf("new-checkout" to true))
+        OpenFeatureAPI.setProviderAndWait(ConfigDirectorProvider(testClient.client))
+        val client = OpenFeatureAPI.getClient()
+
+        assertThat(client.getBooleanValue("new-checkout", false)).isTrue()
+
+        testClient.setValue("new-checkout", false)
+        assertThat(client.getBooleanValue("new-checkout", false)).isFalse()
+
+        testClient.client.close()
+    }
+}
+```
+
+The provider never closes a client it was given, so the test closes it. Full details are in the
+[testing section of the official documentation](https://docs.configdirector.com/sdks/openfeature/android#test-your-code).
+
 ## Documentation
 
 Refer to the [official documentation for the OpenFeature Android provider](https://docs.configdirector.com/sdks/openfeature/android).

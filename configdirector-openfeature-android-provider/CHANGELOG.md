@@ -9,6 +9,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- A constructor taking a `ConfigDirectorClient`, behind the `@ConfigDirectorProviderTestingApi`
+  opt-in, so a test creates the provider over the `client` of a test client from
+  `com.configdirector:configdirector-android-testing` and drives the flags the OpenFeature client
+  resolves. The provider never closes a client it was given. Requires the SDK release that ships
+  the testing tools.
+
 ### Changed
 
 - The configuration-changed event now lists the flags a full update removed in `flagsChanged`,

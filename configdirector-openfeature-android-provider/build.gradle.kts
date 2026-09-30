@@ -73,6 +73,10 @@ dependencies {
     testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.robolectric)
     testImplementation(libs.org.json)
+
+    // The constructor that takes a client is exercised the way a consumer's test uses it: over
+    // the test client of the testing tools.
+    testImplementation(project(":configdirector-android-testing"))
 }
 
 mavenPublishing {

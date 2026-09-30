@@ -54,7 +54,9 @@ that one; a consumer's lint does not see the dependency, because it is transitiv
 over the core, for the OpenFeature Kotlin SDK. That SDK's provider contract is built on `suspend`
 functions and flows, so the provider is Kotlin-only and the Java test rule does not apply to it
 either. It ships Java 11 bytecode, because the OpenFeature Kotlin SDK does, and keeps `minSdk 21`.
-It is versioned and released apart from the other three; see [Releasing](#releasing).
+It is versioned and released apart from the other three; see [Releasing](#releasing). Its
+constructor that takes a client, behind `@ConfigDirectorProviderTestingApi`, is tested over the
+testing tools' test client in plain JVM tests, which is how a consumer's test uses it.
 
 The core, the Compose bindings, and the provider use Robolectric in their tests, and only there. The
 Compose bindings need a composition to run in; the core and the provider need a real `Application`,

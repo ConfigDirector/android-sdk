@@ -87,26 +87,54 @@ import kotlinx.coroutines.flow.mapNotNull
  * closes the connection to ConfigDirector. An instance serves a single registration: after that,
  * create a new one.
  *
- * @param androidContext any Android context; the application behind it is what the client watches
- *   to tell when the app is backgrounded
- * @param clientSdkKey the client SDK key from the ConfigDirector dashboard
- * @param options settings for the underlying client: application metadata, the connection mode and
- *   timeout, and logging
- * @throws ConfigDirectorValidationException if [clientSdkKey] is blank
+ * ## Testing
+ *
+ * A test creates the provider over a client of its own with the constructor that takes a
+ * [ConfigDirectorClient], usually the `client` of a test client from
+ * `com.configdirector:configdirector-android-testing`. The provider never closes a client it was
+ * given: shutting it down leaves the client to the test.
  */
-public class ConfigDirectorProvider(
-    androidContext: Context,
-    clientSdkKey: String,
-    options: ClientOptions = ClientOptions.defaults(),
+public class ConfigDirectorProvider private constructor(
+    private val client: ConfigDirectorClient,
+    private val ownsClient: Boolean,
 ) : FeatureProvider {
 
+    /**
+     * Creates a provider that connects to ConfigDirector with [clientSdkKey].
+     *
+     * @param androidContext any Android context; the application behind it is what the client
+     *   watches to tell when the app is backgrounded
+     * @param clientSdkKey the client SDK key from the ConfigDirector dashboard
+     * @param options settings for the underlying client: application metadata, the connection mode
+     *   and timeout, and logging
+     * @throws ConfigDirectorValidationException if [clientSdkKey] is blank
+     */
     @OptIn(ConfigDirectorWrapperApi::class)
-    private val client = ConfigDirectorClient(
-        androidContext,
-        clientSdkKey,
-        options,
-        SdkIdentity.openFeatureProvider(Constants.PROVIDER_VERSION),
+    public constructor(
+        androidContext: Context,
+        clientSdkKey: String,
+        options: ClientOptions = ClientOptions.defaults(),
+    ) : this(
+        ConfigDirectorClient(
+            androidContext,
+            clientSdkKey,
+            options,
+            SdkIdentity.openFeatureProvider(Constants.PROVIDER_VERSION),
+        ),
+        ownsClient = true,
     )
+
+    /**
+     * Creates a provider over [client], a client the caller owns, for tests: usually the `client`
+     * of a test client from `com.configdirector:configdirector-android-testing`.
+     *
+     * The provider initializes the client when it is registered and updates its context when the
+     * evaluation context changes, as it does with a client it creates itself, so a client that was
+     * already initialized reconnects. It never closes the client: [shutdown] leaves it open for the
+     * test to close.
+     */
+    @ConfigDirectorProviderTestingApi
+    public constructor(client: ConfigDirectorClient) : this(client, ownsClient = false)
 
     override val hooks: List<Hook<*>> = emptyList()
 
@@ -129,7 +157,7 @@ public class ConfigDirectorProvider(
     }
 
     override fun shutdown() {
-        client.close()
+        if (ownsClient) client.close()
     }
 
     override fun observe(): Flow<OpenFeatureProviderEvents> = client.events.mapNotNull { event ->

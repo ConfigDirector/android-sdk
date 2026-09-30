@@ -11,6 +11,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `com.configdirector.internal.testing.InMemoryConnection` and the `@ConfigDirectorTestingApi`
+  opt-in marker (`configdirector-android`): the entry point the upcoming
+  `configdirector-android-testing` artifact builds on. It runs the SDK's real client over an
+  in-memory connection that a test controls, with no Android `Context`, network, or telemetry.
+  Kotlin code that has not opted in cannot reach it; tests use the testing artifact instead.
+
 - `ClientEvent.ConfigsUpdated.removedKeys` (`configdirector-android`): the keys a full update no
   longer carried, so a listener can tell a config that was removed from one that was updated.
   `keys` still lists only the keys the update carried.

@@ -1,8 +1,10 @@
 package com.configdirector
 
 import com.configdirector.internal.transport.PollingTransport
+import com.configdirector.internal.transport.Transport
 import com.configdirector.internal.transport.TransportOptions
 import com.google.common.truth.Truth.assertThat
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -39,6 +41,22 @@ class ConfigDirectorClientTest {
 
     private val fastPollingTransportFactory: TransportFactory = { _, options, onConfigSet ->
         PollingTransport(options.pollingEvery(50), onConfigSet)
+    }
+
+    private val connectReasons = CopyOnWriteArrayList<ConnectReason>()
+
+    private val reasonRecordingTransportFactory: TransportFactory = { mode, options, onConfigSet ->
+        val transport = transportFor(mode, options, onConfigSet)
+        object : Transport by transport {
+            override suspend fun connect(
+                context: ConfigDirectorContext,
+                timeoutMillis: Long,
+                reason: ConnectReason,
+            ) {
+                connectReasons += reason
+                transport.connect(context, timeoutMillis, reason)
+            }
+        }
     }
 
     private fun TransportOptions.pollingEvery(pollingIntervalMillis: Long) = TransportOptions(
@@ -704,6 +722,22 @@ class ConfigDirectorClientTest {
 
         assertThat(client.isInitializing).isFalse()
         updating.join()
+    }
+
+    @Test
+    fun `tells the transport what prompted each attempt`() = runBlocking {
+        val client = client(transportFactory = reasonRecordingTransportFactory)
+
+        client.initialize()
+        client.updateContext(proContext)
+        client.pauseNetwork()
+        client.resumeNetwork()
+
+        assertThat(connectReasons).containsExactly(
+            ConnectReason.INITIALIZATION,
+            ConnectReason.CONTEXT_UPDATE,
+            ConnectReason.NETWORK_RESUME,
+        ).inOrder()
     }
 
     @Test

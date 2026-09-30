@@ -55,11 +55,12 @@ import okhttp3.OkHttpClient
  * its connection and resumes it on the way back, which
  * `ConnectionOptions.pausesWhileBackgrounded` turns off.
  */
-public class ConfigDirectorClient private constructor(
-    androidContext: Context,
+public class ConfigDirectorClient internal constructor(
     clientSdkKey: String,
     options: ClientOptions,
     metaContext: SdkMetaContext,
+    lifecycle: AppLifecycleObserver,
+    telemetryFactory: TelemetryFactory,
     transportFactory: TransportFactory,
 ) : Closeable {
 
@@ -80,12 +81,13 @@ public class ConfigDirectorClient private constructor(
         clientSdkKey: String,
         options: ClientOptions = ClientOptions.defaults(),
     ) : this(
-        androidContext,
         clientSdkKey,
         options,
         SdkIdentity.ANDROID_CLIENT_SDK.toSdkMetaContext(
             options.metadata.filledFromApplication(androidContext, options.logger),
         ),
+        appLifecycleObserver(androidContext, options.logger),
+        ::telemetryFor,
         ::transportFor,
     )
 
@@ -96,12 +98,13 @@ public class ConfigDirectorClient private constructor(
         options: ClientOptions,
         transportFactory: TransportFactory,
     ) : this(
-        androidContext,
         clientSdkKey,
         options,
         SdkIdentity.ANDROID_CLIENT_SDK.toSdkMetaContext(
             options.metadata.filledFromApplication(androidContext, options.logger),
         ),
+        appLifecycleObserver(androidContext, options.logger),
+        ::telemetryFor,
         transportFactory,
     )
 
@@ -126,10 +129,11 @@ public class ConfigDirectorClient private constructor(
         options: ClientOptions,
         identity: SdkIdentity,
     ) : this(
-        androidContext,
         clientSdkKey,
         options,
         identity.toSdkMetaContext(options.metadata.filledFromApplication(androidContext, options.logger)),
+        appLifecycleObserver(androidContext, options.logger),
+        ::telemetryFor,
         ::transportFor,
     )
 
@@ -145,7 +149,7 @@ public class ConfigDirectorClient private constructor(
     private val hasConnected = AtomicBoolean(false)
     private val pausedWhileBackgrounded = AtomicBoolean(false)
     private val pausesWhileBackgrounded: Boolean = options.connection.pausesWhileBackgrounded
-    private val lifecycle: AppLifecycleObserver = appLifecycleObserver(androidContext, options.logger)
+    private val lifecycle: AppLifecycleObserver = lifecycle
 
     init {
         if (clientSdkKey.isBlank()) {
@@ -175,7 +179,7 @@ public class ConfigDirectorClient private constructor(
             httpClient = httpClient,
         )
 
-        telemetry = TelemetryEventCollector(HttpEventReporter(transportOptions), logger)
+        telemetry = telemetryFactory(transportOptions)
         store = ConfigStore(logger, telemetry)
         transport = transportFactory(options.connection.mode, transportOptions) { configSet ->
             store.handleConfigSet(configSet)
@@ -494,7 +498,7 @@ public class ConfigDirectorClient private constructor(
         val startedAt = System.nanoTime()
 
         try {
-            transport.connect(context ?: ConfigDirectorContext.empty(), timeoutMillis)
+            transport.connect(context ?: ConfigDirectorContext.empty(), timeoutMillis, reason)
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (failure: Exception) {
@@ -565,6 +569,11 @@ public class ConfigDirectorClient private constructor(
         }
     }
 }
+
+internal typealias TelemetryFactory = (options: TransportOptions) -> TelemetryClient
+
+internal fun telemetryFor(options: TransportOptions): TelemetryClient =
+    TelemetryEventCollector(HttpEventReporter(options), options.logger)
 
 internal typealias TransportFactory =
     (mode: ConnectionMode, options: TransportOptions, onConfigSet: (ConfigSet) -> Unit) -> Transport

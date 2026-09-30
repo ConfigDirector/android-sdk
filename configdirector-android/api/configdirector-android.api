@@ -141,6 +141,9 @@ public abstract interface class com/configdirector/ConfigDirectorLogger {
 	public abstract fun log (Lcom/configdirector/LogLevel;Ljava/lang/String;Ljava/lang/Throwable;)V
 }
 
+public abstract interface annotation class com/configdirector/ConfigDirectorTestingApi : java/lang/annotation/Annotation {
+}
+
 public final class com/configdirector/ConfigDirectorValidationException : com/configdirector/ConfigDirectorException {
 }
 
@@ -296,5 +299,26 @@ public final class com/configdirector/SdkIdentity$Companion {
 
 public abstract interface class com/configdirector/Subscription : java/io/Closeable {
 	public abstract fun close ()V
+}
+
+public final class com/configdirector/internal/testing/InMemoryConnection {
+	public static final field Companion Lcom/configdirector/internal/testing/InMemoryConnection$Companion;
+	public fun <init> (Ljava/util/Map;JLcom/configdirector/ConfigDirectorLogger;)V
+	public final fun completeContextUpdate ()V
+	public final fun completeInitialization ()V
+	public final fun failContextUpdate ()V
+	public final fun failInitialization ()V
+	public final fun getClient ()Lcom/configdirector/ConfigDirectorClient;
+	public final fun getContextUpdates ()Ljava/util/List;
+	public static final fun getSdkVersion ()Ljava/lang/String;
+	public final fun holdContextUpdate ()V
+	public final fun holdInitialization ()V
+	public final fun removeValue (Ljava/lang/String;)V
+	public final fun replaceValues (Ljava/util/Map;)V
+	public final fun setValue (Ljava/lang/String;Ljava/lang/Object;)V
+}
+
+public final class com/configdirector/internal/testing/InMemoryConnection$Companion {
+	public final fun getSdkVersion ()Ljava/lang/String;
 }
 

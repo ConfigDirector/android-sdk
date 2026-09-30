@@ -2,6 +2,7 @@ package com.configdirector;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import com.configdirector.internal.testing.InMemoryConnection;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,6 +32,7 @@ public class JavaSurfaceTest {
     ConfigDirectorContext.Builder.class,
     ConfigDirectorException.class,
     ConfigDirectorLogger.class,
+    ConfigDirectorTestingApi.class,
     ConfigEvaluation.class,
     ConfigListener.class,
     ConfigDirectorValidationException.class,
@@ -44,6 +46,7 @@ public class JavaSurfaceTest {
     Subscription.class,
     Metadata.class,
     SdkIdentity.class,
+    InMemoryConnection.class,
   };
 
   // An internal Kotlin member is public bytecode under a mangled name, so it shows up in Java

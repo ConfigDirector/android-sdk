@@ -1,6 +1,7 @@
 package com.configdirector.internal.transport
 
 import com.configdirector.ConfigDirectorContext
+import com.configdirector.ConnectReason
 import com.configdirector.LogLevel
 import com.configdirector.RecordingLogger
 import com.configdirector.internal.ConfigSet
@@ -89,7 +90,7 @@ class PollingTransportTest {
     fun `posts the context, the metadata and the key`() = runBlocking {
         server.enqueue(configSetResponse())
 
-        polling().connect(context, timeoutMillis = 3_000)
+        polling().connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
 
         val request = request()
         assertThat(request.method).isEqualTo("POST")
@@ -121,7 +122,7 @@ class PollingTransportTest {
     fun `hands over the config state the server sent`() = runBlocking {
         server.enqueue(configSetResponse())
 
-        polling().connect(context, timeoutMillis = 3_000)
+        polling().connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
 
         val configSet = received.single()
         assertThat(configSet.kind).isEqualTo(ConfigSetKind.FULL)
@@ -144,7 +145,7 @@ class PollingTransportTest {
             ),
         )
 
-        polling().connect(context, timeoutMillis = 3_000)
+        polling().connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
 
         assertThat(received.single().kind).isEqualTo(ConfigSetKind.DELTA)
     }
@@ -155,7 +156,7 @@ class PollingTransportTest {
             configSetResponse("""{"configs": {"odd": {"type": "quantum", "value": "1"}}}"""),
         )
 
-        polling().connect(context, timeoutMillis = 3_000)
+        polling().connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
 
         assertThat(received.single().configs.getValue("odd").type).isEqualTo(ConfigType.CUSTOM)
     }
@@ -166,8 +167,8 @@ class PollingTransportTest {
         server.enqueue(configSetResponse())
         val transport = polling()
 
-        transport.connect(context, timeoutMillis = 3_000)
-        transport.connect(context, timeoutMillis = 3_000)
+        transport.connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
+        transport.connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
 
         request()
         val second = JSONObject(request().body.readUtf8())
@@ -178,7 +179,7 @@ class PollingTransportTest {
     fun `fetches again on the polling interval`() = runBlocking {
         repeat(3) { server.enqueue(configSetResponse()) }
 
-        polling(pollingIntervalMillis = 50).connect(context, timeoutMillis = 3_000)
+        polling(pollingIntervalMillis = 50).connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
 
         assertThat(server.takeRequest(2, TimeUnit.SECONDS)).isNotNull()
         assertThat(server.takeRequest(2, TimeUnit.SECONDS)).isNotNull()
@@ -189,7 +190,7 @@ class PollingTransportTest {
     fun `stops fetching once disconnected`() = runBlocking {
         repeat(4) { server.enqueue(configSetResponse()) }
         val transport = polling(pollingIntervalMillis = 50)
-        transport.connect(context, timeoutMillis = 3_000)
+        transport.connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
         assertThat(server.takeRequest(2, TimeUnit.SECONDS)).isNotNull()
 
         transport.disconnect()
@@ -210,7 +211,7 @@ class PollingTransportTest {
         assertThat(failure).hasMessageThat().contains("invalid client SDK key")
         assertThat(failure).hasMessageThat().contains("unrecoverable")
 
-        transport.connect(context, timeoutMillis = 3_000)
+        transport.connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
 
         // The failed fetch is the only request the server ever sees, and polling never started.
         assertThat(server.requestCount).isEqualTo(1)
@@ -257,7 +258,7 @@ class PollingTransportTest {
     fun `hands over nothing when the server has no config state to send`() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(204))
 
-        polling().connect(context, timeoutMillis = 3_000)
+        polling().connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
 
         assertThat(received).isEmpty()
     }
@@ -275,6 +276,6 @@ class PollingTransportTest {
         transport: PollingTransport,
         timeoutMillis: Long = 3_000,
     ): ConnectionFailedException = assertThrows(ConnectionFailedException::class.java) {
-        runBlocking { transport.connect(context, timeoutMillis) }
+        runBlocking { transport.connect(context, timeoutMillis, ConnectReason.INITIALIZATION) }
     }
 }

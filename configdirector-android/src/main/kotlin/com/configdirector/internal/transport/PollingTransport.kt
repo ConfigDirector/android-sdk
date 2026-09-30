@@ -1,6 +1,7 @@
 package com.configdirector.internal.transport
 
 import com.configdirector.ConfigDirectorContext
+import com.configdirector.ConnectReason
 import com.configdirector.internal.ConfigSet
 import com.configdirector.warn
 import java.io.IOException
@@ -38,7 +39,11 @@ internal class PollingTransport(
     private val hasFatalError = AtomicBoolean(false)
     private val closed = AtomicBoolean(false)
 
-    override suspend fun connect(context: ConfigDirectorContext, timeoutMillis: Long) {
+    override suspend fun connect(
+        context: ConfigDirectorContext,
+        timeoutMillis: Long,
+        reason: ConnectReason,
+    ) {
         if (closed.get()) return
 
         if (hasFatalError.get()) {

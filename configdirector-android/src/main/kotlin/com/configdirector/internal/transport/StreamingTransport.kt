@@ -1,6 +1,7 @@
 package com.configdirector.internal.transport
 
 import com.configdirector.ConfigDirectorContext
+import com.configdirector.ConnectReason
 import com.configdirector.debug
 import com.configdirector.error
 import com.configdirector.info
@@ -38,7 +39,11 @@ internal class StreamingTransport(
     private val streaming = AtomicReference<Job?>(null)
     private val closed = AtomicBoolean(false)
 
-    override suspend fun connect(context: ConfigDirectorContext, timeoutMillis: Long) {
+    override suspend fun connect(
+        context: ConfigDirectorContext,
+        timeoutMillis: Long,
+        reason: ConnectReason,
+    ) {
         if (closed.get()) return
 
         disconnect()

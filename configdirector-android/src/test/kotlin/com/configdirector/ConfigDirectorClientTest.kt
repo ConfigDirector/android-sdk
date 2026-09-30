@@ -4,8 +4,10 @@ import com.configdirector.internal.transport.PollingTransport
 import com.configdirector.internal.transport.TransportOptions
 import com.google.common.truth.Truth.assertThat
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
@@ -649,7 +651,7 @@ class ConfigDirectorClientTest {
     }
 
     @Test
-    fun `is initializing only while initializing`() = runBlocking {
+    fun `is initializing until the first config state arrives`() = runBlocking {
         val client = client()
         assertThat(client.isInitializing).isFalse()
 
@@ -657,6 +659,51 @@ class ConfigDirectorClientTest {
 
         assertThat(client.isInitializing).isFalse()
         assertThat(client.isReady).isTrue()
+    }
+
+    @Test
+    fun `stays initializing after a timeout while it keeps trying for its first config state`() = runBlocking {
+        server.sendsConfigState = false
+        val client = client(timeoutMillis = 300)
+
+        client.initialize()
+
+        assertThat(client.isReady).isFalse()
+        assertThat(client.isInitializing).isTrue()
+    }
+
+    @Test
+    fun `stops initializing when the server rejects the request`() = runBlocking {
+        server.status = 401
+        val client = client()
+
+        client.initialize()
+
+        assertThat(client.isReady).isFalse()
+        assertThat(client.isInitializing).isFalse()
+    }
+
+    @Test
+    fun `is not initializing during a second initialize once config state has arrived`() = runBlocking {
+        val client = client()
+        client.initialize()
+
+        val second = launch(start = CoroutineStart.UNDISPATCHED) { client.initialize() }
+
+        assertThat(client.isInitializing).isFalse()
+        second.join()
+        assertThat(client.isReady).isTrue()
+    }
+
+    @Test
+    fun `is not initializing during a context update`() = runBlocking {
+        val client = client()
+        client.initialize()
+
+        val updating = launch(start = CoroutineStart.UNDISPATCHED) { client.updateContext(proContext) }
+
+        assertThat(client.isInitializing).isFalse()
+        updating.join()
     }
 
     @Test

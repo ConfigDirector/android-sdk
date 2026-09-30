@@ -43,7 +43,7 @@ internal class ConfigStore(
     private val configs = AtomicReference<Map<String, ConfigState>>(emptyMap())
     private val contextHolder = AtomicReference<ConfigDirectorContext?>(null)
     private val pendingReason = AtomicReference(ConnectReason.INITIALIZATION)
-    private val hasReceivedConfigSet = AtomicBoolean(false)
+    private val configSetReceived = AtomicBoolean(false)
     private val ready = MutableStateFlow(false)
     private val closedState = MutableStateFlow(false)
 
@@ -58,6 +58,8 @@ internal class ConfigStore(
     private val callbackScope = lazy { CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate) }
 
     val isReady: Boolean get() = ready.value
+
+    val hasReceivedConfigSet: Boolean get() = configSetReceived.get()
 
     val context: ConfigDirectorContext? get() = contextHolder.get()
 
@@ -79,10 +81,10 @@ internal class ConfigStore(
 
     fun handleConfigSet(configSet: ConfigSet) {
         val previous = configs.get()
-        val isDelta = configSet.kind == ConfigSetKind.DELTA && hasReceivedConfigSet.get()
-        val replacesPrevious = !isDelta && hasReceivedConfigSet.get()
+        val isDelta = configSet.kind == ConfigSetKind.DELTA && configSetReceived.get()
+        val replacesPrevious = !isDelta && configSetReceived.get()
         configs.set(if (isDelta) previous + configSet.configs else configSet.configs)
-        hasReceivedConfigSet.set(true)
+        configSetReceived.set(true)
         val keys = configSet.configs.keys.toList()
         val removedKeys = if (replacesPrevious) previous.keys.filterNot { it in configSet.configs } else emptyList()
 

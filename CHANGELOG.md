@@ -23,6 +23,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `isInitializing` (`configdirector-android`) now means the client is trying to get its very first
+  config state. It becomes `true` when `initialize` is called on a client that has never received
+  config state, stays `true` through timeouts and retries, and becomes `false` when the first
+  config state arrives, when an unrecoverable connection error stops the retries, or on `close`.
+  Before, it turned `false` as soon as `initialize` returned, including after a timeout while the
+  client kept retrying, and a later `initialize` set it again. `updateContext` and `resumeNetwork`
+  never set it.
 - `ConnectionOptions.pollingIntervalMillis` now defaults to 60 seconds instead of 5 minutes, and
   its minimum is 30 seconds instead of 60. An interval below the minimum is no longer rejected when
   the options are built: the options keep the configured value, and a client created in `POLLING`

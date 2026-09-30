@@ -201,11 +201,15 @@ public class ConfigDirectorClient private constructor(
         get() = store.isReady
 
     /**
-     * Whether the client is currently initializing. It is false on creation, true after
-     * [initialize] is called, and false again once initialization completes.
+     * Whether the client is trying to get its very first config state from the server. It is false
+     * on creation, becomes true when [initialize] is called on a client that has never received
+     * config state, stays true through timeouts and retries, and becomes false when the first config
+     * state arrives, when an unrecoverable connection error stops the retries, or on [close].
+     * [updateContext] and [resumeNetwork] never set it, and once config state has been received it
+     * is never true again.
      */
     public val isInitializing: Boolean
-        get() = initializing.get()
+        get() = initializing.get() && !store.hasReceivedConfigSet
 
     /**
      * Connects to ConfigDirector to retrieve config evaluations. Until initialization succeeds,
@@ -216,11 +220,7 @@ public class ConfigDirectorClient private constructor(
     @JvmSynthetic
     public suspend fun initialize(context: ConfigDirectorContext? = null) {
         initializing.set(true)
-        try {
-            connect(context, ConnectReason.INITIALIZATION)
-        } finally {
-            initializing.set(false)
-        }
+        connect(context, ConnectReason.INITIALIZATION)
     }
 
     /**
@@ -462,6 +462,7 @@ public class ConfigDirectorClient private constructor(
         if (closed.getAndSet(true)) return
 
         logger.debug { "close() called, closing the connection to the server" }
+        initializing.set(false)
         lifecycle.stop()
         telemetry.close()
         store.close()
@@ -497,6 +498,7 @@ public class ConfigDirectorClient private constructor(
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (failure: Exception) {
+            initializing.set(false)
             logger.error(failure) { "An error occurred during ${reason.description}" }
             return
         }

@@ -35,6 +35,12 @@ android {
         buildConfig = true
     }
 
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
@@ -50,11 +56,18 @@ tasks.withType<JavaCompile>().configureEach {
     if (JavaVersion.current() >= JavaVersion.VERSION_22) {
         options.compilerArgs.add("-Xlint:-dangling-doc-comments")
     }
+
+    // Robolectric's classes carry annotations whose types are not on a unit test's classpath, which
+    // javac reports as a classfile warning. The app's own sources stay under every lint category.
+    if (name.contains("UnitTest")) {
+        options.compilerArgs.add("-Xlint:-classfile")
+    }
 }
 
-// -PuseLocalSdk builds against configdirector-android/ in this repository instead of the release
-// on Central. CI and the pre-push hook set it, so a breaking API change fails here first; locally
-// it is how you try an unreleased SDK change against a real consumer.
+// -PuseLocalSdk builds against configdirector-android/ and configdirector-android-testing/ in this
+// repository instead of the releases on Central. CI and the pre-push hook set it, so a breaking API
+// change fails here first; locally it is how you try an unreleased SDK change against a real
+// consumer.
 val useLocalSdk = providers.gradleProperty("useLocalSdk")
     .map { it.isEmpty() || it.toBoolean() }
     .getOrElse(false)
@@ -64,6 +77,8 @@ if (useLocalSdk) {
         resolutionStrategy.dependencySubstitution {
             substitute(module("com.configdirector:configdirector-android"))
                 .using(project(":configdirector-android"))
+            substitute(module("com.configdirector:configdirector-android-testing"))
+                .using(project(":configdirector-android-testing"))
         }
     }
 }
@@ -74,4 +89,12 @@ dependencies {
     // it -- naming an unpublished version here leaves the sample unresolvable for everyone who is
     // not passing -PuseLocalSdk above.
     implementation("com.configdirector:configdirector-android:1.5.1")
+
+    // The SDK's testing tools, which must be the same version as the SDK above and lag the
+    // release the same way. The screen is an Activity, which on the JVM needs Robolectric; that
+    // is the test classpath only, and the app itself still has no AndroidX.
+    testImplementation("com.configdirector:configdirector-android-testing:1.5.1")
+    testImplementation(libs.junit)
+    testImplementation(libs.truth)
+    testImplementation(libs.robolectric)
 }

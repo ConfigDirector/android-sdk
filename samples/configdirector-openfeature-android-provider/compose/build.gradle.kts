@@ -37,6 +37,12 @@ android {
         compose = true
     }
 
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -50,10 +56,10 @@ kotlin {
     }
 }
 
-// -PuseLocalSdk builds against configdirector-openfeature-android-provider/ in this repository,
-// and through it the SDK module, instead of the releases on Central. CI and the pre-push hook set
-// it, so a breaking API change fails here first; locally it is how you try an unreleased change
-// against a real consumer.
+// -PuseLocalSdk builds against configdirector-openfeature-android-provider/ and
+// configdirector-android-testing/ in this repository, and through them the SDK module, instead of
+// the releases on Central. CI and the pre-push hook set it, so a breaking API change fails here
+// first; locally it is how you try an unreleased change against a real consumer.
 val useLocalSdk = providers.gradleProperty("useLocalSdk")
     .map { it.isEmpty() || it.toBoolean() }
     .getOrElse(false)
@@ -63,6 +69,8 @@ if (useLocalSdk) {
         resolutionStrategy.dependencySubstitution {
             substitute(module("com.configdirector:configdirector-openfeature-android-provider"))
                 .using(project(":configdirector-openfeature-android-provider"))
+            substitute(module("com.configdirector:configdirector-android-testing"))
+                .using(project(":configdirector-android-testing"))
         }
     }
 }
@@ -78,4 +86,16 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
+
+    // The SDK's testing tools, whose test client the provider accepts in place of a client of its
+    // own. They must be the same version as the SDK the provider brings, and lag the release the
+    // same way. A composable needs a composition to run in, which on the JVM means Robolectric.
+    testImplementation("com.configdirector:configdirector-android-testing:1.5.1")
+    testImplementation(libs.junit)
+    testImplementation(libs.truth)
+    testImplementation(libs.robolectric)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(platform(libs.androidx.compose.bom))
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

@@ -155,7 +155,11 @@ public final class MainActivity extends Activity {
           log.add("switching to " + user.label());
           render();
           client.updateContext(
-              user.context(), () -> log.add("updateContext finished, ready=" + client.isReady()));
+              user.context(),
+              () -> {
+                log.add("updateContext finished, ready=" + client.isReady());
+                render();
+              });
         });
   }
 

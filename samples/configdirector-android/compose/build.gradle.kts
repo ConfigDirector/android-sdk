@@ -37,6 +37,12 @@ android {
         compose = true
     }
 
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
+
     compileOptions {
         // AndroidX ships Java 11 bytecode, which cannot be inlined into Java 8. The SDK itself
         // stays on 8, for consumers who have not moved.
@@ -52,9 +58,10 @@ kotlin {
     }
 }
 
-// -PuseLocalSdk builds against configdirector-android-compose/ in this repository instead of the
-// release on Central. CI and the pre-push hook set it, so a breaking API change fails here first;
-// locally it is how you try an unreleased SDK change against a real consumer.
+// -PuseLocalSdk builds against configdirector-android-compose/ and configdirector-android-testing/
+// in this repository instead of the releases on Central. CI and the pre-push hook set it, so a
+// breaking API change fails here first; locally it is how you try an unreleased SDK change against
+// a real consumer.
 val useLocalSdk = providers.gradleProperty("useLocalSdk")
     .map { it.isEmpty() || it.toBoolean() }
     .getOrElse(false)
@@ -64,6 +71,8 @@ if (useLocalSdk) {
         resolutionStrategy.dependencySubstitution {
             substitute(module("com.configdirector:configdirector-android-compose"))
                 .using(project(":configdirector-android-compose"))
+            substitute(module("com.configdirector:configdirector-android-testing"))
+                .using(project(":configdirector-android-testing"))
         }
     }
 }
@@ -78,4 +87,16 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
+
+    // The SDK's testing tools, which must be the same version as the SDK above and lag the
+    // release the same way. A composable needs a composition to run in, which on the JVM means
+    // Robolectric.
+    testImplementation("com.configdirector:configdirector-android-testing:1.5.1")
+    testImplementation(libs.junit)
+    testImplementation(libs.truth)
+    testImplementation(libs.robolectric)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(platform(libs.androidx.compose.bom))
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

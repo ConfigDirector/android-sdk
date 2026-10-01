@@ -16,7 +16,7 @@ import com.configdirector.Metadata;
  * wants the client gone before that, on sign-out for instance. The Close client button on the
  * screen does exactly that.
  */
-public final class SampleApplication extends Application {
+public class SampleApplication extends Application {
 
   // The client rejects a blank key, so with none configured the sample runs on a stand-in that the
   // server will not recognize, and says so in the log on screen.
@@ -30,6 +30,17 @@ public final class SampleApplication extends Application {
   public void onCreate() {
     super.onCreate();
 
+    client = createClient();
+    client.initialize(
+        SampleUser.CONFIGURED.context(),
+        () -> log.add("initialize finished, ready=" + client.isReady()));
+  }
+
+  /**
+   * The client connected to ConfigDirector. The tests' {@code Application} returns a test client
+   * from the SDK's testing tools here instead, so the screen is tested over the same code path.
+   */
+  ConfigDirectorClient createClient() {
     String clientSdkKey = BuildConfig.CLIENT_SDK_KEY;
     if (clientSdkKey.isEmpty()) {
       log.add(
@@ -38,24 +49,19 @@ public final class SampleApplication extends Application {
       clientSdkKey = PLACEHOLDER_SDK_KEY;
     }
 
-    client =
-        new ConfigDirectorClient(
-            this,
-            clientSdkKey,
-            ClientOptions.builder()
-                .metadata(new Metadata("ConfigDirector Java Sample", "1.0"))
-                .connection(
-                    ConnectionOptions.builder()
-                        .mode(ConnectionMode.STREAMING)
-                        .timeoutMillis(3_000L)
-                        .pausesWhileBackgrounded(true)
-                        .build())
-                .logger(new SampleLogger(log))
-                .build());
-
-    client.initialize(
-        SampleUser.CONFIGURED.context(),
-        () -> log.add("initialize finished, ready=" + client.isReady()));
+    return new ConfigDirectorClient(
+        this,
+        clientSdkKey,
+        ClientOptions.builder()
+            .metadata(new Metadata("ConfigDirector Java Sample", "1.0"))
+            .connection(
+                ConnectionOptions.builder()
+                    .mode(ConnectionMode.STREAMING)
+                    .timeoutMillis(3_000L)
+                    .pausesWhileBackgrounded(true)
+                    .build())
+            .logger(new SampleLogger(log))
+            .build());
   }
 
   ConfigDirectorClient client() {

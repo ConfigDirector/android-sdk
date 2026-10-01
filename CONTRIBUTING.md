@@ -67,6 +67,16 @@ purpose: a consumer's plain JVM test is the first place the test client has to w
 is what proves it needs nothing from Android. The Compose bindings' tests cover a composable over a
 test client, which is what a consumer's Compose test looks like.
 
+The samples are tested the way a consumer tests an app: through the testing tools, as a
+`testImplementation` dependency on the released `configdirector-android-testing`, which
+`-PuseLocalSdk` swaps for the module here like the artifact each sample demonstrates. Both Compose
+samples drive their screen under Robolectric with `createComposeRule`, one over
+`ConfigDirectorProvider(testClient.client)` and the other over the provider registered with a test
+client; the Java sample starts its `Activity` under Robolectric from an `Application` subclass that
+returns the test client where the production one builds a client. Each sample's README describes
+its tests. Without the flag the testing coordinate resolves only once the release that ships it is
+on Central.
+
 ## Building and testing
 
 ```sh
@@ -94,6 +104,7 @@ Narrower loops while working:
 ./gradlew :configdirector-android-compose:testDebugUnitTest              # the Compose bindings' tests
 ./gradlew :configdirector-openfeature-android-provider:testDebugUnitTest # the provider's tests
 ./gradlew :configdirector-android:assembleDebug                          # the AAR alone
+./gradlew :samples:configdirector-android:compose:testDebugUnitTest -PuseLocalSdk  # one sample's tests
 ```
 
 Running the sample apps is covered in [the SDK samples' README](samples/configdirector-android/README.md)
@@ -135,7 +146,8 @@ or `Continuation` parameters, nothing from the Kotlin-only extensions. The testi
 
 A build can also go green with the Java tests silently not running at all, so
 [`check-java-tests-ran.sh`](.github/scripts/check-java-tests-ran.sh) fails when it finds no Java
-test results for the core or for the testing tools. CI and the hook both run it after `build`.
+test results for the core, for the testing tools, or for the Java sample, whose tests are the
+testing tools' Java surface in a real consumer. CI and the hook both run it after `build`.
 
 ## The published API is locked down
 
@@ -220,9 +232,11 @@ OpenFeature provider is released on its own; see [below](#the-openfeature-provid
    `com.configdirector-configdirector-android-testing-<version>` — and **all three** must be
    released, or the version is unusable.
 
-4. **Once the version resolves on Central, bump both samples to it** in a follow-up PR. The
-   samples deliberately lag the SDK: naming a version that is not published yet leaves them
-   unresolvable for anyone not passing `-PuseLocalSdk`.
+4. **Once the version resolves on Central, bump both samples to it** in a follow-up PR: the
+   `implementation` line and the `testImplementation` line naming `configdirector-android-testing`,
+   which must stay the same version as the SDK. The samples deliberately lag the SDK: naming a
+   version that is not published yet leaves them unresolvable for anyone not passing
+   `-PuseLocalSdk`. Then run their tests without the flag, since CI only ever runs them with it.
 
 If something looks wrong in the Portal, drop every deployment instead of releasing them, delete
 the `v<version>` tag, fix the problem, and run the workflow again.

@@ -56,6 +56,38 @@ Switching identity calls `updateContext` from `rememberCoroutineScope()`. It is 
 and the screen sets `isReady = false` before it because the client is genuinely not ready while it
 reconnects.
 
+## Tests
+
+[`SampleScreenTest`](src/test/kotlin/com/configdirector/sample/compose/SampleScreenTest.kt) renders
+`SampleScreen` under Robolectric with `createComposeRule`, wrapped in the production
+`ConfigDirectorProvider` exactly as `MainActivity` does, but with the client of a **test client**
+from `configdirector-android-testing`: the SDK's real client over an in-memory connection the test
+controls. Robolectric is told to run a plain `Application` instead of `SampleApplication`, so no
+real client is built and nothing connects.
+
+```kotlin
+private val testClient = createTestClient(values = SAMPLE_VALUES)
+
+compose.setContent { ConfigDirectorProvider(testClient.client) { SampleScreen() } }
+runBlocking { testClient.client.initialize(SampleUser.CONFIGURED.context) }
+```
+
+The tests cover what the screen does with the client: the defaults and `Connecting…` until the
+client is ready, every row once it is, a row re-rendering after `testClient.setValue`, the default
+coming back after `testClient.removeValue`, the identity chips calling `updateContext` (visible in
+`testClient.contextUpdates` and in the context line), a held initialization, and a failed one.
+
+The SDK hands values to the bindings on the main looper, which Robolectric only runs when the test
+lets it, so after `initialize` and after every change the test idles the looper and waits for the
+composition to settle:
+
+```kotlin
+shadowOf(Looper.getMainLooper()).idle()
+compose.waitForIdle()
+```
+
+Run them with `./gradlew :samples:configdirector-android:compose:testDebugUnitTest -PuseLocalSdk`.
+
 ## Two things this module does not inherit from the SDK
 
 **minSdk 23 and Java 11 bytecode**, where the SDK itself is 21 and Java 8. Compose forces both; see

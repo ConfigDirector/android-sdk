@@ -13,6 +13,10 @@ whether an API is callable from Java, so if the Java surface breaks, that module
 Neither app shares code with the other. They differ in how they consume the SDK, which is the point
 of having both.
 
+Each has unit tests over the SDK's testing tools, `configdirector-android-testing`: the real client
+over an in-memory connection the test controls, so the screens are tested without a key, a network
+connection, or a device. Each app's README describes its tests.
+
 ## Running them
 
 `installDebug` installs onto a device, so one has to be running first — with nothing attached it
@@ -119,10 +123,12 @@ Each depends on the released artifact it demonstrates, exactly as your own app w
 ```kotlin
 implementation("com.configdirector:configdirector-android-compose:1.5.1")  // the Compose sample
 implementation("com.configdirector:configdirector-android:1.5.1")          // the Java sample
+testImplementation("com.configdirector:configdirector-android-testing:1.5.1")  // both
 ```
 
 The Compose artifact depends on the core and re-exposes it, so the Compose sample gets both from
-that one line.
+that one line. The testing tools are released with the SDK and must be the same version as it,
+which `createTestClient` checks at runtime.
 
 Pass `-PuseLocalSdk` to build them against the modules in this repository instead:
 
@@ -131,7 +137,13 @@ Pass `-PuseLocalSdk` to build them against the modules in this repository instea
 ```
 
 That is how to try an unreleased SDK change against a real consumer, and CI and the pre-push hook
-set it on every build, so a breaking API change fails here before it ships.
+set it on every build, so a breaking API change fails here before it ships. The tests run the same
+way:
+
+```sh
+./gradlew :samples:configdirector-android:compose:testDebugUnitTest -PuseLocalSdk
+./gradlew :samples:configdirector-android:java:testDebugUnitTest -PuseLocalSdk
+```
 
 The versions above deliberately lag the one in `gradle.properties` between a version bump and the
 release that publishes it: naming a version that is not on Central yet leaves the samples

@@ -52,18 +52,52 @@ The identity chips call `OpenFeatureAPI.setEvaluationContext`. The provider send
 as the user's id, `name` as the name, the `traits` structure as the traits, and `anonymous` as the
 anonymous flag, so a targeting rule written against `role` behaves as it does in the other samples.
 
+## Tests
+
+[`SampleScreenTest`](compose/src/test/kotlin/com/configdirector/sample/openfeature/SampleScreenTest.kt)
+renders `SampleScreen` under Robolectric with `createComposeRule`, after registering the provider
+with `OpenFeatureAPI` the way `SampleApplication` does, except that the provider is given the client
+of a **test client** from `configdirector-android-testing`: the SDK's real client over an in-memory
+connection the test controls, so nothing connects and no key is needed. Robolectric is told to run a
+plain `Application` instead of `SampleApplication`, so no real provider is registered.
+
+```kotlin
+@OptIn(ConfigDirectorProviderTestingApi::class)
+...
+OpenFeatureAPI.setProviderAndWait(ConfigDirectorProvider(testClient.client), SampleUser.BETA_TESTER.context)
+compose.setContent { SampleScreen() }
+```
+
+The tests cover every row with its `TARGETING_MATCH` reason once the provider is ready, the
+defaults with `PROVIDER_NOT_READY` while the test client holds initialization, a row re-rendering
+after `testClient.setValue` (the provider reports a configuration change, which the screen re-reads
+on), `FLAG_NOT_FOUND` after `testClient.removeValue`, and the identity chips reaching the client
+through `setEvaluationContext`, seen in `testClient.contextUpdates`.
+
+`OpenFeatureAPI` is one global, so each test shuts it down afterwards. The provider hands its events
+to OpenFeature through the client's `events` flow on the main looper, which Robolectric only runs
+when the test lets it, so the test idles the looper and waits for the composition to settle after
+every change.
+
+Run them with
+`./gradlew :samples:configdirector-openfeature-android-provider:compose:testDebugUnitTest -PuseLocalSdk`.
+
 ## Which artifact it builds against
 
 ```kotlin
 implementation("com.configdirector:configdirector-openfeature-android-provider:1.1.1")
+testImplementation("com.configdirector:configdirector-android-testing:1.5.1")
 ```
 
 The provider depends on the OpenFeature Kotlin SDK and the ConfigDirector SDK and re-exposes both,
 so the sample gets everything from that one line.
 
-The version deliberately lags the one in `gradle.properties` between a version bump and the release
-that publishes it, and until the first release is on Central the line does not resolve at all: pass
-`-PuseLocalSdk` to build against the module in this repository, which is what CI and the pre-push
+The testing tools must be the same version as the SDK the provider brings, which `createTestClient`
+checks at runtime.
+
+The versions deliberately lag the ones in `gradle.properties` between a version bump and the release
+that publishes them, and until the first release is on Central the lines do not resolve at all: pass
+`-PuseLocalSdk` to build against the modules in this repository, which is what CI and the pre-push
 hook do.
 
 ## minSdk and Java

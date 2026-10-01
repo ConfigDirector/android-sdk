@@ -91,3 +91,34 @@ state it received. Nothing else closes it — see
 
 The watches and listeners are closed in `onDestroy`, because they belong to the screen. The client
 belongs to the application and outlives it.
+
+## Tests
+
+[`MainActivityTest`](src/test/java/com/configdirector/sample/java/MainActivityTest.java) starts the
+screen under Robolectric with the client replaced by a **test client** from
+`configdirector-android-testing`, which Java reaches as
+`ConfigDirectorTesting.createTestClient(values)`: the SDK's real client over an in-memory connection
+the test controls, so nothing connects and no key is needed.
+
+The swap happens where the application builds its client. `SampleApplication.createClient()` is the
+one method that knows about the SDK key, and
+[`TestSampleApplication`](src/test/java/com/configdirector/sample/java/TestSampleApplication.java)
+overrides it to return `testClient.getClient()`; the test's `@Config(application = ...)` has
+Robolectric run that subclass, and everything else, `onCreate` included, is the production code.
+
+The tests cover the watched values once the client is ready, a watch re-delivering after
+`testClient.setValue`, the default coming back after `testClient.removeValue`, the identity buttons
+calling `updateContext` (seen in `testClient.getContextUpdates()` and on the status line), **Read
+every config** including its two fallbacks, and **Close client**, after which the test client's own
+controls change nothing. **Every API** is left alone: `ApiTour` builds a real client with a stand-in
+key, which would reach out to ConfigDirector.
+
+The SDK calls watches, listeners and completion callbacks back on the main thread, which
+Robolectric only runs when the test idles it, so the test calls
+`shadowOf(Looper.getMainLooper()).idle()` after every change. Robolectric and what it brings sit on
+the test classpath only; the app itself still has no Kotlin sources and no AndroidX.
+
+Run them with `./gradlew :samples:configdirector-android:java:testDebugUnitTest -PuseLocalSdk`.
+[`check-java-tests-ran.sh`](../../../.github/scripts/check-java-tests-ran.sh), which CI and the
+pre-push hook run after the build, fails when these tests did not run, as it does for the SDK's own
+Java tests.

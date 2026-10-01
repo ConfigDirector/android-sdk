@@ -121,9 +121,9 @@ against `role` behaves the same everywhere.
 Each depends on the released artifact it demonstrates, exactly as your own app would:
 
 ```kotlin
-implementation("com.configdirector:configdirector-android-compose:1.5.1")  // the Compose sample
-implementation("com.configdirector:configdirector-android:1.5.1")          // the Java sample
-testImplementation("com.configdirector:configdirector-android-testing:1.5.1")  // both
+implementation("com.configdirector:configdirector-android-compose:1.6.0")  // the Compose sample
+implementation("com.configdirector:configdirector-android:1.6.0")          // the Java sample
+testImplementation("com.configdirector:configdirector-android-testing:1.6.0")  // both
 ```
 
 The Compose artifact depends on the core and re-exposes it, so the Compose sample gets both from

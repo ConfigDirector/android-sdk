@@ -88,12 +88,12 @@ dependencies {
     // lags the version in gradle.properties between a version bump and the release that publishes
     // it -- naming an unpublished version here leaves the sample unresolvable for everyone who is
     // not passing -PuseLocalSdk above.
-    implementation("com.configdirector:configdirector-android:1.5.1")
+    implementation("com.configdirector:configdirector-android:1.6.0")
 
     // The SDK's testing tools, which must be the same version as the SDK above and lag the
     // release the same way. The screen is an Activity, which on the JVM needs Robolectric; that
     // is the test classpath only, and the app itself still has no AndroidX.
-    testImplementation("com.configdirector:configdirector-android-testing:1.5.1")
+    testImplementation("com.configdirector:configdirector-android-testing:1.6.0")
     testImplementation(libs.junit)
     testImplementation(libs.truth)
     testImplementation(libs.robolectric)

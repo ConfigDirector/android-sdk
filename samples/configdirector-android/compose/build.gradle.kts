@@ -82,7 +82,7 @@ dependencies {
     // deliberately lag the version in gradle.properties between a version bump and the release
     // that publishes it -- naming an unpublished version here leaves the sample unresolvable for
     // everyone who is not passing -PuseLocalSdk above. The core arrives with them.
-    implementation("com.configdirector:configdirector-android-compose:1.5.1")
+    implementation("com.configdirector:configdirector-android-compose:1.6.0")
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
@@ -91,7 +91,7 @@ dependencies {
     // The SDK's testing tools, which must be the same version as the SDK above and lag the
     // release the same way. A composable needs a composition to run in, which on the JVM means
     // Robolectric.
-    testImplementation("com.configdirector:configdirector-android-testing:1.5.1")
+    testImplementation("com.configdirector:configdirector-android-testing:1.6.0")
     testImplementation(libs.junit)
     testImplementation(libs.truth)
     testImplementation(libs.robolectric)

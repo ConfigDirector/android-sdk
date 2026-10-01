@@ -12,7 +12,7 @@ Android 5.0 (API 21) and up.
 
 ```kotlin
 dependencies {
-    implementation("com.configdirector:configdirector-openfeature-android-provider:1.1.1")
+    implementation("com.configdirector:configdirector-openfeature-android-provider:1.2.0")
 }
 ```
 
@@ -49,7 +49,7 @@ behind the `@ConfigDirectorProviderTestingApi` opt-in, which keeps it out of app
 
 ```kotlin
 dependencies {
-    testImplementation("com.configdirector:configdirector-android-testing:1.5.1")
+    testImplementation("com.configdirector:configdirector-android-testing:1.6.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
 }
 ```

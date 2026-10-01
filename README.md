@@ -12,13 +12,13 @@ This repository also holds [`com.configdirector:configdirector-openfeature-andro
 
 ```kotlin
 dependencies {
-    implementation("com.configdirector:configdirector-android:1.5.1")
+    implementation("com.configdirector:configdirector-android:1.6.0")
 
     // Optional, for Jetpack Compose applications
-    implementation("com.configdirector:configdirector-android-compose:1.5.1")
+    implementation("com.configdirector:configdirector-android-compose:1.6.0")
 
     // For your tests
-    testImplementation("com.configdirector:configdirector-android-testing:1.5.1")
+    testImplementation("com.configdirector:configdirector-android-testing:1.6.0")
 }
 ```
 

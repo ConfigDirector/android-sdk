@@ -11,6 +11,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-01
+
 ### Added
 
 - `com.configdirector:configdirector-android-testing`, a new artifact for testing the code that

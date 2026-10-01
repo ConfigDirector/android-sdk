@@ -85,8 +85,8 @@ Run them with
 ## Which artifact it builds against
 
 ```kotlin
-implementation("com.configdirector:configdirector-openfeature-android-provider:1.1.1")
-testImplementation("com.configdirector:configdirector-android-testing:1.5.1")
+implementation("com.configdirector:configdirector-openfeature-android-provider:1.2.0")
+testImplementation("com.configdirector:configdirector-android-testing:1.6.0")
 ```
 
 The provider depends on the OpenFeature Kotlin SDK and the ConfigDirector SDK and re-exposes both,

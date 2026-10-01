@@ -91,19 +91,21 @@ jobs:
             echo "$module publishes as $published"
           done
 
-      # One artifact per invocation, deliberately: the Central Portal names a deployment after the
-      # artifact only when a build publishes a single one, and after the group and version when it
-      # publishes several. All three deployments have to be released in the Portal for a version
-      # to be usable, since the Compose bindings and the testing tools depend on the core of the
-      # same version.
+      # All three artifacts in one invocation, deliberately: the plugin then uploads one signed
+      # bundle holding all three, which the Portal shows as a single deployment named after the
+      # group and the version. The Compose bindings and the testing tools depend on the core of
+      # the same version, so a version is only usable with all three published; one deployment
+      # makes a partial release impossible and counts once against the Portal's monthly limit.
       #
-      # Each uploads a signed bundle and stops there. Releasing them is a decision made in the
-      # Portal, which is the last chance to look at what is about to become permanent.
+      # The upload stops there. Releasing it is a decision made in the Portal, which is the last
+      # chance to look at what is about to become permanent.
       - name: Publish to the Central Portal
-        run: |
-          ./gradlew :configdirector-android:publishToMavenCentral --no-configuration-cache
-          ./gradlew :configdirector-android-compose:publishToMavenCentral --no-configuration-cache
-          ./gradlew :configdirector-android-testing:publishToMavenCentral --no-configuration-cache
+        run: >
+          ./gradlew
+          :configdirector-android:publishToMavenCentral
+          :configdirector-android-compose:publishToMavenCentral
+          :configdirector-android-testing:publishToMavenCentral
+          --no-configuration-cache
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}

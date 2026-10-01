@@ -220,17 +220,15 @@ OpenFeature provider is released on its own; see [below](#the-openfeature-provid
 
 2. **Run the [Release configdirector-android](.github/workflows/release.yml) workflow against
    `main`** (Actions tab → Release configdirector-android → Run workflow). It runs everything CI
-   runs, uploads a signed bundle per artifact to the Maven Central Portal, and tags the commit
-   `v<version>`. It refuses to run if that tag already exists, so a version cannot be released
+   runs, uploads one signed bundle holding all three artifacts to the Maven Central Portal, and
+   tags the commit `v<version>`. It refuses to run if that tag already exists, so a version cannot be released
    twice by accident.
 
-3. **Release both deployments in the [Central Portal](https://central.sonatype.com).** The
-   workflow only uploads; each deployment waits there until someone releases it by hand, which is
-   the last look at what is about to become permanent. There are three —
-   `com.configdirector-configdirector-android-<version>`,
-   `com.configdirector-configdirector-android-compose-<version>`, and
-   `com.configdirector-configdirector-android-testing-<version>` — and **all three** must be
-   released, or the version is unusable.
+3. **Release the deployment in the [Central Portal](https://central.sonatype.com).** The
+   workflow only uploads; the deployment waits there until someone releases it by hand, which is
+   the last look at what is about to become permanent. It is named `com.configdirector-<version>`
+   and carries all three artifacts, so one release publishes the core, the Compose bindings, and
+   the testing tools together; none of them is usable without the others.
 
 4. **Once the version resolves on Central, bump both samples to it** in a follow-up PR: the
    `implementation` line and the `testImplementation` line naming `configdirector-android-testing`,
@@ -238,8 +236,8 @@ OpenFeature provider is released on its own; see [below](#the-openfeature-provid
    version that is not published yet leaves them unresolvable for anyone not passing
    `-PuseLocalSdk`. Then run their tests without the flag, since CI only ever runs them with it.
 
-If something looks wrong in the Portal, drop every deployment instead of releasing them, delete
-the `v<version>` tag, fix the problem, and run the workflow again.
+If something looks wrong in the Portal, drop the deployment instead of releasing it, delete the
+`v<version>` tag, fix the problem, and run the workflow again.
 
 ### The OpenFeature provider
 
@@ -273,11 +271,12 @@ ASCII-armoured GPG secret key and its passphrase). Signing is skipped when no ke
 a local `./gradlew publishToMavenLocal` works without one — useful for trying a change against a
 real consuming app before it is released.
 
-### Why one Gradle invocation per artifact
+### Why one Gradle invocation for all three artifacts
 
-The artifacts are uploaded one Gradle invocation each, so that the Portal names each deployment
-after the artifact it carries rather than after the group. A build that publishes several at once
-is named after the group and the version instead, which says nothing about which artifact it holds.
+The three artifacts are uploaded in one Gradle invocation, so the plugin bundles them into one
+deployment. The Portal names it after the group and the version rather than after an artifact, and
+its component list shows the three it holds. One deployment cannot be released in part, and it
+counts once against the Portal's monthly publishing limit, where three would count three times.
 
 ## The pre-push hook
 

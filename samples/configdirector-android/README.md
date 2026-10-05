@@ -123,9 +123,9 @@ Each depends on the released artifact it demonstrates, from the ConfigDirector M
 that the repository's `settings.gradle.kts` declares, exactly as your own app would:
 
 ```kotlin
-implementation("com.configdirector:android-sdk-compose:1.6.0")  // the Compose sample
-implementation("com.configdirector:android-sdk:1.6.0")          // the Java sample
-testImplementation("com.configdirector:android-sdk-testing:1.6.0")  // both
+implementation("com.configdirector:android-sdk-compose:1.7.0")  // the Compose sample
+implementation("com.configdirector:android-sdk:1.7.0")          // the Java sample
+testImplementation("com.configdirector:android-sdk-testing:1.7.0")  // both
 ```
 
 The Compose artifact depends on the core and re-exposes it, so the Compose sample gets both from

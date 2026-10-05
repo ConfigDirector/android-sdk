@@ -81,7 +81,7 @@ dependencies {
         if (useLocalSdk) {
             project(":configdirector-android")
         } else {
-            "com.configdirector:android-sdk:1.6.0"
+            "com.configdirector:android-sdk:1.7.0"
         },
     )
 
@@ -92,7 +92,7 @@ dependencies {
         if (useLocalSdk) {
             project(":configdirector-android-testing")
         } else {
-            "com.configdirector:android-sdk-testing:1.6.0"
+            "com.configdirector:android-sdk-testing:1.7.0"
         },
     )
     testImplementation(libs.junit)

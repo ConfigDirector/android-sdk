@@ -73,7 +73,7 @@ dependencies {
     // is not part of the SDK's stable API, and createTestClient refuses a mismatch at runtime.
     api(project(":configdirector-android"))
     constraints {
-        api("com.configdirector:configdirector-android") {
+        api("com.configdirector:android-sdk") {
             version { strictly(publishedVersion) }
         }
     }
@@ -90,13 +90,6 @@ dependencies {
 }
 
 mavenPublishing {
-    // Uploads a signed bundle to the Central Portal and stops there: the deployment is released by
-    // hand, so a green pipeline is not by itself a published version.
-    publishToMavenCentral()
-
-    // Central requires signatures, and only the release pipeline holds the key. Publishing to the
-    // local cache to try a build against a consumer must not need one, so this is conditional; an
-    // unsigned bundle is rejected by the Portal rather than published.
     if (providers.gradleProperty("signingInMemoryKey").isPresent ||
         providers.gradleProperty("signing.keyId").isPresent
     ) {
@@ -105,6 +98,8 @@ mavenPublishing {
 
     // The release variant is what consumers get; the debug one carries nothing they can use.
     configure(AndroidSingleVariantLibrary("release", sourcesJar = true, publishJavadocJar = true))
+
+    coordinates(group.toString(), "android-sdk-testing", version.toString())
 
     pom {
         name.set("ConfigDirector Android SDK testing tools")
@@ -132,6 +127,15 @@ mavenPublishing {
             url.set(REPOSITORY_URL)
             connection.set("scm:git:$REPOSITORY_URL.git")
             developerConnection.set("scm:git:ssh://git@github.com/ConfigDirector/android-sdk.git")
+        }
+    }
+}
+
+publishing {
+    repositories {
+        maven {
+            name = "staging"
+            url = rootProject.layout.buildDirectory.dir("maven-repository").get().asFile.toURI()
         }
     }
 }

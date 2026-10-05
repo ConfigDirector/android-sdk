@@ -96,7 +96,7 @@ belongs to the application and outlives it.
 
 [`MainActivityTest`](src/test/java/com/configdirector/sample/java/MainActivityTest.java) starts the
 screen under Robolectric with the client replaced by a **test client** from
-`configdirector-android-testing`, which Java reaches as
+`com.configdirector:android-sdk-testing`, which Java reaches as
 `ConfigDirectorTesting.createTestClient(values)`: the SDK's real client over an in-memory connection
 the test controls, so nothing connects and no key is needed.
 

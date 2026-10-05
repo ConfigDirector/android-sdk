@@ -416,8 +416,8 @@ class TestClientTest {
             createTestClient(emptyMap(), 3_000, logger, sdkVersion = "9.9.9")
         }
 
-        assertThat(failure).hasMessageThat().contains("configdirector-android-testing ${Constants.TESTING_VERSION}")
-        assertThat(failure).hasMessageThat().contains("requires configdirector-android ${Constants.TESTING_VERSION}")
+        assertThat(failure).hasMessageThat().contains("com.configdirector:android-sdk-testing ${Constants.TESTING_VERSION}")
+        assertThat(failure).hasMessageThat().contains("requires com.configdirector:android-sdk ${Constants.TESTING_VERSION}")
         assertThat(failure).hasMessageThat().contains("9.9.9 is on the classpath")
     }
 }

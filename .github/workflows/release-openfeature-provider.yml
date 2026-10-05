@@ -1,14 +1,23 @@
 name: Release configdirector-openfeature-android-provider
 
-# Deliberately manual. The version is whatever OPENFEATURE_PROVIDER_VERSION_NAME in
-# gradle.properties says, so a release is two steps: merge the version bump, then run this against
-# main. The provider is released on its own, apart from the SDK it wraps: its published POM depends
-# on whatever VERSION_NAME the same commit declares, so that SDK version must already be on Central.
 on:
   workflow_dispatch:
+    inputs:
+      repository:
+        description: Maven repository to publish to
+        type: choice
+        options:
+          - dev
+          - prod
+        default: dev
+        required: true
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
 
 defaults:
   run:
@@ -16,18 +25,22 @@ defaults:
 
 env:
   JAVA_VERSION: "25"
-
-  # The samples name the released artifacts, which for the version being released do not exist yet.
-  # This points them at this checkout instead, so the build below covers them too.
+  MODULE: configdirector-openfeature-android-provider
+  GROUP: com.configdirector
+  ARTIFACT_ID: openfeature-android-provider
+  STAGING_DIRECTORY: build/maven-repository
   ORG_GRADLE_PROJECT_useLocalSdk: "true"
 
 jobs:
   publish:
-    name: Publish to Maven Central
+    name: Publish to the ${{ inputs.repository }} Maven repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    environment: maven-${{ inputs.repository }}
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v5
 
@@ -40,82 +53,75 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # gradle.properties is the only place the version lives, so ask Gradle for it rather than
-      # parsing the file and having the two drift. The tag names the artifact, since the SDK's own
-      # releases are tagged with the bare version.
       - name: Resolve the version
         id: version
         run: |
-          version=$(./gradlew -q :configdirector-openfeature-android-provider:properties --property version | awk '/^version:/ {print $2}')
+          version=$(./gradlew -q :"$MODULE":properties --property version | awk '/^version:/ {print $2}')
           if [[ -z $version ]]; then
-            echo "::error::could not read the version of :configdirector-openfeature-android-provider"
+            echo "::error::could not read the version of :$MODULE"
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=configdirector-openfeature-android-provider-v$version" >> "$GITHUB_OUTPUT"
-          echo "Releasing $version"
+          echo "tag=$MODULE-v$version" >> "$GITHUB_OUTPUT"
+          echo "Releasing $GROUP:$ARTIFACT_ID $version to the ${{ inputs.repository }} repository"
 
-      - name: Refuse to re-release an existing version
-        env:
-          TAG: ${{ steps.version.outputs.tag }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          if [[ -n $(git ls-remote --tags origin "refs/tags/$TAG") ]]; then
-            echo "::error::$TAG already exists, so $VERSION has been released from this workflow" \
-                 "before. If that deployment was dropped in the Portal rather than published," \
-                 "delete the tag and run this again; otherwise bump" \
-                 "OPENFEATURE_PROVIDER_VERSION_NAME in gradle.properties."
-            exit 1
-          fi
+      - name: Refuse a version that is already in the Maven repository
+        uses: ConfigDirector/maven-repository-actions/check@v1
+        with:
+          bucket: ${{ vars.MAVEN_REPOSITORY_BUCKET }}
+          endpoint: ${{ vars.MAVEN_REPOSITORY_ENDPOINT }}
+          access-key-id: ${{ secrets.MAVEN_REPOSITORY_ACCESS_KEY_ID }}
+          secret-access-key: ${{ secrets.MAVEN_REPOSITORY_SECRET_ACCESS_KEY }}
+          artifacts: |
+            ${{ env.GROUP }}:${{ env.ARTIFACT_ID }}:${{ steps.version.outputs.version }}
 
-      # The same checks CI runs, including apiCheck: a version whose public API changed by accident
-      # is not worth uploading, and neither is one that does not build.
-      - run: ./gradlew build
+      - name: Build and test
+        run: ./gradlew build
 
       - name: Check the Java tests ran
         run: ./.github/scripts/check-java-tests-ran.sh
 
-      # The publish plugin decides the version on its own, from Gradle properties, and it once
-      # disagreed with the version Gradle reports above. The POM is what Central receives, so the
-      # release refuses to upload unless the two agree.
-      - name: Check the publications carry the version being released
+      - name: Check the publication carries the version being released
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          for module in configdirector-openfeature-android-provider; do
-            ./gradlew -q ":${module}:generatePomFileForMavenPublication"
-            published=$(sed -n 's:.*<version>\(.*\)</version>.*:\1:p' "${module}/build/publications/maven/pom-default.xml" | head -1)
-            if [[ $published != "$VERSION" ]]; then
-              echo "::error::$module would be published as $published, not as $VERSION"
-              exit 1
-            fi
-            echo "$module publishes as $published"
-          done
+          ./gradlew -q ":${MODULE}:generatePomFileForMavenPublication"
+          published=$(sed -n 's:.*<version>\(.*\)</version>.*:\1:p' "${MODULE}/build/publications/maven/pom-default.xml" | head -1)
+          if [[ $published != "$VERSION" ]]; then
+            echo "::error::$MODULE would be published as $published, not as $VERSION"
+            exit 1
+          fi
+          echo "$MODULE publishes as $published"
 
-      # Uploads a signed bundle and stops there. Releasing it is a decision made in the Portal,
-      # which is the last chance to look at what is about to become permanent.
-      - name: Publish to the Central Portal
-        run: ./gradlew :configdirector-openfeature-android-provider:publishToMavenCentral --no-configuration-cache
+      - name: Publish the signed release into the staging repository
+        run: ./gradlew :"$MODULE":publishAllPublicationsToStagingRepository --no-configuration-cache
         env:
-          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
-          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
 
+      - name: Attest and upload to the Maven repository
+        uses: ConfigDirector/maven-repository-actions/upload@v1
+        with:
+          staging-directory: ${{ env.STAGING_DIRECTORY }}
+          bucket: ${{ vars.MAVEN_REPOSITORY_BUCKET }}
+          endpoint: ${{ vars.MAVEN_REPOSITORY_ENDPOINT }}
+          access-key-id: ${{ secrets.MAVEN_REPOSITORY_ACCESS_KEY_ID }}
+          secret-access-key: ${{ secrets.MAVEN_REPOSITORY_SECRET_ACCESS_KEY }}
+          artifacts: |
+            ${{ env.GROUP }}:${{ env.ARTIFACT_ID }}:${{ steps.version.outputs.version }}
+
       - uses: actions/upload-artifact@v4
         with:
-          name: aar
-          path: configdirector-android*/build/outputs/aar/*.aar
+          name: maven-repository
+          path: ${{ env.STAGING_DIRECTORY }}
 
-      # Last, so that a bundle the Portal rejected does not leave a tag behind claiming it was
-      # released. This marks the commit that was uploaded; whether it then becomes a permanent
-      # version on Central is still a manual decision in the Portal.
       - name: Tag the released commit
+        if: inputs.repository == 'prod'
         env:
           TAG: ${{ steps.version.outputs.tag }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git tag -a "$TAG" -m "configdirector-android $VERSION"
+          git tag -a "$TAG" -m "$MODULE $VERSION"
           git push origin "$TAG"

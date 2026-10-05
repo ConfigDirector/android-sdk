@@ -1,14 +1,23 @@
 name: Release configdirector-android
 
-# Deliberately manual. The version is whatever gradle.properties says, so a release is two steps:
-# merge the version bump, then run this against main. All three artifacts carry that one version
-# and go out together, because the Compose bindings and the testing tools depend on the core of the
-# same version.
 on:
   workflow_dispatch:
+    inputs:
+      repository:
+        description: Maven repository to publish to
+        type: choice
+        options:
+          - dev
+          - prod
+        default: dev
+        required: true
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
 
 defaults:
   run:
@@ -16,18 +25,26 @@ defaults:
 
 env:
   JAVA_VERSION: "25"
-
-  # The samples name the released artifacts, which for the version being released do not exist yet.
-  # This points them at this checkout instead, so the build below covers them too.
+  MODULE: configdirector-android
+  COMPOSE_MODULE: configdirector-android-compose
+  TESTING_MODULE: configdirector-android-testing
+  GROUP: com.configdirector
+  ARTIFACT_ID: android-sdk
+  COMPOSE_ARTIFACT_ID: android-sdk-compose
+  TESTING_ARTIFACT_ID: android-sdk-testing
+  STAGING_DIRECTORY: build/maven-repository
   ORG_GRADLE_PROJECT_useLocalSdk: "true"
 
 jobs:
   publish:
-    name: Publish to Maven Central
+    name: Publish to the ${{ inputs.repository }} Maven repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    environment: maven-${{ inputs.repository }}
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v5
 
@@ -40,48 +57,41 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # gradle.properties is the only place the version lives, so ask Gradle for it rather than
-      # parsing the file and having the two drift.
       - name: Resolve the version
         id: version
         run: |
-          version=$(./gradlew -q :configdirector-android:properties --property version | awk '/^version:/ {print $2}')
+          version=$(./gradlew -q :"$MODULE":properties --property version | awk '/^version:/ {print $2}')
           if [[ -z $version ]]; then
-            echo "::error::could not read the version of :configdirector-android"
+            echo "::error::could not read the version of :$MODULE"
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
-          echo "Releasing $version"
+          echo "Releasing $GROUP:$ARTIFACT_ID, $GROUP:$COMPOSE_ARTIFACT_ID and $GROUP:$TESTING_ARTIFACT_ID $version to the ${{ inputs.repository }} repository"
 
-      - name: Refuse to re-release an existing version
-        env:
-          TAG: ${{ steps.version.outputs.tag }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          if [[ -n $(git ls-remote --tags origin "refs/tags/$TAG") ]]; then
-            echo "::error::$TAG already exists, so $VERSION has been released from this workflow" \
-                 "before. If that deployment was dropped in the Portal rather than published," \
-                 "delete the tag and run this again; otherwise bump VERSION_NAME in" \
-                 "gradle.properties."
-            exit 1
-          fi
+      - name: Refuse a version that is already in the Maven repository
+        uses: ConfigDirector/maven-repository-actions/check@v1
+        with:
+          bucket: ${{ vars.MAVEN_REPOSITORY_BUCKET }}
+          endpoint: ${{ vars.MAVEN_REPOSITORY_ENDPOINT }}
+          access-key-id: ${{ secrets.MAVEN_REPOSITORY_ACCESS_KEY_ID }}
+          secret-access-key: ${{ secrets.MAVEN_REPOSITORY_SECRET_ACCESS_KEY }}
+          artifacts: |
+            ${{ env.GROUP }}:${{ env.ARTIFACT_ID }}:${{ steps.version.outputs.version }}
+            ${{ env.GROUP }}:${{ env.COMPOSE_ARTIFACT_ID }}:${{ steps.version.outputs.version }}
+            ${{ env.GROUP }}:${{ env.TESTING_ARTIFACT_ID }}:${{ steps.version.outputs.version }}
 
-      # The same checks CI runs, including apiCheck: a version whose public API changed by accident
-      # is not worth uploading, and neither is one that does not build.
-      - run: ./gradlew build
+      - name: Build and test
+        run: ./gradlew build
 
       - name: Check the Java tests ran
         run: ./.github/scripts/check-java-tests-ran.sh
 
-      # The publish plugin decides the version on its own, from Gradle properties, and it once
-      # disagreed with the version Gradle reports above. The POM is what Central receives, so the
-      # release refuses to upload unless the two agree.
       - name: Check the publications carry the version being released
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          for module in configdirector-android configdirector-android-compose configdirector-android-testing; do
+          for module in "$MODULE" "$COMPOSE_MODULE" "$TESTING_MODULE"; do
             ./gradlew -q ":${module}:generatePomFileForMavenPublication"
             published=$(sed -n 's:.*<version>\(.*\)</version>.*:\1:p' "${module}/build/publications/maven/pom-default.xml" | head -1)
             if [[ $published != "$VERSION" ]]; then
@@ -91,41 +101,42 @@ jobs:
             echo "$module publishes as $published"
           done
 
-      # All three artifacts in one invocation, deliberately: the plugin then uploads one signed
-      # bundle holding all three, which the Portal shows as a single deployment named after the
-      # group and the version. The Compose bindings and the testing tools depend on the core of
-      # the same version, so a version is only usable with all three published; one deployment
-      # makes a partial release impossible and counts once against the Portal's monthly limit.
-      #
-      # The upload stops there. Releasing it is a decision made in the Portal, which is the last
-      # chance to look at what is about to become permanent.
-      - name: Publish to the Central Portal
+      - name: Publish the signed release into the staging repository
         run: >
           ./gradlew
-          :configdirector-android:publishToMavenCentral
-          :configdirector-android-compose:publishToMavenCentral
-          :configdirector-android-testing:publishToMavenCentral
+          :"$MODULE":publishAllPublicationsToStagingRepository
+          :"$COMPOSE_MODULE":publishAllPublicationsToStagingRepository
+          :"$TESTING_MODULE":publishAllPublicationsToStagingRepository
           --no-configuration-cache
         env:
-          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
-          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
 
+      - name: Attest and upload to the Maven repository
+        uses: ConfigDirector/maven-repository-actions/upload@v1
+        with:
+          staging-directory: ${{ env.STAGING_DIRECTORY }}
+          bucket: ${{ vars.MAVEN_REPOSITORY_BUCKET }}
+          endpoint: ${{ vars.MAVEN_REPOSITORY_ENDPOINT }}
+          access-key-id: ${{ secrets.MAVEN_REPOSITORY_ACCESS_KEY_ID }}
+          secret-access-key: ${{ secrets.MAVEN_REPOSITORY_SECRET_ACCESS_KEY }}
+          artifacts: |
+            ${{ env.GROUP }}:${{ env.ARTIFACT_ID }}:${{ steps.version.outputs.version }}
+            ${{ env.GROUP }}:${{ env.COMPOSE_ARTIFACT_ID }}:${{ steps.version.outputs.version }}
+            ${{ env.GROUP }}:${{ env.TESTING_ARTIFACT_ID }}:${{ steps.version.outputs.version }}
+
       - uses: actions/upload-artifact@v4
         with:
-          name: aar
-          path: configdirector-android*/build/outputs/aar/*.aar
+          name: maven-repository
+          path: ${{ env.STAGING_DIRECTORY }}
 
-      # Last, so that a bundle the Portal rejected does not leave a tag behind claiming it was
-      # released. This marks the commit that was uploaded; whether it then becomes a permanent
-      # version on Central is still a manual decision in the Portal.
       - name: Tag the released commit
+        if: inputs.repository == 'prod'
         env:
           TAG: ${{ steps.version.outputs.tag }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git tag -a "$TAG" -m "configdirector-android $VERSION"
+          git tag -a "$TAG" -m "$MODULE $VERSION"
           git push origin "$TAG"

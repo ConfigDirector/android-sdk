@@ -1,18 +1,69 @@
 # ConfigDirector OpenFeature Android Provider
 
-[![CI][ci-badge]][ci] [![Maven Central][maven-badge]][maven]
+[![CI][ci-badge]][ci] [![Latest version][version-badge]][maven-repository]
 
-[OpenFeature](https://openfeature.dev) provider for Android and Kotlin, published to Maven Central as
-`com.configdirector:configdirector-openfeature-android-provider`. It wraps the
+[OpenFeature](https://openfeature.dev) provider for Android and Kotlin, published to the
+ConfigDirector Maven repository as `com.configdirector:openfeature-android-provider`. It wraps the
 [ConfigDirector Android SDK](../configdirector-android/) for the
 [OpenFeature Kotlin SDK](https://openfeature.dev/docs/reference/sdks/client/kotlin), and runs on
 Android 5.0 (API 21) and up.
 
 ## Install
 
+The provider is published to the ConfigDirector Maven repository,
+`https://maven.configdirector.com`. Add the repository once, next to `google()` and `mavenCentral()`
+in `settings.gradle.kts`. Projects created by Android Studio declare their repositories there,
+under `dependencyResolutionManagement`, and by default refuse repositories declared in a module's
+build file. The repository, the signing key and how to verify what it serves are described at
+https://docs.configdirector.com/sdks/maven-repository.
+
+```kotlin
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        exclusiveContent {
+            forRepository {
+                maven {
+                    name = "ConfigDirector"
+                    url = uri("https://maven.configdirector.com")
+                }
+            }
+            filter {
+                includeGroup("com.configdirector")
+            }
+        }
+    }
+}
+```
+
+Or, in `settings.gradle`:
+
+```groovy
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        exclusiveContent {
+            forRepository {
+                maven {
+                    name = 'ConfigDirector'
+                    url = 'https://maven.configdirector.com'
+                }
+            }
+            filter {
+                includeGroup 'com.configdirector'
+            }
+        }
+    }
+}
+```
+
+Then add the dependency to your app module:
+
 ```kotlin
 dependencies {
-    implementation("com.configdirector:configdirector-openfeature-android-provider:1.2.0")
+    implementation("com.configdirector:openfeature-android-provider:1.3.0")
 }
 ```
 
@@ -43,13 +94,13 @@ Full details are in the [official documentation](https://docs.configdirector.com
 
 The OpenFeature Kotlin SDK ships no in-memory provider, so to test the code that reads flags through
 OpenFeature, create the provider over a **test client** from the SDK's testing tools,
-[`configdirector-android-testing`](../configdirector-android-testing/): the SDK's real client
-connected to an in-memory server your test controls. The constructor that takes a client sits
-behind the `@ConfigDirectorProviderTestingApi` opt-in, which keeps it out of application code:
+[`com.configdirector:android-sdk-testing`](../configdirector-android-testing/): the SDK's real
+client connected to an in-memory server your test controls. The constructor that takes a client
+sits behind the `@ConfigDirectorProviderTestingApi` opt-in, which keeps it out of application code:
 
 ```kotlin
 dependencies {
-    testImplementation("com.configdirector:configdirector-android-testing:1.6.0")
+    testImplementation("com.configdirector:android-sdk-testing:1.7.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
 }
 ```
@@ -111,5 +162,5 @@ and variant of each, and re-reading them as the provider reports changes.
 [//]: # "links"
 [ci-badge]: https://github.com/ConfigDirector/android-sdk/actions/workflows/configdirector-android.yml/badge.svg
 [ci]: https://github.com/ConfigDirector/android-sdk/actions/workflows/configdirector-android.yml
-[maven-badge]: https://img.shields.io/maven-central/v/com.configdirector/configdirector-openfeature-android-provider
-[maven]: https://central.sonatype.com/artifact/com.configdirector/configdirector-openfeature-android-provider
+[version-badge]: https://img.shields.io/maven-metadata/v?metadataUrl=https%3A%2F%2Fmaven.configdirector.com%2Fcom%2Fconfigdirector%2Fopenfeature-android-provider%2Fmaven-metadata.xml&label=maven
+[maven-repository]: https://docs.configdirector.com/sdks/maven-repository

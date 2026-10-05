@@ -91,8 +91,8 @@ import kotlinx.coroutines.flow.mapNotNull
  *
  * A test creates the provider over a client of its own with the constructor that takes a
  * [ConfigDirectorClient], usually the `client` of a test client from
- * `com.configdirector:configdirector-android-testing`. The provider never closes a client it was
- * given: shutting it down leaves the client to the test.
+ * `com.configdirector:android-sdk-testing`. The provider never closes a client it was given:
+ * shutting it down leaves the client to the test.
  */
 public class ConfigDirectorProvider private constructor(
     private val client: ConfigDirectorClient,
@@ -126,7 +126,7 @@ public class ConfigDirectorProvider private constructor(
 
     /**
      * Creates a provider over [client], a client the caller owns, for tests: usually the `client`
-     * of a test client from `com.configdirector:configdirector-android-testing`.
+     * of a test client from `com.configdirector:android-sdk-testing`.
      *
      * The provider initializes the client when it is registered and updates its context when the
      * evaluation context changes, as it does with a client it creates itself, so a client that was

@@ -1,15 +1,26 @@
 # Changelog
 
-Changes to `com.configdirector:configdirector-android`,
-`com.configdirector:configdirector-android-compose`, and
-`com.configdirector:configdirector-android-testing`. The three are released together and share a
-version, so they share this file; an entry says which artifact it belongs to when it is not all of
-them.
+Changes to `com.configdirector:android-sdk`, `com.configdirector:android-sdk-compose`, and
+`com.configdirector:android-sdk-testing`. The three are released together and share a version, so
+they share this file; an entry says which artifact it belongs to when it is not all of them.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and these artifacts
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [1.7.0] - 2026-10-04
+
+### Changed
+
+- The artifacts are now published as `com.configdirector:android-sdk`,
+  `com.configdirector:android-sdk-compose`, and `com.configdirector:android-sdk-testing` from
+  `https://maven.configdirector.com`, instead of as `com.configdirector:configdirector-android`,
+  `com.configdirector:configdirector-android-compose`, and
+  `com.configdirector:configdirector-android-testing` on Maven Central, where their last version is
+  1.6.0. Upgrading means adding the repository to the build and changing the artifactIds; the README
+  shows both. Move every artifact an app declares at once: an old and a new artifact hold the same
+  classes and cannot be on the same classpath.
 
 ## [1.6.0] - 2026-10-01
 

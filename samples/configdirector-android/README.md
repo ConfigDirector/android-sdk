@@ -4,7 +4,8 @@ Two Android apps showing how to use the ConfigDirector Android client SDK: each 
 handful of configs and re-renders as their values change.
 
 [**compose**](compose) is the modern one — Kotlin and Jetpack Compose, reading each config through
-the `configdirector-android-compose` bindings, which recompose the screen when a value changes.
+the `com.configdirector:android-sdk-compose` bindings, which recompose the screen when a value
+changes.
 
 [**java**](java) is the other half of the SDK's audience — plain Java, framework views, no AndroidX
 and no Kotlin sources at all. It exists to keep the Java surface honest: Kotlin tests cannot tell
@@ -13,9 +14,9 @@ whether an API is callable from Java, so if the Java surface breaks, that module
 Neither app shares code with the other. They differ in how they consume the SDK, which is the point
 of having both.
 
-Each has unit tests over the SDK's testing tools, `configdirector-android-testing`: the real client
-over an in-memory connection the test controls, so the screens are tested without a key, a network
-connection, or a device. Each app's README describes its tests.
+Each has unit tests over the SDK's testing tools, `com.configdirector:android-sdk-testing`: the real
+client over an in-memory connection the test controls, so the screens are tested without a key, a
+network connection, or a device. Each app's README describes its tests.
 
 ## Running them
 
@@ -118,12 +119,13 @@ against `role` behaves the same everywhere.
 
 ## Which SDK they build against
 
-Each depends on the released artifact it demonstrates, exactly as your own app would:
+Each depends on the released artifact it demonstrates, from the ConfigDirector Maven repository
+that the repository's `settings.gradle.kts` declares, exactly as your own app would:
 
 ```kotlin
-implementation("com.configdirector:configdirector-android-compose:1.6.0")  // the Compose sample
-implementation("com.configdirector:configdirector-android:1.6.0")          // the Java sample
-testImplementation("com.configdirector:configdirector-android-testing:1.6.0")  // both
+implementation("com.configdirector:android-sdk-compose:1.6.0")  // the Compose sample
+implementation("com.configdirector:android-sdk:1.6.0")          // the Java sample
+testImplementation("com.configdirector:android-sdk-testing:1.6.0")  // both
 ```
 
 The Compose artifact depends on the core and re-exposes it, so the Compose sample gets both from
@@ -146,8 +148,8 @@ way:
 ```
 
 The versions above deliberately lag the one in `gradle.properties` between a version bump and the
-release that publishes it: naming a version that is not on Central yet leaves the samples
-unresolvable for anyone who is not passing the flag.
+release that publishes it: naming a version that is not in the ConfigDirector Maven repository
+yet leaves the samples unresolvable for anyone who is not passing the flag.
 
 ## They do not share a minSdk
 

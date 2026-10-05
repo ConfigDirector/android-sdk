@@ -7,8 +7,8 @@
 # `build` covers the SDK's Kotlin, both of its test source sets, Android lint, and both sample
 # apps -- the Java sample being a Java-only module, which is what catches a break in the SDK's
 # Java surface. -PuseLocalSdk points the samples at this working tree rather than at the release
-# on Maven Central they name by default, so a breaking API change fails here rather than after it
-# ships.
+# in the ConfigDirector Maven repository they name by default, so a breaking API change fails here
+# rather than after it ships.
 #
 # Install it with:  git config core.hooksPath .githooks
 # Bypass it for a single push with:  git push --no-verify

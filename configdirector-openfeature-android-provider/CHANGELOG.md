@@ -1,13 +1,24 @@
 # Changelog
 
-Changes to `com.configdirector:configdirector-openfeature-android-provider`. It is released on its
-own, so it has a version and a changelog of its own; the SDK it wraps has
-[its own changelog](../CHANGELOG.md).
+Changes to `com.configdirector:openfeature-android-provider`. It is released on its own, so it has
+a version and a changelog of its own; the SDK it wraps has [its own changelog](../CHANGELOG.md).
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this artifact
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [1.3.0] - 2026-10-04
+
+### Changed
+
+- The artifact is now published as `com.configdirector:openfeature-android-provider` from
+  `https://maven.configdirector.com`, instead of as
+  `com.configdirector:configdirector-openfeature-android-provider` on Maven Central, where its last
+  version is 1.2.0. Upgrading means adding the repository to the build and changing the artifactId;
+  the README shows both. The provider now depends on the SDK under its new name,
+  `com.configdirector:android-sdk` 1.7.0, so an app that also declares the SDK or its testing tools
+  moves them to their new names at the same time.
 
 ## [1.2.0] - 2026-10-01
 

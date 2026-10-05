@@ -21,10 +21,10 @@ gone earlier, on sign-out for instance, calls `close()` itself.
 val featureFlag = configValue("temporary-feature-flag", true)
 ```
 
-`configValue` comes from `configdirector-android-compose`, the Compose artifact. It subscribes to
-the config, returns its current value, and recomposes this screen whenever that value changes —
-from an edit in the dashboard, or from a context update. Until the client is ready, and for a value
-that cannot be read as this type, it returns the default it was given.
+`configValue` comes from `com.configdirector:android-sdk-compose`, the Compose artifact. It
+subscribes to the config, returns its current value, and recomposes this screen whenever that value
+changes — from an edit in the dashboard, or from a context update. Until the client is ready, and
+for a value that cannot be read as this type, it returns the default it was given.
 
 There is one overload per type a config can be read as, so a default of any other type is a compile
 error rather than a failure at runtime. `json-value-config` is read twice below, once with a
@@ -61,9 +61,9 @@ reconnects.
 [`SampleScreenTest`](src/test/kotlin/com/configdirector/sample/compose/SampleScreenTest.kt) renders
 `SampleScreen` under Robolectric with `createComposeRule`, wrapped in the production
 `ConfigDirectorProvider` exactly as `MainActivity` does, but with the client of a **test client**
-from `configdirector-android-testing`: the SDK's real client over an in-memory connection the test
-controls. Robolectric is told to run a plain `Application` instead of `SampleApplication`, so no
-real client is built and nothing connects.
+from `com.configdirector:android-sdk-testing`: the SDK's real client over an in-memory connection
+the test controls. Robolectric is told to run a plain `Application` instead of
+`SampleApplication`, so no real client is built and nothing connects.
 
 ```kotlin
 private val testClient = createTestClient(values = SAMPLE_VALUES)

@@ -17,6 +17,17 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        exclusiveContent {
+            forRepository {
+                maven {
+                    name = "ConfigDirector"
+                    url = uri("https://maven.configdirector.com")
+                }
+            }
+            filter {
+                includeGroup("com.configdirector")
+            }
+        }
     }
 }
 

@@ -1,24 +1,70 @@
 # ConfigDirector Android SDK
 
-[![CI][ci-badge]][ci] [![Maven Central][maven-badge]][maven]
+[![CI][ci-badge]][ci] [![Latest version][version-badge]][maven-repository]
 
 Android SDK for [ConfigDirector](https://www.configdirector.com), remote config and feature flags with typed values, JSON Schema validation, and safe renames of live flags. Start free, no card required.
 
-It is written in Kotlin and is meant to be used from Kotlin and Java alike, and it ships as three artifacts: `com.configdirector:configdirector-android`, the SDK; `com.configdirector:configdirector-android-compose`, optional Jetpack Compose bindings over it; and `com.configdirector:configdirector-android-testing`, tools for testing the code that reads your configs.
+It is written in Kotlin and is meant to be used from Kotlin and Java alike, and it ships as three artifacts: `com.configdirector:android-sdk`, the SDK; `com.configdirector:android-sdk-compose`, optional Jetpack Compose bindings over it; and `com.configdirector:android-sdk-testing`, tools for testing the code that reads your configs.
 
-This repository also holds [`com.configdirector:configdirector-openfeature-android-provider`](configdirector-openfeature-android-provider/), an [OpenFeature](https://openfeature.dev) provider built on the SDK, released on its own.
+This repository also holds [`com.configdirector:openfeature-android-provider`](configdirector-openfeature-android-provider/), an [OpenFeature](https://openfeature.dev) provider built on the SDK, released on its own.
 
 ## Install
 
+The artifacts are published to the ConfigDirector Maven repository, `https://maven.configdirector.com`. Add the repository once, next to `google()` and `mavenCentral()` in `settings.gradle.kts`. Projects created by Android Studio declare their repositories there, under `dependencyResolutionManagement`, and by default refuse repositories declared in a module's build file. The repository, the signing key and how to verify what it serves are described at https://docs.configdirector.com/sdks/maven-repository.
+
+```kotlin
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        exclusiveContent {
+            forRepository {
+                maven {
+                    name = "ConfigDirector"
+                    url = uri("https://maven.configdirector.com")
+                }
+            }
+            filter {
+                includeGroup("com.configdirector")
+            }
+        }
+    }
+}
+```
+
+Or, in `settings.gradle`:
+
+```groovy
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        exclusiveContent {
+            forRepository {
+                maven {
+                    name = 'ConfigDirector'
+                    url = 'https://maven.configdirector.com'
+                }
+            }
+            filter {
+                includeGroup 'com.configdirector'
+            }
+        }
+    }
+}
+```
+
+Then add the dependencies to your app module:
+
 ```kotlin
 dependencies {
-    implementation("com.configdirector:configdirector-android:1.6.0")
+    implementation("com.configdirector:android-sdk:1.7.0")
 
     // Optional, for Jetpack Compose applications
-    implementation("com.configdirector:configdirector-android-compose:1.6.0")
+    implementation("com.configdirector:android-sdk-compose:1.7.0")
 
     // For your tests
-    testImplementation("com.configdirector:configdirector-android-testing:1.6.0")
+    testImplementation("com.configdirector:android-sdk-testing:1.7.0")
 }
 ```
 
@@ -40,7 +86,7 @@ Full details are in the [official documentation](https://docs.configdirector.com
 
 ## Test your code
 
-`configdirector-android-testing` creates a **test client**: the SDK's real client connected to an in-memory server that your test controls. No network connection is opened, no telemetry is sent, and no Android `Context` is needed, so it runs in a plain JVM unit test.
+`com.configdirector:android-sdk-testing` creates a **test client**: the SDK's real client connected to an in-memory server that your test controls. No network connection is opened, no telemetry is sent, and no Android `Context` is needed, so it runs in a plain JVM unit test.
 
 ```kotlin
 import com.configdirector.testing.createTestClient
@@ -92,5 +138,5 @@ them at your own ConfigDirector project.
 [//]: # "links"
 [ci-badge]: https://github.com/ConfigDirector/android-sdk/actions/workflows/configdirector-android.yml/badge.svg
 [ci]: https://github.com/ConfigDirector/android-sdk/actions/workflows/configdirector-android.yml
-[maven-badge]: https://img.shields.io/maven-central/v/com.configdirector/configdirector-android
-[maven]: https://central.sonatype.com/artifact/com.configdirector/configdirector-android
+[version-badge]: https://img.shields.io/maven-metadata/v?metadataUrl=https%3A%2F%2Fmaven.configdirector.com%2Fcom%2Fconfigdirector%2Fandroid-sdk%2Fmaven-metadata.xml&label=maven
+[maven-repository]: https://docs.configdirector.com/sdks/maven-repository

@@ -60,9 +60,10 @@ internal fun createTestClient(
     sdkVersion: String,
 ): TestClient {
     check(sdkVersion == Constants.TESTING_VERSION) {
-        "configdirector-android-testing ${Constants.TESTING_VERSION} requires configdirector-android " +
-            "${Constants.TESTING_VERSION}, but $sdkVersion is on the classpath. The testing artifact " +
-            "relies on the SDK's internals, so both must be the same version."
+        "com.configdirector:android-sdk-testing ${Constants.TESTING_VERSION} requires " +
+            "com.configdirector:android-sdk ${Constants.TESTING_VERSION}, but $sdkVersion is on " +
+            "the classpath. The testing artifact relies on the SDK's internals, so both must be " +
+            "the same version."
     }
     return TestClient(InMemoryConnection(values, timeoutMillis, logger))
 }

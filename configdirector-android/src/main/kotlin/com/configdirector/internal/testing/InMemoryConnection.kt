@@ -35,8 +35,8 @@ private const val FATAL_STATUS = 401
  * and holds or fails connection attempts on request. Nothing reaches the network, no telemetry is
  * collected, and no Android `Context` is needed.
  *
- * This is the entry point of the `configdirector-android-testing` artifact, which wraps it in the
- * test client API; tests use that artifact rather than this class.
+ * This is the entry point of the `com.configdirector:android-sdk-testing` artifact, which wraps it
+ * in the test client API; tests use that artifact rather than this class.
  */
 @ConfigDirectorTestingApi
 public class InMemoryConnection(

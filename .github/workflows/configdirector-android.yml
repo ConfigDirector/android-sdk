@@ -18,9 +18,9 @@ defaults:
     shell: bash
 
 env:
-  # Points the samples at the artifacts in this checkout rather than at their release on Central,
-  # so a breaking API change fails here rather than after it ships. Set as a Gradle project
-  # property through the environment, which every ./gradlew below picks up.
+  # Points the samples at the artifacts in this checkout rather than at their release in the
+  # ConfigDirector Maven repository, so a breaking API change fails here rather than after it ships.
+  # Set as a Gradle project property through the environment, which every ./gradlew below picks up.
   ORG_GRADLE_PROJECT_useLocalSdk: "true"
 
 jobs:

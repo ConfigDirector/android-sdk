@@ -65,35 +65,36 @@ tasks.withType<JavaCompile>().configureEach {
 }
 
 // -PuseLocalSdk builds against configdirector-android/ and configdirector-android-testing/ in this
-// repository instead of the releases on Central. CI and the pre-push hook set it, so a breaking API
-// change fails here first; locally it is how you try an unreleased SDK change against a real
-// consumer.
+// repository instead of the releases in the ConfigDirector Maven repository. CI and the pre-push
+// hook set it, so a breaking API change fails here first; locally it is how you try an unreleased
+// SDK change against a real consumer.
 val useLocalSdk = providers.gradleProperty("useLocalSdk")
     .map { it.isEmpty() || it.toBoolean() }
     .getOrElse(false)
-
-if (useLocalSdk) {
-    configurations.configureEach {
-        resolutionStrategy.dependencySubstitution {
-            substitute(module("com.configdirector:configdirector-android"))
-                .using(project(":configdirector-android"))
-            substitute(module("com.configdirector:configdirector-android-testing"))
-                .using(project(":configdirector-android-testing"))
-        }
-    }
-}
 
 dependencies {
     // The latest released SDK, which is what a reader copying this line wants. It deliberately
     // lags the version in gradle.properties between a version bump and the release that publishes
     // it -- naming an unpublished version here leaves the sample unresolvable for everyone who is
     // not passing -PuseLocalSdk above.
-    implementation("com.configdirector:configdirector-android:1.6.0")
+    implementation(
+        if (useLocalSdk) {
+            project(":configdirector-android")
+        } else {
+            "com.configdirector:android-sdk:1.6.0"
+        },
+    )
 
     // The SDK's testing tools, which must be the same version as the SDK above and lag the
     // release the same way. The screen is an Activity, which on the JVM needs Robolectric; that
     // is the test classpath only, and the app itself still has no AndroidX.
-    testImplementation("com.configdirector:configdirector-android-testing:1.6.0")
+    testImplementation(
+        if (useLocalSdk) {
+            project(":configdirector-android-testing")
+        } else {
+            "com.configdirector:android-sdk-testing:1.6.0"
+        },
+    )
     testImplementation(libs.junit)
     testImplementation(libs.truth)
     testImplementation(libs.robolectric)

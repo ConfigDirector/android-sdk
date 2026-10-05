@@ -27,35 +27,41 @@ Nothing else. The build brings its own Gradle through the wrapper.
 
 ## The four artifacts
 
-`configdirector-android` is the whole SDK: Kotlin, no Compose, consumable from Java, `minSdk 21` and
-Java 8 bytecode.
+Each module publishes under an artifactId of its own, named with `coordinates(...)` in its build
+script; the module directories keep the older names the artifacts were first published under.
 
-`configdirector-android-compose` adds Compose bindings over it and nothing else — no client logic of
-its own. It depends on `androidx.compose.runtime` alone, deliberately: bindings that pulled in
-`compose-ui` or `material3` would put those versions in every consumer's dependency graph. It keeps
-`minSdk 21` as well; only Java 11 bytecode differs, because that is what AndroidX ships.
+`configdirector-android`, published as `com.configdirector:android-sdk`, is the whole SDK: Kotlin,
+no Compose, consumable from Java, `minSdk 21` and Java 8 bytecode.
+
+`configdirector-android-compose`, published as `com.configdirector:android-sdk-compose`, adds
+Compose bindings over it and nothing else — no client logic of its own. It depends on
+`androidx.compose.runtime` alone, deliberately: bindings that pulled in `compose-ui` or `material3`
+would put those versions in every consumer's dependency graph. It keeps `minSdk 21` as well; only
+Java 11 bytecode differs, because that is what AndroidX ships.
 
 Compose is a Kotlin compiler plugin, so the Compose artifact has no Java source set and the Java
 test rule below does not apply to it.
 
-`configdirector-android-testing` is the testing tools: the SDK's real client over an in-memory
-connection that a test controls, wrapped in the test client API a consumer's tests use. It is the
-only consumer of the SDK's `@ConfigDirectorTestingApi` entry point, which is not part of the SDK's
-stable API, so it is released with the SDK, shares its version, pins that version in its published
-metadata, and refuses any other at runtime. Java 8 bytecode and `minSdk 21`, like the core, and
-consumable from Java, so the Java test rule applies to it. It depends on `org.json:json`, because
-the framework's `org.json` is a stub under a plain JVM unit test and JSON configs would not parse
-without a real one; on a device the framework's own wins, because the boot class loader is
-consulted first, so an instrumented test is unaffected. Android lint's `DuplicatePlatformClasses`
-check objects to that dependency all the same, so the module disables that one check, and only
-that one; a consumer's lint does not see the dependency, because it is transitive.
+`configdirector-android-testing`, published as `com.configdirector:android-sdk-testing`, is the
+testing tools: the SDK's real client over an in-memory connection that a test controls, wrapped in
+the test client API a consumer's tests use. It is the only consumer of the SDK's
+`@ConfigDirectorTestingApi` entry point, which is not part of the SDK's stable API, so it is
+released with the SDK, shares its version, pins that version in its published metadata, and refuses
+any other at runtime. Java 8 bytecode and `minSdk 21`, like the core, and consumable from Java, so
+the Java test rule applies to it. It depends on `org.json:json`, because the framework's `org.json`
+is a stub under a plain JVM unit test and JSON configs would not parse without a real one; on a
+device the framework's own wins, because the boot class loader is consulted first, so an
+instrumented test is unaffected. Android lint's `DuplicatePlatformClasses` check objects to that
+dependency all the same, so the module disables that one check, and only that one; a consumer's lint
+does not see the dependency, because it is transitive.
 
-`configdirector-openfeature-android-provider` is an [OpenFeature](https://openfeature.dev) provider
-over the core, for the OpenFeature Kotlin SDK. That SDK's provider contract is built on `suspend`
-functions and flows, so the provider is Kotlin-only and the Java test rule does not apply to it
-either. It ships Java 11 bytecode, because the OpenFeature Kotlin SDK does, and keeps `minSdk 21`.
-It is versioned and released apart from the other three; see [Releasing](#releasing). Its
-constructor that takes a client, behind `@ConfigDirectorProviderTestingApi`, is tested over the
+`configdirector-openfeature-android-provider`, published as
+`com.configdirector:openfeature-android-provider`, is an [OpenFeature](https://openfeature.dev)
+provider over the core, for the OpenFeature Kotlin SDK. That SDK's provider contract is built on
+`suspend` functions and flows, so the provider is Kotlin-only and the Java test rule does not apply
+to it either. It ships Java 11 bytecode, because the OpenFeature Kotlin SDK does, and keeps
+`minSdk 21`. It is versioned and released apart from the other three; see [Releasing](#releasing).
+Its constructor that takes a client, behind `@ConfigDirectorProviderTestingApi`, is tested over the
 testing tools' test client in plain JVM tests, which is how a consumer's test uses it.
 
 The core, the Compose bindings, and the provider use Robolectric in their tests, and only there. The
@@ -68,14 +74,14 @@ is what proves it needs nothing from Android. The Compose bindings' tests cover 
 test client, which is what a consumer's Compose test looks like.
 
 The samples are tested the way a consumer tests an app: through the testing tools, as a
-`testImplementation` dependency on the released `configdirector-android-testing`, which
+`testImplementation` dependency on the released `com.configdirector:android-sdk-testing`, which
 `-PuseLocalSdk` swaps for the module here like the artifact each sample demonstrates. Both Compose
 samples drive their screen under Robolectric with `createComposeRule`, one over
 `ConfigDirectorProvider(testClient.client)` and the other over the provider registered with a test
 client; the Java sample starts its `Activity` under Robolectric from an `Application` subclass that
 returns the test client where the production one builds a client. Each sample's README describes
 its tests. Without the flag the testing coordinate resolves only once the release that ships it is
-on Central.
+in the ConfigDirector Maven repository.
 
 ## Building and testing
 
@@ -87,8 +93,8 @@ That is the whole check. It compiles all four artifacts, the two test source set
 of the testing tools, and every sample app; runs the unit tests; and runs Android lint, whose failures fail the build — lint is
 what catches an API that needs a newer Android than the SDK's `minSdk 21`.
 
-The samples resolve the SDK from Maven Central, the way a consumer does. Build them against the
-working tree instead with:
+The samples resolve the SDK from the ConfigDirector Maven repository, which `settings.gradle.kts`
+declares, the way a consumer does. Build them against the working tree instead with:
 
 ```sh
 ./gradlew build -PuseLocalSdk
@@ -198,6 +204,14 @@ watch it fail. Test names say what the code does, not which method they call.
 
 ## Releasing
 
+Releases go to the ConfigDirector Maven repository, `https://maven.configdirector.com`. The
+repository is a Cloudflare R2 bucket; its setup, and a dev twin at
+`https://maven.configdirector-dev.com`, are documented in the `config-director` repository under
+`infrastructure/cloudflare/maven-repository/`. Each release workflow takes a `repository` input,
+`dev` or `prod`, and runs in the matching GitHub environment, `maven-dev` or `maven-prod`, which
+holds the bucket's credentials. `maven-prod` requires the product owner's approval before the job
+starts, which is the last check before a version becomes permanent.
+
 The core, the Compose bindings, and the testing tools share the one `VERSION_NAME` in
 `gradle.properties` and are always released together, because the Compose bindings and the testing
 tools depend on the core of the same version, and the testing tools refuse any other at runtime. The
@@ -215,44 +229,49 @@ OpenFeature provider is released on its own; see [below](#the-openfeature-provid
      [`Constants.kt`](configdirector-android-testing/src/main/kotlin/com/configdirector/testing/internal/Constants.kt)
      to the same version — it is what the testing tools check the SDK against, and their
      `ConstantsTest` fails the build when it disagrees with the Gradle version.
+   - Bump the versions in the README install snippets.
 
    Merge it.
 
 2. **Run the [Release configdirector-android](.github/workflows/release.yml) workflow against
-   `main`** (Actions tab → Release configdirector-android → Run workflow). It runs everything CI
-   runs, uploads one signed bundle holding all three artifacts to the Maven Central Portal, and
-   tags the commit `v<version>`. It refuses to run if that tag already exists, so a version cannot be released
-   twice by accident.
+   `main` with `repository` set to `dev`** (Actions tab → Release configdirector-android → Run
+   workflow), and check the result against `https://maven.configdirector-dev.com`. The workflow
+   releases whatever version `main` declares, for all three artifacts together. It first checks
+   that none of them is in the bucket yet, then runs everything CI runs, checks that each
+   publication carries the version being released, publishes the three signed artifacts into a
+   staging repository under `build/maven-repository` in one Gradle invocation, attests every AAR,
+   jar and POM, and uploads them. The check and the upload are the actions in
+   [maven-repository-actions](https://github.com/ConfigDirector/maven-repository-actions), which
+   also documents what the upload guarantees.
 
-3. **Release the deployment in the [Central Portal](https://central.sonatype.com).** The
-   workflow only uploads; the deployment waits there until someone releases it by hand, which is
-   the last look at what is about to become permanent. It is named `com.configdirector-<version>`
-   and carries all three artifacts, so one release publishes the core, the Compose bindings, and
-   the testing tools together; none of them is usable without the others.
+3. **Run it again with `repository` set to `prod`**, and approve the `maven-prod` environment when
+   GitHub asks. Only a `prod` run tags the commit, `v<version>`, and it does so last.
 
-4. **Once the version resolves on Central, bump both samples to it** in a follow-up PR: the
-   `implementation` line and the `testImplementation` line naming `configdirector-android-testing`,
-   which must stay the same version as the SDK. The samples deliberately lag the SDK: naming a
-   version that is not published yet leaves them unresolvable for anyone not passing
-   `-PuseLocalSdk`. Then run their tests without the flag, since CI only ever runs them with it.
+4. **Once the version resolves from `https://maven.configdirector.com`, bump both samples to it**
+   in a follow-up PR: the `implementation` line and the `testImplementation` line naming
+   `com.configdirector:android-sdk-testing`, which must stay the same version as the SDK. The
+   samples deliberately lag the SDK: naming a version that is not published yet leaves them
+   unresolvable for anyone not passing `-PuseLocalSdk`. Then run their tests without the flag,
+   since CI only ever runs them with it.
 
-If something looks wrong in the Portal, drop the deployment instead of releasing it, delete the
-`v<version>` tag, fix the problem, and run the workflow again.
+A version whose POM is already in the bucket is refused before anything is built or uploaded: a
+released version is never replaced, so a change after a release needs a new version. A run that
+failed before the POMs went up can simply be run again.
 
 ### The OpenFeature provider
 
-`configdirector-openfeature-android-provider` follows the same steps with its own version,
+`com.configdirector:openfeature-android-provider` follows the same steps with its own version,
 `OPENFEATURE_PROVIDER_VERSION_NAME` in `gradle.properties`, its own
 [changelog](configdirector-openfeature-android-provider/CHANGELOG.md), its own version constant in
 [`Constants.kt`](configdirector-openfeature-android-provider/src/main/kotlin/com/configdirector/openfeature/internal/Constants.kt),
 which its `ConstantsTest` holds to the Gradle version, and the
 [Release configdirector-openfeature-android-provider](.github/workflows/release-openfeature-provider.yml)
-workflow, which tags the commit `configdirector-openfeature-android-provider-v<version>` and uploads
-one deployment.
+workflow, which tags a `prod` release `configdirector-openfeature-android-provider-v<version>`.
 
 Its published POM depends on whatever `VERSION_NAME` the same commit declares, so that SDK version
-must already resolve on Central before the provider is released. Once the provider resolves, bump
-the sample under `samples/configdirector-openfeature-android-provider/` to it.
+must already be in the repository the provider is released to. Once the provider resolves from
+`https://maven.configdirector.com`, bump the sample under
+`samples/configdirector-openfeature-android-provider/` to it.
 
 It has a version of its own because it follows two things: the SDK it wraps, and the OpenFeature
 Kotlin SDK, which is 0.x and can break on a minor. A bump for either should not force a release of
@@ -263,20 +282,13 @@ module's `version`, which is how the provider once went out under the SDK's vers
 script names its coordinates explicitly to stop that, and both release workflows generate each
 publication's POM and refuse to upload unless the version in it is the one being released.
 
-### One-time setup
+### Signing
 
-The workflow needs four repository secrets: `MAVEN_CENTRAL_USERNAME` and `MAVEN_CENTRAL_PASSWORD`
-(a Portal user token, not the account password), and `SIGNING_KEY` and `SIGNING_KEY_PASSWORD` (an
-ASCII-armoured GPG secret key and its passphrase). Signing is skipped when no key is configured, so
-a local `./gradlew publishToMavenLocal` works without one — useful for trying a change against a
-real consuming app before it is released.
-
-### Why one Gradle invocation for all three artifacts
-
-The three artifacts are uploaded in one Gradle invocation, so the plugin bundles them into one
-deployment. The Portal names it after the group and the version rather than after an artifact, and
-its component list shows the three it holds. One deployment cannot be released in part, and it
-counts once against the Portal's monthly publishing limit, where three would count three times.
+Every published file is signed with the key in [KEYS.md](KEYS.md). The release workflows read it
+from the `SIGNING_KEY` and `SIGNING_KEY_PASSWORD` repository secrets, an ASCII-armoured GPG secret
+key and its passphrase. Signing is skipped when no key is configured, so a local
+`./gradlew publishToMavenLocal` works without one — useful for trying a change against a real
+consuming app before it is released.
 
 ## The pre-push hook
 
@@ -298,5 +310,5 @@ the AAR and the sample APKs as artifacts. Test and lint reports are uploaded whe
 
 [`release.yml`](.github/workflows/release.yml) and
 [`release-openfeature-provider.yml`](.github/workflows/release-openfeature-provider.yml) are the
-manual releases described above. They are the only workflows that touch Maven Central, and the only
-ones that need secrets.
+manual releases described above. They are the only workflows that write to the Maven repository,
+and the only ones that need secrets.

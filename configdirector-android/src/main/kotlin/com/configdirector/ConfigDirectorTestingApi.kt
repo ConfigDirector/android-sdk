@@ -9,7 +9,7 @@ package com.configdirector
  */
 @RequiresOptIn(
     message = "This API is for the testing artifact maintained by ConfigDirector. Tests use " +
-        "configdirector-android-testing instead.",
+        "com.configdirector:android-sdk-testing instead.",
     level = RequiresOptIn.Level.ERROR,
 )
 @Retention(AnnotationRetention.BINARY)

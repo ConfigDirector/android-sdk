@@ -9,6 +9,19 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-10-04
+
+### Fixed
+
+- The Compose bindings (`android-sdk-compose`) now resolve in an app that does not import a Compose
+  BOM. Their published Gradle metadata named `androidx.compose.runtime:runtime` without a version,
+  so such an app failed with `Could not find androidx.compose.runtime:runtime:.`; they now depend
+  on 1.12.0, the same version their own Compose BOM brought in before.
+- The Compose bindings (`android-sdk-compose`) no longer apply their own Compose BOM to an app's
+  other Compose libraries. An app on an older BOM compiled against its own versions of libraries
+  such as `androidx.compose.ui:ui` but ran with the newer ones from the bindings' BOM; it now gets
+  the same version of each at compile time and at runtime.
+
 ## [1.7.0] - 2026-10-04
 
 ### Changed

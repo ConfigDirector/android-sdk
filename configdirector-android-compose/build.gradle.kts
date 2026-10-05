@@ -1,6 +1,7 @@
 import com.android.build.api.artifact.SingleArtifact
 import com.vanniktech.maven.publish.AndroidSingleVariantLibrary
 import com.configdirector.gradle.registerApiValidation
+import com.configdirector.gradle.registerPublishedDependencyVersionsCheck
 
 plugins {
     alias(libs.plugins.android.library)
@@ -49,6 +50,8 @@ androidComponents {
     }
 }
 
+registerPublishedDependencyVersionsCheck()
+
 kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11
@@ -60,7 +63,6 @@ kotlin {
 dependencies {
     api(project(":configdirector-android"))
 
-    implementation(platform(libs.androidx.compose.bom))
     // Only the runtime: these are bindings over the client, with no UI of their own, so nothing
     // here should pull compose-ui or material into a consumer's build.
     api(libs.androidx.compose.runtime)

@@ -1,6 +1,7 @@
 import com.android.build.api.artifact.SingleArtifact
 import com.vanniktech.maven.publish.AndroidSingleVariantLibrary
 import com.configdirector.gradle.registerApiValidation
+import com.configdirector.gradle.registerPublishedDependencyVersionsCheck
 
 plugins {
     alias(libs.plugins.android.library)
@@ -52,6 +53,8 @@ androidComponents {
         registerApiValidation(variant.artifacts.get(SingleArtifact.AAR))
     }
 }
+
+registerPublishedDependencyVersionsCheck()
 
 kotlin {
     compilerOptions {

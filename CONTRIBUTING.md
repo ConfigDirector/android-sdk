@@ -36,8 +36,12 @@ no Compose, consumable from Java, `minSdk 21` and Java 8 bytecode.
 `configdirector-android-compose`, published as `com.configdirector:android-sdk-compose`, adds
 Compose bindings over it and nothing else — no client logic of its own. It depends on
 `androidx.compose.runtime` alone, deliberately: bindings that pulled in `compose-ui` or `material3`
-would put those versions in every consumer's dependency graph. It keeps `minSdk 21` as well; only
-Java 11 bytecode differs, because that is what AndroidX ships.
+would put those versions in every consumer's dependency graph. For the same reason it names the
+runtime's version itself rather than importing the Compose BOM: a BOM in its published dependencies
+would raise every Compose library on a consumer's runtime classpath to that BOM's versions, while
+the consumer's compile classpath kept the versions they chose. The tests and the debug build still
+use the BOM. It keeps `minSdk 21` as well; only Java 11 bytecode differs, because that is what
+AndroidX ships.
 
 Compose is a Kotlin compiler plugin, so the Compose artifact has no Java source set and the Java
 test rule below does not apply to it.
@@ -177,6 +181,14 @@ ids, and the Android Gradle plugin brings its own Kotlin instead, so
 [`buildSrc`](buildSrc/src/main/kotlin/com/configdirector/gradle/ApiValidation.kt) feeds that engine
 the release AAR directly. Reading the AAR rather than the compiled classes means the check sees
 exactly what we publish.
+
+`publishedDependencyVersionsCheck` sits next to it and guards the dependencies each artifact
+declares. It reads the Gradle module metadata that `generateMetadataFileForMavenPublication` writes
+for the release, and fails when any variant lists a dependency without a version, naming the
+artifact, the variant and the dependency. A module that gets a dependency's version only from a BOM
+it applies to itself still compiles, but publishes that dependency without a version, and an app
+without the same BOM cannot resolve the artifact. `check` depends on this one too. The metadata records the checksum of every
+file the release publishes, so the check builds the sources and javadoc jars as well.
 
 ## Wrappers identify themselves through a closed API
 

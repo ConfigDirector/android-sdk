@@ -31,7 +31,7 @@ public class InMemoryConnectionJavaTest {
   // The callbacks are handed back on the main thread, which a JVM test does not have.
   @Before
   public void setUpMainDispatcher() {
-    TestDispatchers.setMain(Dispatchers.INSTANCE, Dispatchers.getDefault());
+    TestDispatchers.setMain(Dispatchers.INSTANCE, Dispatchers.getDefault().limitedParallelism(1, "main"));
   }
 
   @After

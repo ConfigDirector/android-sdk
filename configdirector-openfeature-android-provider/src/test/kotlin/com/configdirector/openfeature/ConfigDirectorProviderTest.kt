@@ -43,7 +43,7 @@ class ConfigDirectorProviderTest {
 
     @Before
     fun setUpMainDispatcher() {
-        Dispatchers.setMain(Dispatchers.Default)
+        Dispatchers.setMain(Dispatchers.Default.limitedParallelism(1, "main"))
     }
 
     @After

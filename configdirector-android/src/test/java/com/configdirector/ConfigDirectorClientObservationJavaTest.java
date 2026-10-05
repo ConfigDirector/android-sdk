@@ -38,7 +38,7 @@ public class ConfigDirectorClientObservationJavaTest {
 
   @Before
   public void setUpMainDispatcher() {
-    TestDispatchers.setMain(Dispatchers.INSTANCE, Dispatchers.getDefault());
+    TestDispatchers.setMain(Dispatchers.INSTANCE, Dispatchers.getDefault().limitedParallelism(1, "main"));
   }
 
   @After

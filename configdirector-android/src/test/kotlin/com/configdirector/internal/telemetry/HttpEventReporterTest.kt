@@ -4,6 +4,7 @@ import com.configdirector.ConfigDirectorContext
 import com.configdirector.EvaluationReason
 import com.configdirector.LogLevel
 import com.configdirector.RecordingLogger
+import com.configdirector.internal.ClientSession
 import com.configdirector.internal.ConfigType
 import com.configdirector.internal.transport.SdkMetaContext
 import com.configdirector.internal.transport.TransportOptions
@@ -39,7 +40,7 @@ class HttpEventReporterTest {
             clientSdkKey = "client-sdk-key",
             baseUrl = server.url("/").toString(),
             metaContext = SdkMetaContext("android-client-sdk", "9.9.9", "Sample", "1.0", "Android"),
-            instanceId = "instance-1",
+            clientSession = ClientSession("instance-1", ephemeral = false),
             logger = logger,
             pollingIntervalMillis = 60_000,
             httpClient = OkHttpClient(),

@@ -1,5 +1,8 @@
 package com.configdirector
 
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.SharedPreferences
 import com.configdirector.internal.transport.PollingTransport
 import com.configdirector.internal.transport.Transport
 import com.configdirector.internal.transport.TransportOptions
@@ -63,7 +66,7 @@ class ConfigDirectorClientTest {
         clientSdkKey = clientSdkKey,
         baseUrl = baseUrl,
         metaContext = metaContext,
-        instanceId = instanceId,
+        clientSession = clientSession,
         logger = logger,
         pollingIntervalMillis = pollingIntervalMillis,
         httpClient = httpClient,
@@ -254,6 +257,77 @@ class ConfigDirectorClientTest {
         assertThat(meta.getString("userAgent")).isEqualTo("Android")
     }
 
+    private fun sentPayload(): JSONObject =
+        JSONObject(checkNotNull(server.takeRequest()).body.readUtf8())
+
+    private fun instanceIdPreferences(): SharedPreferences = RuntimeEnvironment.getApplication()
+        .getSharedPreferences("configdirector-sdk", Context.MODE_PRIVATE)
+
+    private fun storedInstanceIdRecord(): JSONObject =
+        JSONObject(checkNotNull(instanceIdPreferences().getString("instance-id", null)))
+
+    private fun storeInstanceIdRecord(id: String, createdAt: Long) {
+        instanceIdPreferences().edit()
+            .putString(
+                "instance-id",
+                JSONObject().put("v", 1).put("id", id).put("createdAt", createdAt).toString(),
+            )
+            .commit()
+    }
+
+    @Test
+    fun `stores the instance ID it generates and a client created later sends the same one`() =
+        runBlocking {
+            val first = client()
+            first.initialize(proContext)
+
+            val firstPayload = sentPayload()
+            val instanceId = firstPayload.getString("instanceId")
+            assertThat(storedInstanceIdRecord().getString("id")).isEqualTo(instanceId)
+            assertThat(firstPayload.has("ephemeral")).isFalse()
+
+            first.close()
+            client().initialize(proContext)
+
+            val secondPayload = sentPayload()
+            assertThat(secondPayload.getString("instanceId")).isEqualTo(instanceId)
+            assertThat(secondPayload.has("ephemeral")).isFalse()
+        }
+
+    @Test
+    fun `starts a new client session when the stored instance ID is six hours old`() = runBlocking {
+        storeInstanceIdRecord(STORED_INSTANCE_ID, createdAt = System.currentTimeMillis() - SIX_HOURS_MILLIS)
+
+        client().initialize(proContext)
+
+        val instanceId = sentPayload().getString("instanceId")
+        assertThat(instanceId).isNotEqualTo(STORED_INSTANCE_ID)
+        assertThat(storedInstanceIdRecord().getString("id")).isEqualTo(instanceId)
+    }
+
+    @Test
+    fun `sends an ephemeral instance ID when the app's preferences cannot be read`() = runBlocking {
+        val withUnreadablePreferences = object : ContextWrapper(RuntimeEnvironment.getApplication()) {
+            override fun getSharedPreferences(name: String, mode: Int): SharedPreferences =
+                throw IllegalStateException("preferences unavailable")
+        }
+        val clientWithoutStorage = ConfigDirectorClient(
+            withUnreadablePreferences,
+            "client-sdk-key",
+            ClientOptions.build {
+                logger(logger)
+                connection { baseUrl(server.baseUrl) }
+            },
+        ).also { client = it }
+
+        clientWithoutStorage.initialize(proContext)
+
+        val body = sentPayload()
+        assertThat(body.getString("instanceId")).isNotEmpty()
+        assertThat(body.getBoolean("ephemeral")).isTrue()
+        assertThat(clientWithoutStorage.isReady).isTrue()
+    }
+
     private fun installedApplication(label: String, versionName: String?) {
         val application = RuntimeEnvironment.getApplication()
         val packageInfo = shadowOf(application.packageManager)
@@ -262,8 +336,7 @@ class ConfigDirectorClientTest {
         checkNotNull(packageInfo.applicationInfo).nonLocalizedLabel = label
     }
 
-    private fun sentMetaContext(): JSONObject =
-        JSONObject(checkNotNull(server.takeRequest()).body.readUtf8()).getJSONObject("metaContext")
+    private fun sentMetaContext(): JSONObject = sentPayload().getJSONObject("metaContext")
 
     @Test
     fun `reads the app name and version from the application when metadata leaves them unset`() =
@@ -910,3 +983,6 @@ private class CountingMap(
             return entriesByKey.entries
         }
 }
+
+private const val SIX_HOURS_MILLIS = 6 * 60 * 60 * 1_000L
+private const val STORED_INSTANCE_ID = "11111111-1111-4111-8111-111111111111"

@@ -4,6 +4,7 @@ import com.configdirector.ConfigDirectorContext
 import com.configdirector.ConnectReason
 import com.configdirector.LogLevel
 import com.configdirector.RecordingLogger
+import com.configdirector.internal.ClientSession
 import com.configdirector.internal.ConfigSet
 import com.configdirector.internal.ConfigSetKind
 import com.configdirector.internal.ConfigType
@@ -43,7 +44,10 @@ class PollingTransportTest {
     private fun request(): RecordedRequest =
         checkNotNull(server.takeRequest(2, TimeUnit.SECONDS)) { "The server received no request." }
 
-    private fun options(pollingIntervalMillis: Long = 60_000) = TransportOptions(
+    private fun options(
+        pollingIntervalMillis: Long = 60_000,
+        clientSession: ClientSession = ClientSession("instance-1", ephemeral = false),
+    ) = TransportOptions(
         clientSdkKey = "client-sdk-key",
         baseUrl = server.url("/").toString(),
         metaContext = SdkMetaContext(
@@ -53,7 +57,7 @@ class PollingTransportTest {
             appVersion = "1.0",
             userAgent = "Android",
         ),
-        instanceId = "instance-1",
+        clientSession = clientSession,
         logger = logger,
         pollingIntervalMillis = pollingIntervalMillis,
         httpClient = OkHttpClient(),
@@ -98,6 +102,7 @@ class PollingTransportTest {
         val body = JSONObject(request.body.readUtf8())
         assertThat(body.getString("clientSdkKey")).isEqualTo("client-sdk-key")
         assertThat(body.getString("instanceId")).isEqualTo("instance-1")
+        assertThat(body.has("ephemeral")).isFalse()
         assertThat(body.has("lastUpdateTimestamp")).isFalse()
 
         val given = body.getJSONObject("givenContext")
@@ -116,6 +121,19 @@ class PollingTransportTest {
         assertThat(meta.getString("appName")).isEqualTo("Sample")
         assertThat(meta.getString("appVersion")).isEqualTo("1.0")
         assertThat(meta.getString("userAgent")).isEqualTo("Android")
+    }
+
+    @Test
+    fun `says that an instance ID which is not storage-backed is ephemeral`() = runBlocking {
+        server.enqueue(configSetResponse())
+
+        PollingTransport(options(clientSession = ClientSession("instance-1", ephemeral = true))) { received += it }
+            .also { transport = it }
+            .connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
+
+        val body = JSONObject(request().body.readUtf8())
+        assertThat(body.getString("instanceId")).isEqualTo("instance-1")
+        assertThat(body.getBoolean("ephemeral")).isTrue()
     }
 
     @Test

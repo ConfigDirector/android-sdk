@@ -9,6 +9,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- The client (`android-sdk`) now keeps its instance ID in the app's private `SharedPreferences`
+  and reuses it for six hours from when it was generated, so an app reopened within six hours
+  continues the same client session instead of starting a new one. Before, every app start
+  counted as a new client session. The ID is stored per app install, needs no permission, and is
+  gone with an uninstall or a clear of the app's data. When the ID could not be read or stored,
+  the client tells the server that the ID is ephemeral and that app start counts as a new client
+  session, as before.
+
 ## [1.7.1] - 2026-10-04
 
 ### Fixed

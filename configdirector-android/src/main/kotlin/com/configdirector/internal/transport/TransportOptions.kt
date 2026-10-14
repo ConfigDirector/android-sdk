@@ -5,6 +5,7 @@ import com.configdirector.ConfigDirectorLogger
 import com.configdirector.ConfigDirectorWrapperApi
 import com.configdirector.Metadata
 import com.configdirector.SdkIdentity
+import com.configdirector.internal.ClientSession
 import com.configdirector.internal.toJson
 import org.json.JSONObject
 import okhttp3.HttpUrl
@@ -47,7 +48,7 @@ internal class TransportOptions(
     val clientSdkKey: String,
     val baseUrl: String,
     val metaContext: SdkMetaContext,
-    val instanceId: String,
+    val clientSession: ClientSession,
     val logger: ConfigDirectorLogger,
     val pollingIntervalMillis: Long,
     val httpClient: OkHttpClient,
@@ -62,8 +63,9 @@ internal class TransportOptions(
             .put("givenContext", context.toJson())
             .put("metaContext", metaContext.toJson())
             .put("clientSdkKey", clientSdkKey)
-            .put("instanceId", instanceId)
+            .put("instanceId", clientSession.instanceId)
 
+        if (clientSession.ephemeral) payload.put("ephemeral", true)
         lastUpdateTimestamp?.let { payload.put("lastUpdateTimestamp", it) }
 
         return payload.toString()

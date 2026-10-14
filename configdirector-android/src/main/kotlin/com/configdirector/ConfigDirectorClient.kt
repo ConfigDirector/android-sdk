@@ -1,13 +1,16 @@
 package com.configdirector
 
 import android.content.Context
+import com.configdirector.internal.ClientSession
 import com.configdirector.internal.ConfigSet
 import com.configdirector.internal.ConfigStore
 import com.configdirector.internal.Constants
+import com.configdirector.internal.currentClientSession
 import com.configdirector.internal.filledFromApplication
 import com.configdirector.internal.lifecycle.AppLifecycleObserver
 import com.configdirector.internal.lifecycle.AppLifecyclePhase
 import com.configdirector.internal.lifecycle.appLifecycleObserver
+import com.configdirector.internal.sharedPreferencesInstanceIdStorage
 import com.configdirector.internal.transport.PollingTransport
 import com.configdirector.internal.transport.SdkMetaContext
 import com.configdirector.internal.transport.StreamingTransport
@@ -19,7 +22,6 @@ import com.configdirector.internal.transport.TransportOptions
 import com.configdirector.internal.transport.sdkHttpClient
 import com.configdirector.internal.transport.toSdkMetaContext
 import java.io.Closeable
-import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -59,6 +61,7 @@ public class ConfigDirectorClient internal constructor(
     clientSdkKey: String,
     options: ClientOptions,
     metaContext: SdkMetaContext,
+    clientSession: ClientSession,
     lifecycle: AppLifecycleObserver,
     telemetryFactory: TelemetryFactory,
     transportFactory: TransportFactory,
@@ -86,6 +89,7 @@ public class ConfigDirectorClient internal constructor(
         SdkIdentity.ANDROID_CLIENT_SDK.toSdkMetaContext(
             options.metadata.filledFromApplication(androidContext, options.logger),
         ),
+        currentClientSession(sharedPreferencesInstanceIdStorage(androidContext), options.logger),
         appLifecycleObserver(androidContext, options.logger),
         ::telemetryFor,
         ::transportFor,
@@ -103,6 +107,7 @@ public class ConfigDirectorClient internal constructor(
         SdkIdentity.ANDROID_CLIENT_SDK.toSdkMetaContext(
             options.metadata.filledFromApplication(androidContext, options.logger),
         ),
+        currentClientSession(sharedPreferencesInstanceIdStorage(androidContext), options.logger),
         appLifecycleObserver(androidContext, options.logger),
         ::telemetryFor,
         transportFactory,
@@ -132,6 +137,7 @@ public class ConfigDirectorClient internal constructor(
         clientSdkKey,
         options,
         identity.toSdkMetaContext(options.metadata.filledFromApplication(androidContext, options.logger)),
+        currentClientSession(sharedPreferencesInstanceIdStorage(androidContext), options.logger),
         appLifecycleObserver(androidContext, options.logger),
         ::telemetryFor,
         ::transportFor,
@@ -173,7 +179,7 @@ public class ConfigDirectorClient internal constructor(
             clientSdkKey = clientSdkKey,
             baseUrl = baseUrl,
             metaContext = metaContext,
-            instanceId = UUID.randomUUID().toString(),
+            clientSession = clientSession,
             logger = logger,
             pollingIntervalMillis = resolvePollingIntervalMillis(options.connection, logger),
             httpClient = httpClient,

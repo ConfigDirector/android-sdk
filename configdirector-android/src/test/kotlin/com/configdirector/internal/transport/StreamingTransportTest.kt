@@ -4,6 +4,7 @@ import com.configdirector.ConfigDirectorContext
 import com.configdirector.ConnectReason
 import com.configdirector.LogLevel
 import com.configdirector.RecordingLogger
+import com.configdirector.internal.ClientSession
 import com.configdirector.internal.ConfigSet
 import com.configdirector.internal.ConfigType
 import com.google.common.truth.Truth.assertThat
@@ -38,7 +39,10 @@ class StreamingTransportTest {
         server.shutdown()
     }
 
-    private fun streaming(retryDelayMillis: Long = 20): StreamingTransport = StreamingTransport(
+    private fun streaming(
+        retryDelayMillis: Long = 20,
+        clientSession: ClientSession = ClientSession("instance-1", ephemeral = false),
+    ): StreamingTransport = StreamingTransport(
         TransportOptions(
             clientSdkKey = "client-sdk-key",
             baseUrl = server.url("/").toString(),
@@ -49,7 +53,7 @@ class StreamingTransportTest {
                 appVersion = "1.0",
                 userAgent = "Android",
             ),
-            instanceId = "instance-1",
+            clientSession = clientSession,
             logger = logger,
             pollingIntervalMillis = 60_000,
             httpClient = OkHttpClient(),
@@ -99,11 +103,24 @@ class StreamingTransportTest {
         val body = JSONObject(request.body.readUtf8())
         assertThat(body.getString("clientSdkKey")).isEqualTo("client-sdk-key")
         assertThat(body.getString("instanceId")).isEqualTo("instance-1")
+        assertThat(body.has("ephemeral")).isFalse()
         assertThat(body.getJSONObject("givenContext").getString("id")).isEqualTo("user-123")
         assertThat(body.getJSONObject("givenContext").getJSONObject("traits").getString("plan"))
             .isEqualTo("pro")
         assertThat(body.getJSONObject("metaContext").getString("sdkName"))
             .isEqualTo("android-client-sdk")
+    }
+
+    @Test
+    fun `says that an instance ID which is not storage-backed is ephemeral`() = runBlocking {
+        server.enqueue(eventStream(configSetEvent))
+
+        streaming(clientSession = ClientSession("instance-1", ephemeral = true))
+            .connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
+
+        val body = JSONObject(request().body.readUtf8())
+        assertThat(body.getString("instanceId")).isEqualTo("instance-1")
+        assertThat(body.getBoolean("ephemeral")).isTrue()
     }
 
     @Test

@@ -9,6 +9,7 @@ import com.configdirector.ConfigDirectorWrapperApi
 import com.configdirector.ConnectReason
 import com.configdirector.Metadata
 import com.configdirector.SdkIdentity
+import com.configdirector.internal.ClientSession
 import com.configdirector.internal.ConfigSet
 import com.configdirector.internal.ConfigSetKind
 import com.configdirector.internal.ConfigState
@@ -20,6 +21,7 @@ import com.configdirector.internal.telemetry.TelemetryClient
 import com.configdirector.internal.transport.ConnectionFailedException
 import com.configdirector.internal.transport.Transport
 import com.configdirector.internal.transport.toSdkMetaContext
+import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CompletableDeferred
@@ -64,6 +66,7 @@ public class InMemoryConnection(
             connection { timeoutMillis(timeoutMillis) }
         },
         metaContext = SdkIdentity.ANDROID_CLIENT_SDK.toSdkMetaContext(Metadata.empty()),
+        clientSession = ClientSession(UUID.randomUUID().toString(), ephemeral = true),
         lifecycle = NoLifecycleObserver,
         telemetryFactory = { DiscardingTelemetryClient },
         transportFactory = { _, _, handler ->

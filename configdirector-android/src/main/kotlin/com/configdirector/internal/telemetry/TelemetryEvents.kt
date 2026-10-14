@@ -113,6 +113,28 @@ internal data class AggregatedEvent(
         .put("event", event.toJson())
 }
 
+internal data class InvalidContextSubmissionSummary(
+    val startTime: Long,
+    val endTime: Long,
+    val count: Int,
+    val contextKindSample: String?,
+) {
+    fun toJson(): JSONObject = JSONObject()
+        .put("startTime", telemetryTimestamp(startTime))
+        .put("endTime", telemetryTimestamp(endTime))
+        .put("count", count)
+        .put(
+            "event",
+            JSONObject().put("reason", INVALID_CONTEXT_KIND_REASON).apply {
+                contextKindSample?.let { put("kindSample", it) }
+            },
+        )
+
+    private companion object {
+        private const val INVALID_CONTEXT_KIND_REASON = "invalid-context-kind"
+    }
+}
+
 /** The name the ConfigDirector SDKs report for the type a value was asked for. */
 internal fun requestedTypeOf(defaultValue: Any?): String = when (defaultValue) {
     null -> "null"

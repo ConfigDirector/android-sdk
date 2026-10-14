@@ -107,8 +107,24 @@ class StreamingTransportTest {
         assertThat(body.getJSONObject("givenContext").getString("id")).isEqualTo("user-123")
         assertThat(body.getJSONObject("givenContext").getJSONObject("traits").getString("plan"))
             .isEqualTo("pro")
+        assertThat(body.getJSONObject("givenContext").has("kind")).isFalse()
         assertThat(body.getJSONObject("metaContext").getString("sdkName"))
             .isEqualTo("android-client-sdk")
+    }
+
+    @Test
+    fun `posts the context kind`() = runBlocking {
+        server.enqueue(eventStream(configSetEvent))
+
+        streaming().connect(
+            ConfigDirectorContext.build { id("42"); kind("device") },
+            timeoutMillis = 3_000,
+            reason = ConnectReason.INITIALIZATION,
+        )
+
+        val given = JSONObject(request().body.readUtf8()).getJSONObject("givenContext")
+        assertThat(given.getString("id")).isEqualTo("42")
+        assertThat(given.getString("kind")).isEqualTo("device")
     }
 
     @Test

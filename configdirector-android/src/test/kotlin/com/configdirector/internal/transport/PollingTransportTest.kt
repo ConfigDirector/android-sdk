@@ -114,6 +114,7 @@ class PollingTransportTest {
         assertThat(given.getJSONObject("traits").getJSONArray("regions").getString(0))
             .isEqualTo("us-east")
         assertThat(given.getJSONObject("traits").getJSONArray("regions").isNull(1)).isTrue()
+        assertThat(given.has("kind")).isFalse()
 
         val meta = body.getJSONObject("metaContext")
         assertThat(meta.getString("sdkName")).isEqualTo("android-client-sdk")
@@ -121,6 +122,21 @@ class PollingTransportTest {
         assertThat(meta.getString("appName")).isEqualTo("Sample")
         assertThat(meta.getString("appVersion")).isEqualTo("1.0")
         assertThat(meta.getString("userAgent")).isEqualTo("Android")
+    }
+
+    @Test
+    fun `posts the context kind`() = runBlocking {
+        server.enqueue(configSetResponse())
+
+        polling().connect(
+            ConfigDirectorContext.build { id("42"); kind("device") },
+            timeoutMillis = 3_000,
+            reason = ConnectReason.INITIALIZATION,
+        )
+
+        val given = JSONObject(request().body.readUtf8()).getJSONObject("givenContext")
+        assertThat(given.getString("id")).isEqualTo("42")
+        assertThat(given.getString("kind")).isEqualTo("device")
     }
 
     @Test

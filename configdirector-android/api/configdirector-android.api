@@ -106,11 +106,12 @@ public final class com/configdirector/ConfigDirectorClient : java/io/Closeable {
 
 public final class com/configdirector/ConfigDirectorContext {
 	public static final field Companion Lcom/configdirector/ConfigDirectorContext$Companion;
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;ZLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;ZLkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public static final fun builder ()Lcom/configdirector/ConfigDirectorContext$Builder;
 	public static final fun empty ()Lcom/configdirector/ConfigDirectorContext;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getId ()Ljava/lang/String;
+	public final fun getKind ()Ljava/lang/String;
 	public final fun getName ()Ljava/lang/String;
 	public final fun getTraits ()Ljava/util/Map;
 	public fun hashCode ()I
@@ -122,6 +123,7 @@ public final class com/configdirector/ConfigDirectorContext$Builder {
 	public final fun anonymous (Z)Lcom/configdirector/ConfigDirectorContext$Builder;
 	public final fun build ()Lcom/configdirector/ConfigDirectorContext;
 	public final fun id (Ljava/lang/String;)Lcom/configdirector/ConfigDirectorContext$Builder;
+	public final fun kind (Ljava/lang/String;)Lcom/configdirector/ConfigDirectorContext$Builder;
 	public final fun name (Ljava/lang/String;)Lcom/configdirector/ConfigDirectorContext$Builder;
 	public final fun trait (Ljava/lang/String;Ljava/lang/Object;)Lcom/configdirector/ConfigDirectorContext$Builder;
 	public final fun traits (Ljava/util/Map;)Lcom/configdirector/ConfigDirectorContext$Builder;

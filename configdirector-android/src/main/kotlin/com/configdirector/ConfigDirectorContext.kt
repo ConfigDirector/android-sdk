@@ -4,7 +4,8 @@ import java.util.Collections
 import java.util.IdentityHashMap
 
 /**
- * The user's context, sent to ConfigDirector and evaluated against targeting rules.
+ * The user's context, sent to ConfigDirector and evaluated against targeting rules. A context can
+ * also stand for another kind of entity, such as a device or an organization, through its [kind].
  *
  * ```java
  * ConfigDirectorContext context = ConfigDirectorContext.builder()
@@ -22,6 +23,16 @@ public class ConfigDirectorContext private constructor(
      * into a different percentile.
      */
     public val id: String?,
+
+    /**
+     * The context kind, such as `user`, `device` or `organization`, exactly as it was given, or null
+     * when none was given, which means `user`.
+     *
+     * A context kind has 1 to 64 characters, using only lowercase ASCII letters, digits, `-` and
+     * `_`. A context with any other kind is ignored as a whole when it is passed to `initialize` or
+     * `updateContext`: the client logs an error and evaluates configs as if no context was given.
+     */
+    public val kind: String?,
 
     /** The user's display name, shown in the ConfigDirector dashboard. */
     public val name: String?,
@@ -46,6 +57,7 @@ public class ConfigDirectorContext private constructor(
             (
                 other is ConfigDirectorContext &&
                     id == other.id &&
+                    kind == other.kind &&
                     name == other.name &&
                     traits == other.traits &&
                     isAnonymous == other.isAnonymous
@@ -53,6 +65,7 @@ public class ConfigDirectorContext private constructor(
 
     override fun hashCode(): Int {
         var result = id.hashCode()
+        result = 31 * result + kind.hashCode()
         result = 31 * result + name.hashCode()
         result = 31 * result + traits.hashCode()
         result = 31 * result + isAnonymous.hashCode()
@@ -60,17 +73,29 @@ public class ConfigDirectorContext private constructor(
     }
 
     override fun toString(): String =
-        "ConfigDirectorContext(id=$id, name=$name, traits=$traits, isAnonymous=$isAnonymous)"
+        "ConfigDirectorContext(id=$id, kind=$kind, name=$name, traits=$traits, isAnonymous=$isAnonymous)"
 
     /** Collects the user's details. Every setter returns this, so calls chain. */
     public class Builder internal constructor() {
         private var id: String? = null
+        private var kind: String? = null
         private var name: String? = null
         private var traits: MutableMap<String, Any?>? = null
         private var anonymous: Boolean = false
 
         /** The user's identifier, which decides their bucket in a percentage rollout. */
         public fun id(id: String?): Builder = apply { this.id = id }
+
+        /**
+         * The context kind, such as `user`, `device` or `organization`. Leave it unset, or pass
+         * null, for `user`.
+         *
+         * A context kind has 1 to 64 characters, using only lowercase ASCII letters, digits, `-` and
+         * `_`, and is never trimmed or changed. [build] accepts any kind, but a context with an
+         * invalid one is ignored as a whole when it is passed to `initialize` or `updateContext`:
+         * the client logs an error and evaluates configs as if no context was given.
+         */
+        public fun kind(kind: String?): Builder = apply { this.kind = kind }
 
         /** The user's display name. */
         public fun name(name: String?): Builder = apply { this.name = name }
@@ -103,6 +128,7 @@ public class ConfigDirectorContext private constructor(
             traits?.let(::validateTraits)
             return ConfigDirectorContext(
                 id = id,
+                kind = kind,
                 name = name,
                 traits = traits?.let { Collections.unmodifiableMap(LinkedHashMap(it)) },
                 isAnonymous = anonymous,

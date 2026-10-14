@@ -9,6 +9,25 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- A context can now carry a context kind (`android-sdk`), such as `device` or `organization`, set
+  with `ConfigDirectorContext.Builder.kind`, or `kind(...)` in the Kotlin DSL, and read back as
+  `ConfigDirectorContext.kind`. Leaving it out, or passing null, means `user`, as before, and
+  `kind` then reads null. A context kind has 1 to 64 characters, using only lowercase letters,
+  digits, `-` and `_`, and is sent exactly as given. `equals`, `hashCode` and `toString` include
+  it, so a context without a context kind and one with context kind `user` are not equal, though
+  both are evaluated as `user`.
+- `initialize` and `updateContext` ignore a context whose context kind is invalid
+  (`android-sdk`). They never throw: they log an error each time, stop using the previous context,
+  and evaluate configs as if no context was given, so `client.context`,
+  `ClientEvent.ContextUpdated`, `ConfigEvaluation.context` and Compose's `configContext()`
+  (`android-sdk-compose`) read null afterwards. `build()` never throws because of the context kind.
+  Telemetry counts each ignored context with its context kind, never its id, name or traits.
+- The test client (`android-sdk-testing`) records an empty context in `contextUpdates` for an
+  `initialize` or `updateContext` whose context has an invalid context kind, since the client
+  connects without it.
+
 ### Changed
 
 - The client (`android-sdk`) now keeps its instance ID in the app's private `SharedPreferences`

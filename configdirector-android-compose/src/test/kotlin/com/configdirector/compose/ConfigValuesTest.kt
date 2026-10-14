@@ -183,6 +183,18 @@ class ConfigValuesTest {
     }
 
     @Test
+    fun `follows the context being ignored for an invalid context kind`() {
+        val contexts = CopyOnWriteArrayList<ConfigDirectorContext?>()
+        composed { contexts += configContext() }
+        runBlocking { client.initialize(proContext) }
+        settleUntil("the context to take effect") { contexts.last() == proContext }
+
+        runBlocking { client.updateContext(ConfigDirectorContext.build { kind("Tenant"); trait("plan", "pro") }) }
+
+        settleUntil("no context to take effect") { contexts.last() == null }
+    }
+
+    @Test
     fun `reports a client that becomes ready after the composition started`() {
         val states = CopyOnWriteArrayList<Boolean>()
         compose.setContent { ConfigDirectorProvider(client) { states += isClientReady() } }

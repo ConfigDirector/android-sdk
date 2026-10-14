@@ -5,6 +5,8 @@ import com.configdirector.internal.ClientSession
 import com.configdirector.internal.ConfigSet
 import com.configdirector.internal.ConfigStore
 import com.configdirector.internal.Constants
+import com.configdirector.internal.ContextAdmission
+import com.configdirector.internal.admissionOf
 import com.configdirector.internal.currentClientSession
 import com.configdirector.internal.filledFromApplication
 import com.configdirector.internal.lifecycle.AppLifecycleObserver
@@ -195,7 +197,9 @@ public class ConfigDirectorClient internal constructor(
     }
 
     /**
-     * The context the client is currently evaluating configs against, or null when there is none.
+     * The context the client is currently evaluating configs against, or null when there is none,
+     * including after [initialize] or [updateContext] ignored a context with an invalid context
+     * kind.
      *
      * This does not change the moment [updateContext] is called: configs are evaluated against the
      * previous context until the underlying connection succeeds or times out.
@@ -225,17 +229,23 @@ public class ConfigDirectorClient internal constructor(
      * Connects to ConfigDirector to retrieve config evaluations. Until initialization succeeds,
      * every config returns the default value passed to the accessor.
      *
+     * A context whose [ConfigDirectorContext.kind] is invalid is ignored as a whole: the client logs
+     * an error and connects as if no context was given.
+     *
      * @param context the current user's context, used to evaluate targeting rules
      */
     @JvmSynthetic
     public suspend fun initialize(context: ConfigDirectorContext? = null) {
         initializing.set(true)
-        connect(context, ConnectReason.INITIALIZATION)
+        connect(contextToConnectWith(context, ConnectReason.INITIALIZATION), ConnectReason.INITIALIZATION)
     }
 
     /**
      * Connects to ConfigDirector to retrieve config evaluations, calling [callback] on the main
      * thread once the client is ready or the attempt times out.
+     *
+     * A context whose [ConfigDirectorContext.kind] is invalid is ignored as a whole: the client logs
+     * an error and connects as if no context was given.
      *
      * @param context the current user's context, or null to evaluate without one
      * @param callback told when the attempt finishes, whether or not it made the client ready
@@ -244,15 +254,23 @@ public class ConfigDirectorClient internal constructor(
         launchThenCallBack(callback) { initialize(context) }
     }
 
-    /** Updates the user's context and re-evaluates every config against it. */
+    /**
+     * Updates the user's context and re-evaluates every config against it.
+     *
+     * A context whose [ConfigDirectorContext.kind] is invalid is ignored as a whole: the client logs
+     * an error, stops using the previous context, and re-evaluates as if no context was given.
+     */
     @JvmSynthetic
     public suspend fun updateContext(context: ConfigDirectorContext) {
-        connect(context, ConnectReason.CONTEXT_UPDATE)
+        connect(contextToConnectWith(context, ConnectReason.CONTEXT_UPDATE), ConnectReason.CONTEXT_UPDATE)
     }
 
     /**
      * Updates the user's context and re-evaluates every config against it, calling [callback] on
      * the main thread once the new context has taken effect or the attempt times out.
+     *
+     * A context whose [ConfigDirectorContext.kind] is invalid is ignored as a whole: the client logs
+     * an error, stops using the previous context, and re-evaluates as if no context was given.
      */
     public fun updateContext(context: ConfigDirectorContext, callback: CompletionCallback) {
         launchThenCallBack(callback) { updateContext(context) }
@@ -491,6 +509,23 @@ public class ConfigDirectorClient internal constructor(
         scope.launch {
             work()
             withContext(Dispatchers.Main) { callback.onComplete() }
+        }
+    }
+
+    private fun contextToConnectWith(
+        suppliedContext: ConfigDirectorContext?,
+        reason: ConnectReason,
+    ): ConfigDirectorContext? = when (val admission = admissionOf(suppliedContext)) {
+        is ContextAdmission.Admitted -> admission.context
+        is ContextAdmission.IgnoredForAnInvalidContextKind -> {
+            logger.error {
+                "Ignored the context supplied for ${reason.description} because its context kind " +
+                    "'${admission.contextKindSample}' is invalid, so configs are evaluated as if no " +
+                    "context was supplied. A context kind has 1 to 64 characters: lowercase " +
+                    "letters, digits, '-' and '_'."
+            }
+            telemetry.recordInvalidContextSubmission(admission.contextKindSample)
+            null
         }
     }
 

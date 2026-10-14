@@ -5,6 +5,7 @@ import dev.openfeature.kotlin.sdk.EvaluationContext
 import dev.openfeature.kotlin.sdk.Value
 
 private const val ID = "id"
+private const val KIND = "kind"
 private const val NAME = "name"
 private const val TRAITS = "traits"
 private const val ANONYMOUS = "anonymous"
@@ -12,6 +13,7 @@ private const val ANONYMOUS = "anonymous"
 internal fun EvaluationContext.toConfigDirectorContext(): ConfigDirectorContext =
     ConfigDirectorContext.build {
         id(getTargetingKey().ifEmpty { null } ?: getValue(ID).asText())
+        kind(getValue(KIND).asText())
         name(getValue(NAME).asText())
         getValue(TRAITS)?.asStructure()?.takeIf { it.isNotEmpty() }?.let { structure ->
             traits(structure.mapValues { (_, entry) -> entry.toAny() })

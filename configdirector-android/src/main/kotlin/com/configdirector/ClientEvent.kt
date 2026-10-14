@@ -55,7 +55,10 @@ public sealed class ClientEvent {
 
     /** A new context has taken effect. */
     public class ContextUpdated internal constructor(
-        /** The context configs are evaluated against from now on. */
+        /**
+         * The context configs are evaluated against from now on, or null when there is none,
+         * including after a context with an invalid context kind was ignored.
+         */
         public val context: ConfigDirectorContext?,
     ) : ClientEvent() {
         override fun equals(other: Any?): Boolean =

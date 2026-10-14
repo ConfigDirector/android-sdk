@@ -38,7 +38,7 @@ import kotlin.time.Instant
 class ConfigDirectorProviderTest {
 
     private val server = FakeSdkServer()
-    private val collectors = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val collectors = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
     private var provider: ConfigDirectorProvider? = null
 
     @Before
@@ -91,6 +91,15 @@ class ConfigDirectorProviderTest {
     )
 
     private val freeContext = ImmutableContext(targetingKey = "user-456")
+
+    private val contextWithAnInvalidContextKind = ImmutableContext(
+        targetingKey = "user-123",
+        attributes = mapOf(
+            "kind" to Value.String("Tenant"),
+            "name" to Value.String("Ada"),
+            "traits" to Value.Structure(mapOf("plan" to Value.String("pro"))),
+        ),
+    )
 
     @Test
     fun `names itself`() {
@@ -267,6 +276,29 @@ class ConfigDirectorProviderTest {
         assertThat(evaluation.value).isFalse()
         assertThat(evaluation.variant).isEqualTo("dark-mode-free")
     }
+
+    @Test
+    fun `resolves flags without a context whose context kind is invalid`() = runBlocking<Unit> {
+        val provider = provider()
+
+        provider.initialize(contextWithAnInvalidContextKind)
+
+        assertThat(provider.getBooleanEvaluation("dark-mode", true, null).value).isFalse()
+        assertThat(provider.getStringEvaluation("welcome-message", "fallback", null).value).isEqualTo("Hello, there")
+    }
+
+    @Test
+    fun `resolves flags without a context whose context kind is invalid once the context changes`() =
+        runBlocking<Unit> {
+            val provider = provider()
+            provider.initialize(proContext)
+
+            provider.onContextSet(proContext, contextWithAnInvalidContextKind)
+
+            assertThat(provider.getBooleanEvaluation("dark-mode", true, null).value).isFalse()
+            assertThat(provider.getStringEvaluation("welcome-message", "fallback", null).value)
+                .isEqualTo("Hello, there")
+        }
 
     @Test
     fun `reports it is not ready when no config state arrives in time`() = runBlocking<Unit> {

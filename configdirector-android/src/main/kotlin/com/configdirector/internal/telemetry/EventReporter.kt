@@ -18,8 +18,11 @@ import org.json.JSONObject
 
 internal data class EventReport(
     val snapshot: EventQueueSnapshot,
+    val invalidContextSubmissionSummaries: List<InvalidContextSubmissionSummary>,
     val context: ConfigDirectorContext?,
-)
+) {
+    val isEmpty: Boolean get() = snapshot.isEmpty && invalidContextSubmissionSummaries.isEmpty()
+}
 
 internal enum class ReportOutcome {
     SUCCEEDED,
@@ -52,6 +55,7 @@ internal class HttpEventReporter(
 
     override suspend fun report(report: EventReport): ReportOutcome {
         if (stopped.get()) return ReportOutcome.FAILED_FATALLY
+        if (report.isEmpty) return ReportOutcome.SUCCEEDED
 
         val aggregated = EventQueueSnapshot(
             startTime = report.snapshot.startTime,
@@ -59,8 +63,6 @@ internal class HttpEventReporter(
             events = report.snapshot.events.map { it.compacted() },
             droppedCount = report.snapshot.droppedCount,
         ).aggregated()
-
-        if (aggregated.isEmpty() && report.snapshot.droppedCount == 0) return ReportOutcome.SUCCEEDED
 
         val outcome = send(payload(aggregated, report))
         if (outcome == ReportOutcome.FAILED_FATALLY) {
@@ -75,13 +77,20 @@ internal class HttpEventReporter(
 
     private fun payload(aggregated: List<AggregatedEvent>, report: EventReport): String {
         val events = JSONArray().apply { aggregated.forEach { put(it.toJson()) } }
+        val invalidContextSubmissions =
+            JSONArray().apply { report.invalidContextSubmissionSummaries.forEach { put(it.toJson()) } }
 
         return JSONObject()
             .put("clientSdkKey", options.clientSdkKey)
             .put("metaContext", options.metaContext.toJson())
             .apply { report.context?.let { put("context", it.toJson()) } }
             .put("discreteEvents", JSONObject())
-            .put("aggregatedEvents", JSONObject().put("evaluatedConfig", events))
+            .put(
+                "aggregatedEvents",
+                JSONObject()
+                    .put("evaluatedConfig", events)
+                    .put("invalidContext", invalidContextSubmissions),
+            )
             .put(
                 "droppedEvents",
                 JSONObject().put("evaluatedConfig", report.snapshot.droppedCount),

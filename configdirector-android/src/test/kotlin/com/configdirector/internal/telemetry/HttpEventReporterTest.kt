@@ -56,8 +56,13 @@ class HttpEventReporterTest {
     private fun report(
         events: List<EvaluatedConfigEvent>,
         droppedCount: Int = 0,
+        invalidContextSubmissionSummaries: List<InvalidContextSubmissionSummary> = emptyList(),
         context: ConfigDirectorContext? = this.context,
-    ) = EventReport(EventQueueSnapshot(1788134400123L, 1788134401123L, events, droppedCount), context)
+    ) = EventReport(
+        EventQueueSnapshot(1788134400123L, 1788134401123L, events, droppedCount),
+        invalidContextSubmissionSummaries,
+        context,
+    )
 
     @Test
     fun `posts the key, the metadata, the context and what was collected`() = runBlocking<Unit> {
@@ -133,6 +138,71 @@ class HttpEventReporterTest {
 
         assertThat(outcome).isEqualTo(ReportOutcome.SUCCEEDED)
         assertThat(server.requestCount).isEqualTo(0)
+    }
+
+    @Test
+    fun `posts the context kind with the context`() = runBlocking<Unit> {
+        server.enqueue(MockResponse())
+
+        reporter().report(
+            report(listOf(evaluation("dark-mode")), context = ConfigDirectorContext.build { id("42"); kind("device") }),
+        )
+
+        val context = JSONObject(request().body.readUtf8()).getJSONObject("context")
+        assertThat(context.getString("id")).isEqualTo("42")
+        assertThat(context.getString("kind")).isEqualTo("device")
+    }
+
+    @Test
+    fun `posts the invalid context submissions it was given`() = runBlocking<Unit> {
+        server.enqueue(MockResponse())
+
+        reporter().report(
+            report(
+                listOf(evaluation("dark-mode")),
+                invalidContextSubmissionSummaries = listOf(
+                    InvalidContextSubmissionSummary(1788134400123L, 1788134401123L, count = 3, contextKindSample = "Tenant"),
+                    InvalidContextSubmissionSummary(1788134400123L, 1788134401123L, count = 2, contextKindSample = null),
+                ),
+            ),
+        )
+
+        val submissions = JSONObject(request().body.readUtf8())
+            .getJSONObject("aggregatedEvents")
+            .getJSONArray("invalidContext")
+        assertThat(submissions.length()).isEqualTo(2)
+
+        val tenantSubmissions = submissions.getJSONObject(0)
+        assertThat(tenantSubmissions.getString("startTime")).isEqualTo("2026-08-31T00:00:00.123Z")
+        assertThat(tenantSubmissions.getString("endTime")).isEqualTo("2026-08-31T00:00:01.123Z")
+        assertThat(tenantSubmissions.getInt("count")).isEqualTo(3)
+        assertThat(tenantSubmissions.getJSONObject("event").getString("reason")).isEqualTo("invalid-context-kind")
+        assertThat(tenantSubmissions.getJSONObject("event").getString("kindSample")).isEqualTo("Tenant")
+
+        val submissionsBeyondSampleLimit = submissions.getJSONObject(1)
+        assertThat(submissionsBeyondSampleLimit.getInt("count")).isEqualTo(2)
+        assertThat(submissionsBeyondSampleLimit.getJSONObject("event").getString("reason"))
+            .isEqualTo("invalid-context-kind")
+        assertThat(submissionsBeyondSampleLimit.getJSONObject("event").has("kindSample")).isFalse()
+    }
+
+    @Test
+    fun `posts invalid context submissions when nothing was evaluated`() = runBlocking<Unit> {
+        server.enqueue(MockResponse())
+
+        val outcome = reporter().report(
+            report(
+                emptyList(),
+                invalidContextSubmissionSummaries = listOf(
+                    InvalidContextSubmissionSummary(1788134400123L, 1788134401123L, count = 1, contextKindSample = "Tenant"),
+                ),
+            ),
+        )
+
+        assertThat(outcome).isEqualTo(ReportOutcome.SUCCEEDED)
+        val aggregated = JSONObject(request().body.readUtf8()).getJSONObject("aggregatedEvents")
+        assertThat(aggregated.getJSONArray("evaluatedConfig").length()).isEqualTo(0)
+        assertThat(aggregated.getJSONArray("invalidContext").getJSONObject(0).getInt("count")).isEqualTo(1)
     }
 
     @Test

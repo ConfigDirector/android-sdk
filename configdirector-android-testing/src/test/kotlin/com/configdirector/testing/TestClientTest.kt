@@ -311,6 +311,32 @@ class TestClientTest {
     }
 
     @Test
+    fun `contextUpdates records an empty context for an initialization whose context kind is invalid`() =
+        runBlocking<Unit> {
+            val testClient = testClient()
+            val client = testClient.client
+
+            client.initialize(ConfigDirectorContext.build { id("device-42"); kind("Device") })
+
+            assertThat(testClient.contextUpdates).containsExactly(ConfigDirectorContext.empty())
+            assertThat(client.context).isNull()
+            assertThat(errorsLogged("'Device'")).hasSize(1)
+        }
+
+    @Test
+    fun `contextUpdates records an empty context for an update whose context kind is invalid`() = runBlocking<Unit> {
+        val testClient = testClient()
+        val client = testClient.client
+
+        client.initialize(USER_A)
+        client.updateContext(ConfigDirectorContext.build { id("device-42"); kind("Device") })
+
+        assertThat(testClient.contextUpdates).containsExactly(USER_A, ConfigDirectorContext.empty()).inOrder()
+        assertThat(client.context).isNull()
+        assertThat(errorsLogged("'Device'")).hasSize(1)
+    }
+
+    @Test
     fun `S26 a held updateContext stays pending until completed`() = runBlocking<Unit> {
         val testClient = testClient(mapOf("flag" to true))
         val client = testClient.client

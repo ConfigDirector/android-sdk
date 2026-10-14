@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.SharedPreferences
 import com.configdirector.internal.transport.PollingTransport
+import com.configdirector.internal.transport.StreamingTransport
 import com.configdirector.internal.transport.Transport
 import com.configdirector.internal.transport.TransportOptions
 import com.google.common.truth.Truth.assertThat
@@ -46,6 +47,10 @@ class ConfigDirectorClientTest {
         PollingTransport(options.pollingEvery(50), onConfigSet)
     }
 
+    private val fastReconnectingTransportFactory: TransportFactory = { _, options, onConfigSet ->
+        StreamingTransport(options.reconnectingAfter(20), onConfigSet)
+    }
+
     private val connectReasons = CopyOnWriteArrayList<ConnectReason>()
 
     private val reasonRecordingTransportFactory: TransportFactory = { mode, options, onConfigSet ->
@@ -71,6 +76,17 @@ class ConfigDirectorClientTest {
         pollingIntervalMillis = pollingIntervalMillis,
         httpClient = httpClient,
         retryDelayMillis = retryDelayMillis,
+    )
+
+    private fun TransportOptions.reconnectingAfter(retryDelayMillis: Long) = TransportOptions(
+        clientSdkKey = clientSdkKey,
+        baseUrl = baseUrl,
+        metaContext = metaContext,
+        clientSession = clientSession,
+        logger = logger,
+        pollingIntervalMillis = pollingIntervalMillis,
+        httpClient = httpClient,
+        retryDelayMillis = { retryDelayMillis },
     )
 
     @Before
@@ -123,11 +139,49 @@ class ConfigDirectorClientTest {
         throw AssertionError("Timed out waiting for $description")
     }
 
+    private fun settle() {
+        Thread.sleep(200)
+    }
+
     private val proContext = ConfigDirectorContext.build {
         id("user-123")
         name("Ada")
         trait("plan", "pro")
     }
+
+    private val contextWithAnInvalidContextKind = ConfigDirectorContext.build {
+        id("user-123")
+        kind("Tenant")
+        name("Ada")
+        trait("plan", "pro")
+    }
+
+    private val noContextJson = """{"anonymous":false}"""
+
+    private fun errorsLogged(text: String) = logger.messagesContaining("ERROR: ").filter { text in it }
+
+    private fun ConfigDirectorClient.recordContextUpdates(): List<ClientEvent.ContextUpdated> =
+        CopyOnWriteArrayList<ClientEvent.ContextUpdated>().also { contextUpdates ->
+            addEventListener { event -> if (event is ClientEvent.ContextUpdated) contextUpdates += event }
+        }
+
+    private fun invalidContextSubmissionCounts(): Map<String?, Int> = server.telemetryReports
+        .flatMap { report ->
+            val submissions = report.getJSONObject("aggregatedEvents").getJSONArray("invalidContext")
+            (0 until submissions.length()).map { submissions.getJSONObject(it) }
+        }
+        .groupBy(
+            { it.getJSONObject("event").optString("kindSample").ifEmpty { null } },
+            { it.getInt("count") },
+        )
+        .mapValues { (_, counts) -> counts.sum() }
+
+    private fun sentContexts(path: String, count: Int): List<String> =
+        generateSequence { server.takeRequest() }
+            .filter { it.path == path }
+            .take(count)
+            .map { JSONObject(it.body.readUtf8()).getJSONObject("givenContext").toString() }
+            .toList()
 
     @Test
     fun `rejects a blank client SDK key`() {
@@ -821,6 +875,196 @@ class ConfigDirectorClientTest {
         client.initialize(proContext)
 
         assertThat(client.context).isEqualTo(proContext)
+    }
+
+    @Test
+    fun `connects without a context whose context kind is invalid at initialization`() = runBlocking<Unit> {
+        val client = client()
+        val contextUpdates = client.recordContextUpdates()
+
+        client.initialize(contextWithAnInvalidContextKind)
+
+        assertThat(sentPayload().getJSONObject("givenContext").toString()).isEqualTo(noContextJson)
+        assertThat(client.context).isNull()
+        assertThat(client.isReady).isTrue()
+        assertThat(client.getString("welcome-message", "fallback")).isEqualTo("Hello, there")
+        waitFor("the context update event") { contextUpdates.isNotEmpty() }
+        assertThat(contextUpdates).containsExactly(ClientEvent.ContextUpdated(null))
+        assertThat(errorsLogged("'Tenant'")).hasSize(1)
+    }
+
+    @Test
+    fun `connects without a context whose context kind is invalid at initialization when polling`() =
+        runBlocking<Unit> {
+            val client = client(mode = ConnectionMode.POLLING)
+            val contextUpdates = client.recordContextUpdates()
+
+            client.initialize(contextWithAnInvalidContextKind)
+
+            assertThat(sentPayload().getJSONObject("givenContext").toString()).isEqualTo(noContextJson)
+            assertThat(client.context).isNull()
+            assertThat(client.isReady).isTrue()
+            assertThat(client.getString("welcome-message", "fallback")).isEqualTo("Hello, there")
+            waitFor("the context update event") { contextUpdates.isNotEmpty() }
+            assertThat(contextUpdates).containsExactly(ClientEvent.ContextUpdated(null))
+            assertThat(errorsLogged("'Tenant'")).hasSize(1)
+        }
+
+    @Test
+    fun `stops using the previous context after an update whose context kind is invalid`() = runBlocking<Unit> {
+        val client = client()
+        val contextUpdates = client.recordContextUpdates()
+        client.initialize(proContext)
+        checkNotNull(server.takeRequest())
+
+        client.updateContext(contextWithAnInvalidContextKind)
+
+        assertThat(sentPayload().getJSONObject("givenContext").toString()).isEqualTo(noContextJson)
+        assertThat(client.context).isNull()
+        assertThat(client.isReady).isTrue()
+        assertThat(client.getString("welcome-message", "fallback")).isEqualTo("Hello, there")
+        assertThat(client.evaluateString("welcome-message", "fallback").context).isNull()
+        waitFor("both context update events") { contextUpdates.size == 2 }
+        assertThat(contextUpdates)
+            .containsExactly(ClientEvent.ContextUpdated(proContext), ClientEvent.ContextUpdated(null))
+            .inOrder()
+        assertThat(errorsLogged("'Tenant'")).hasSize(1)
+    }
+
+    @Test
+    fun `stops using the previous context after an update whose context kind is invalid when polling`() =
+        runBlocking<Unit> {
+            val client = client(mode = ConnectionMode.POLLING)
+            val contextUpdates = client.recordContextUpdates()
+            client.initialize(proContext)
+            checkNotNull(server.takeRequest())
+
+            client.updateContext(contextWithAnInvalidContextKind)
+
+            assertThat(sentPayload().getJSONObject("givenContext").toString()).isEqualTo(noContextJson)
+            assertThat(client.context).isNull()
+            assertThat(client.isReady).isTrue()
+            assertThat(client.getString("welcome-message", "fallback")).isEqualTo("Hello, there")
+            waitFor("both context update events") { contextUpdates.size == 2 }
+            assertThat(contextUpdates)
+                .containsExactly(ClientEvent.ContextUpdated(proContext), ClientEvent.ContextUpdated(null))
+                .inOrder()
+            assertThat(errorsLogged("'Tenant'")).hasSize(1)
+        }
+
+    @Test
+    fun `resumes without the context it stopped using for an update whose context kind is invalid`() =
+        runBlocking<Unit> {
+            val client = client()
+            client.initialize(proContext)
+            client.updateContext(contextWithAnInvalidContextKind)
+            client.pauseNetwork()
+
+            client.resumeNetwork()
+
+            val (initialization, update, resume) = sentContexts("/client/sse/v1", count = 3)
+            assertThat(JSONObject(initialization).getString("id")).isEqualTo("user-123")
+            assertThat(update).isEqualTo(noContextJson)
+            assertThat(resume).isEqualTo(noContextJson)
+            assertThat(client.context).isNull()
+        }
+
+    @Test
+    fun `keeps the previous context when connecting without a context whose context kind is invalid fails`() =
+        runBlocking<Unit> {
+            val client = client()
+            client.initialize(proContext)
+            server.status = 401
+
+            client.updateContext(contextWithAnInvalidContextKind)
+
+            assertThat(client.context).isEqualTo(proContext)
+            assertThat(errorsLogged("'Tenant'")).hasSize(1)
+        }
+
+    @Test
+    fun `counts and logs one invalid context submission per initialization or update`() = runBlocking<Unit> {
+        val client = client()
+
+        client.initialize(contextWithAnInvalidContextKind)
+        client.updateContext(ConfigDirectorContext.build { kind("Tenant") })
+        client.updateContext(ConfigDirectorContext.build { kind("Device") })
+        client.pauseNetwork()
+        client.resumeNetwork()
+
+        waitFor("the invalid context submissions to be reported") {
+            invalidContextSubmissionCounts() == mapOf("Tenant" to 2, "Device" to 1)
+        }
+        settle()
+        assertThat(invalidContextSubmissionCounts()).containsExactly("Tenant", 2, "Device", 1)
+        assertThat(errorsLogged("'Tenant'")).hasSize(2)
+        assertThat(errorsLogged("'Device'")).hasSize(1)
+    }
+
+    @Test
+    fun `reconnects without the context it ignored and counts it only once`() = runBlocking<Unit> {
+        val client = client(transportFactory = fastReconnectingTransportFactory)
+
+        client.initialize(contextWithAnInvalidContextKind)
+
+        assertThat(sentContexts("/client/sse/v1", count = 3))
+            .containsExactly(noContextJson, noContextJson, noContextJson)
+        waitFor("the invalid context submission to be reported") {
+            invalidContextSubmissionCounts().isNotEmpty()
+        }
+        settle()
+        assertThat(invalidContextSubmissionCounts()).containsExactly("Tenant", 1)
+        assertThat(errorsLogged("'Tenant'")).hasSize(1)
+    }
+
+    @Test
+    fun `polls without the context it ignored and counts it only once`() = runBlocking<Unit> {
+        val client = fastPollingClient()
+
+        client.initialize(contextWithAnInvalidContextKind)
+
+        assertThat(sentContexts("/client/polling/v1", count = 3))
+            .containsExactly(noContextJson, noContextJson, noContextJson)
+        waitFor("the invalid context submission to be reported") {
+            invalidContextSubmissionCounts().isNotEmpty()
+        }
+        settle()
+        assertThat(invalidContextSubmissionCounts()).containsExactly("Tenant", 1)
+        assertThat(errorsLogged("'Tenant'")).hasSize(1)
+    }
+
+    @Test
+    fun `reports an invalid context kind cut to its first 128 characters`() = runBlocking<Unit> {
+        val client = client()
+
+        client.initialize(ConfigDirectorContext.build { kind("\uD83D\uDE00".repeat(129)) })
+
+        waitFor("the invalid context submission to be reported") {
+            invalidContextSubmissionCounts().isNotEmpty()
+        }
+        assertThat(invalidContextSubmissionCounts()).containsExactly("\uD83D\uDE00".repeat(128), 1)
+    }
+
+    @Test
+    fun `never reports the identifier, name or traits of a context it ignored`() = runBlocking<Unit> {
+        val client = client()
+
+        client.initialize(
+            ConfigDirectorContext.build {
+                id("device-42")
+                kind("Device")
+                name("Lobby screen")
+                trait("floor", "mezzanine")
+            },
+        )
+
+        waitFor("the invalid context submission to be reported") {
+            invalidContextSubmissionCounts().isNotEmpty()
+        }
+        val report = server.telemetryReports.single().toString()
+        assertThat(report).doesNotContain("device-42")
+        assertThat(report).doesNotContain("Lobby screen")
+        assertThat(report).doesNotContain("mezzanine")
     }
 
     @Test

@@ -8,6 +8,15 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- A top-level `kind` attribute of the evaluation context is sent as the ConfigDirector context
+  kind, read the way `id` is: text as given, a number or boolean as its text, and anything else as
+  no context kind. Leaving it out means `user`, as before, and a `kind` inside `traits` stays an
+  ordinary trait. A context with an invalid context kind never raises `InvalidContextError`: the
+  SDK logs an error and flags resolve as if no context was set. Requires version 1.8.0 of the SDK,
+  which adds context kinds.
+
 ## [1.3.0] - 2026-10-04
 
 ### Changed

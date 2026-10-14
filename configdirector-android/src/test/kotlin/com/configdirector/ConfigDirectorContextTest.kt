@@ -38,9 +38,65 @@ class ConfigDirectorContextTest {
         val context = ConfigDirectorContext.empty()
 
         assertThat(context.id).isNull()
+        assertThat(context.kind).isNull()
         assertThat(context.name).isNull()
         assertThat(context.traits).isNull()
         assertThat(context.isAnonymous).isFalse()
+    }
+
+    @Test
+    fun `carries the context kind it was given`() {
+        val context = ConfigDirectorContext.build {
+            id("42")
+            kind("device")
+        }
+
+        assertThat(context.kind).isEqualTo("device")
+    }
+
+    @Test
+    fun `clears a context kind set so far`() {
+        val context = ConfigDirectorContext.builder()
+            .kind("device")
+            .kind(null)
+            .build()
+
+        assertThat(context.kind).isNull()
+    }
+
+    @Test
+    fun `keeps an invalid context kind as given without throwing`() {
+        val context = ConfigDirectorContext.build { kind(" Tenant") }
+
+        assertThat(context.kind).isEqualTo(" Tenant")
+    }
+
+    @Test
+    fun `tells contexts apart by their context kind`() {
+        val device = ConfigDirectorContext.build { id("42"); kind("device") }
+        val sameDevice = ConfigDirectorContext.build { id("42"); kind("device") }
+        val tenant = ConfigDirectorContext.build { id("42"); kind("tenant") }
+
+        assertThat(device).isEqualTo(sameDevice)
+        assertThat(device.hashCode()).isEqualTo(sameDevice.hashCode())
+        assertThat(device).isNotEqualTo(tenant)
+    }
+
+    @Test
+    fun `tells a context without a context kind apart from one of context kind user`() {
+        val explicitUser = ConfigDirectorContext.build { id("42"); kind("user") }
+        val withoutContextKind = ConfigDirectorContext.build { id("42") }
+
+        assertThat(explicitUser).isNotEqualTo(withoutContextKind)
+    }
+
+    @Test
+    fun `describes its context kind next to its id`() {
+        val context = ConfigDirectorContext.build { id("42"); kind("device") }
+
+        assertThat(context.toString()).isEqualTo(
+            "ConfigDirectorContext(id=42, kind=device, name=null, traits=null, isAnonymous=false)",
+        )
     }
 
     @Test

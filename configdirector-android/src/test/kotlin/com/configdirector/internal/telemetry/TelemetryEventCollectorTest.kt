@@ -171,6 +171,64 @@ class TelemetryEventCollectorTest {
         assertThat(snapshot.droppedCount).isEqualTo(2)
     }
 
+    @Test
+    fun `reports invalid context submissions when nothing was evaluated`() = runBlocking<Unit> {
+        val collector = collector(initialFlushDelayMillis = 5_000)
+        collector.recordInvalidContextSubmission("Tenant")
+        collector.recordInvalidContextSubmission("Tenant")
+
+        collector.flush()
+
+        val summary = reporter.reports.single().invalidContextSubmissionSummaries.single()
+        assertThat(summary.contextKindSample).isEqualTo("Tenant")
+        assertThat(summary.count).isEqualTo(2)
+    }
+
+    @Test
+    fun `keeps 20 context kind samples per report and counts the rest without one`() = runBlocking<Unit> {
+        val collector = collector(initialFlushDelayMillis = 5_000)
+        repeat(22) { collector.recordInvalidContextSubmission("kind-$it") }
+        collector.recordInvalidContextSubmission("kind-0")
+        collector.recordInvalidContextSubmission("kind-21")
+
+        collector.flush()
+
+        val summaries = reporter.reports.single().invalidContextSubmissionSummaries
+        assertThat(summaries).hasSize(21)
+        assertThat(summaries.single { it.contextKindSample == "kind-0" }.count).isEqualTo(2)
+        assertThat(summaries.single { it.contextKindSample == "kind-19" }.count).isEqualTo(1)
+        assertThat(summaries.none { it.contextKindSample == "kind-20" }).isTrue()
+        assertThat(summaries.none { it.contextKindSample == "kind-21" }).isTrue()
+        assertThat(summaries.single { it.contextKindSample == null }.count).isEqualTo(3)
+    }
+
+    @Test
+    fun `starts its context kind samples afresh after each report`() = runBlocking<Unit> {
+        val collector = collector(initialFlushDelayMillis = 5_000)
+        repeat(21) { collector.recordInvalidContextSubmission("kind-$it") }
+        collector.flush()
+
+        collector.recordInvalidContextSubmission("device-kind")
+        collector.flush()
+
+        val summary = reporter.reports[1].invalidContextSubmissionSummaries.single()
+        assertThat(summary.contextKindSample).isEqualTo("device-kind")
+        assertThat(summary.count).isEqualTo(1)
+    }
+
+    @Test
+    fun `collects no invalid context submissions after a failure retrying cannot fix`() = runBlocking<Unit> {
+        val collector = collector(initialFlushDelayMillis = 5_000)
+        reporter.outcome.set(ReportOutcome.FAILED_FATALLY)
+        collector.evaluatedConfig(evaluation("dark-mode"))
+        collector.flush()
+
+        collector.recordInvalidContextSubmission("Tenant")
+        collector.flush()
+
+        assertThat(reporter.reports).hasSize(1)
+    }
+
     private fun evaluation(key: String) = EvaluatedConfigEvent(
         contextId = null,
         key = key,

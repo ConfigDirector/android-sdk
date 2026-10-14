@@ -34,8 +34,23 @@ public class ConfigDirectorContextJavaTest {
     ConfigDirectorContext context = ConfigDirectorContext.empty();
 
     assertThat(context.getId()).isNull();
+    assertThat(context.getKind()).isNull();
     assertThat(context.getTraits()).isNull();
     assertThat(context.isAnonymous()).isFalse();
+  }
+
+  @Test
+  public void carriesTheContextKindItWasGiven() {
+    ConfigDirectorContext context = ConfigDirectorContext.builder().id("42").kind("device").build();
+
+    assertThat(context.getKind()).isEqualTo("device");
+  }
+
+  @Test
+  public void acceptsANullContextKind() {
+    ConfigDirectorContext context = ConfigDirectorContext.builder().kind(null).build();
+
+    assertThat(context.getKind()).isNull();
   }
 
   @Test

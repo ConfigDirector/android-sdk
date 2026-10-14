@@ -51,13 +51,17 @@ import kotlinx.coroutines.flow.mapNotNull
  * | OpenFeature                        | ConfigDirector |
  * | ---------------------------------- | -------------- |
  * | the targeting key, or else `id`    | `id`           |
+ * | `kind`                             | `kind`         |
  * | `name`                             | `name`         |
  * | `traits`, a structure              | `traits`       |
  * | `anonymous`, a boolean             | `anonymous`    |
  *
- * Any other attribute is ignored. Put the values targeting rules depend on inside `traits`. The
- * context handed to an individual evaluation is ignored as well: the OpenFeature Kotlin SDK holds
- * one context at a time, and flags are evaluated against the one most recently set.
+ * Any other attribute is ignored. Put the values targeting rules depend on inside `traits`; a
+ * `kind` inside `traits` is an ordinary trait. Leaving `kind` out means `user`, and a context with
+ * an invalid `kind` is ignored as a whole: the SDK logs an error and flags resolve as if no context
+ * was set. The context handed to an individual evaluation is ignored as well: the OpenFeature
+ * Kotlin SDK holds one context at a time, and flags are evaluated against the one most recently
+ * set.
  *
  * ## Resolution details
  *

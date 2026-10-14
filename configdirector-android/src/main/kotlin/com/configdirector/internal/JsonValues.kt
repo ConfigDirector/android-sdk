@@ -26,6 +26,7 @@ internal fun String.jsonArrayOrNull(): List<Any?>? = try {
 /** The context as the ConfigDirector API expects it, on every request that carries one. */
 internal fun ConfigDirectorContext.toJson(): JSONObject = JSONObject().also { json ->
     id?.let { json.put("id", it) }
+    kind?.let { json.put("kind", it) }
     name?.let { json.put("name", it) }
     // Traits are JSON-shaped by the time they get here: the context builder rejects anything else
     // when it builds.

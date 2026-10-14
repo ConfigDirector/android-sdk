@@ -32,6 +32,8 @@ internal class TelemetryOptions(
 internal interface TelemetryClient {
     fun evaluatedConfig(event: EvaluatedConfigEvent)
 
+    fun recordInvalidContextSubmission(contextKindSample: String)
+
     /**
      * Reports the events collected so far against the previous context, and attributes the ones
      * collected from now on to [context].
@@ -59,6 +61,7 @@ internal class TelemetryEventCollector(
 ) : TelemetryClient {
 
     private val queue = EventQueue(options.queueLimit)
+    private val invalidContextSubmissions = InvalidContextSubmissions()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val flushes = Mutex()
     private val context = AtomicReference<ConfigDirectorContext?>(null)
@@ -77,6 +80,12 @@ internal class TelemetryEventCollector(
         if (!collecting.get()) return
 
         queue.push(event)
+    }
+
+    override fun recordInvalidContextSubmission(contextKindSample: String) {
+        if (!collecting.get()) return
+
+        invalidContextSubmissions.record(contextKindSample)
     }
 
     override fun updateContext(context: ConfigDirectorContext?) {
@@ -107,12 +116,14 @@ internal class TelemetryEventCollector(
             send(pending)
             reporter.close()
             queue.clear()
+            invalidContextSubmissions.clear()
             scope.cancel()
         }
     }
 
     private fun takeReport(): EventReport? =
-        if (queue.isEmpty) null else EventReport(queue.takeSnapshot(), context.get())
+        EventReport(queue.takeSnapshot(), invalidContextSubmissions.takeSummaries(), context.get())
+            .takeUnless { it.isEmpty }
 
     /** Sends after whatever is already in flight, so batches reach the server in the order they
      * were collected. */
@@ -129,6 +140,7 @@ internal class TelemetryEventCollector(
         collecting.set(false)
         timer.getAndSet(null)?.cancel()
         queue.clear()
+        invalidContextSubmissions.clear()
         reporter.close()
 
         logger.warn {

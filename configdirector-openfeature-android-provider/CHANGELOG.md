@@ -8,6 +8,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-15
+
 ### Added
 
 - A top-level `kind` attribute of the evaluation context is sent as the ConfigDirector context

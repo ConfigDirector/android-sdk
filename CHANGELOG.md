@@ -9,6 +9,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-15
+
 ### Added
 
 - A context can now carry a context kind (`android-sdk`), such as `device` or `organization`, set

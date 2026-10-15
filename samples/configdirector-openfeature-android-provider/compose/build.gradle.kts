@@ -75,7 +75,7 @@ dependencies {
         if (useLocalSdk) {
             project(":configdirector-openfeature-android-provider")
         } else {
-            "com.configdirector:openfeature-android-provider:1.3.0"
+            "com.configdirector:openfeature-android-provider:1.4.0"
         },
     )
 
@@ -90,7 +90,7 @@ dependencies {
         if (useLocalSdk) {
             project(":configdirector-android-testing")
         } else {
-            "com.configdirector:android-sdk-testing:1.7.0"
+            "com.configdirector:android-sdk-testing:1.8.0"
         },
     )
     testImplementation(libs.junit)

@@ -10,4 +10,11 @@ public enum class ConnectionMode {
 
     /** Fetches config state during initialization and then on a fixed interval. */
     POLLING,
+
+    /**
+     * Never connects to ConfigDirector and sends nothing: the client serves
+     * `ConnectionOptions.values` to every context, or every config's in-code default value when
+     * there are none. It needs no client SDK key.
+     */
+    OFFLINE,
 }

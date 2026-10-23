@@ -16,6 +16,12 @@ internal interface AppLifecycleObserver {
     fun stop()
 }
 
+internal object NoLifecycleObserver : AppLifecycleObserver {
+    override fun start(onChange: (AppLifecyclePhase) -> Unit) = Unit
+
+    override fun stop() = Unit
+}
+
 /**
  * The observer for [androidContext], or one that reports nothing when the application cannot be
  * reached from it, which is the case in a unit test running without an Android environment.
@@ -31,11 +37,7 @@ internal fun appLifecycleObserver(
                 "tell when the app is backgrounded. The connection will be left running; pause it " +
                 "yourself with pauseNetwork() and resumeNetwork()."
         }
-        return object : AppLifecycleObserver {
-            override fun start(onChange: (AppLifecyclePhase) -> Unit) = Unit
-
-            override fun stop() = Unit
-        }
+        return NoLifecycleObserver
     }
 
     return ActivityLifecycleObserver(application)

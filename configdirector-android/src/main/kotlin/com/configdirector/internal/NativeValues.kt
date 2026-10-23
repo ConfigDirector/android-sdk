@@ -1,22 +1,21 @@
-package com.configdirector.internal.testing
+package com.configdirector.internal
 
 import com.configdirector.ConfigDirectorValidationException
-import com.configdirector.internal.ConfigState
-import com.configdirector.internal.ConfigType
 import com.configdirector.internal.telemetry.valueIdFor
 import java.math.BigDecimal
 import java.util.SortedMap
 import java.util.UUID
 
-internal fun encodeTestValues(values: Map<String, Any>): Map<String, ConfigState> =
-    values.entries.associate { (key, value) -> key to encodeTestValue(key, value) }
+internal fun encodeNativeValues(values: Map<String, Any?>): Map<String, ConfigState> =
+    values.entries.associate { (key, value) -> key to encodeNativeValue(key, value) }
 
-internal fun encodeTestValue(key: String, value: Any): ConfigState {
+internal fun encodeNativeValue(key: String, value: Any?): ConfigState {
     if (key.isBlank()) {
         throw ConfigDirectorValidationException("Invalid config key '$key'. The key must not be blank.")
     }
 
     val (type, text) = when (value) {
+        null -> throw ConfigDirectorValidationException("Invalid value for '$key'. A value must not be null.")
         is Boolean -> ConfigType.BOOLEAN to value.toString()
         is Int, is Long -> ConfigType.INTEGER to value.toString()
         is Float -> ConfigType.FLOAT to plainDecimal(key, value.isFinite(), value.toString())

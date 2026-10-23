@@ -1,28 +1,28 @@
 package com.configdirector
 
 import android.content.Context
-import com.configdirector.internal.ClientSession
+import com.configdirector.internal.AndroidClientPlatform
+import com.configdirector.internal.ClientPlatform
 import com.configdirector.internal.ConfigSet
 import com.configdirector.internal.ConfigStore
-import com.configdirector.internal.Constants
+import com.configdirector.internal.ConnectionPlan
 import com.configdirector.internal.ContextAdmission
+import com.configdirector.internal.LiveConnectionMode
 import com.configdirector.internal.admissionOf
-import com.configdirector.internal.currentClientSession
-import com.configdirector.internal.filledFromApplication
 import com.configdirector.internal.lifecycle.AppLifecycleObserver
 import com.configdirector.internal.lifecycle.AppLifecyclePhase
-import com.configdirector.internal.lifecycle.appLifecycleObserver
-import com.configdirector.internal.sharedPreferencesInstanceIdStorage
+import com.configdirector.internal.lifecycle.NoLifecycleObserver
+import com.configdirector.internal.planConnection
+import com.configdirector.internal.transport.OfflineTransport
 import com.configdirector.internal.transport.PollingTransport
-import com.configdirector.internal.transport.SdkMetaContext
 import com.configdirector.internal.transport.StreamingTransport
 import com.configdirector.internal.transport.Transport
+import com.configdirector.internal.telemetry.DiscardingTelemetryClient
 import com.configdirector.internal.telemetry.HttpEventReporter
 import com.configdirector.internal.telemetry.TelemetryClient
 import com.configdirector.internal.telemetry.TelemetryEventCollector
 import com.configdirector.internal.transport.TransportOptions
 import com.configdirector.internal.transport.sdkHttpClient
-import com.configdirector.internal.transport.toSdkMetaContext
 import java.io.Closeable
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.cancellation.CancellationException
@@ -33,7 +33,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
 
 /**
  * The ConfigDirector SDK client.
@@ -60,11 +59,9 @@ import okhttp3.OkHttpClient
  * `ConnectionOptions.pausesWhileBackgrounded` turns off.
  */
 public class ConfigDirectorClient internal constructor(
-    clientSdkKey: String,
+    clientSdkKey: String?,
     options: ClientOptions,
-    metaContext: SdkMetaContext,
-    clientSession: ClientSession,
-    lifecycle: AppLifecycleObserver,
+    platform: ClientPlatform,
     telemetryFactory: TelemetryFactory,
     transportFactory: TransportFactory,
 ) : Closeable {
@@ -77,7 +74,8 @@ public class ConfigDirectorClient internal constructor(
      * @param clientSdkKey the client SDK key from the ConfigDirector dashboard
      * @param options settings for this client, read once here. Whichever of the app name and
      *   version its [Metadata] leaves unset is read from the application behind [androidContext]
-     * @throws ConfigDirectorValidationException if [clientSdkKey] is blank
+     * @throws ConfigDirectorValidationException if [clientSdkKey] is blank and the connection mode
+     *   is not [ConnectionMode.OFFLINE]
      */
     @OptIn(ConfigDirectorWrapperApi::class)
     @JvmOverloads
@@ -88,11 +86,42 @@ public class ConfigDirectorClient internal constructor(
     ) : this(
         clientSdkKey,
         options,
-        SdkIdentity.ANDROID_CLIENT_SDK.toSdkMetaContext(
-            options.metadata.filledFromApplication(androidContext, options.logger),
-        ),
-        currentClientSession(sharedPreferencesInstanceIdStorage(androidContext), options.logger),
-        appLifecycleObserver(androidContext, options.logger),
+        AndroidClientPlatform(androidContext, SdkIdentity.ANDROID_CLIENT_SDK, options),
+        ::telemetryFor,
+        ::transportFor,
+    )
+
+    /**
+     * Creates a client that needs no client SDK key, because its connection mode is
+     * [ConnectionMode.OFFLINE]: it never connects to ConfigDirector and serves the values in
+     * [options].
+     *
+     * ```kotlin
+     * val client = ConfigDirectorClient(
+     *     application,
+     *     ClientOptions.build {
+     *         connection {
+     *             mode(ConnectionMode.OFFLINE)
+     *             values(mapOf("new-checkout" to true))
+     *         }
+     *     },
+     * )
+     * ```
+     *
+     * @param androidContext any Android context
+     * @param options settings for this client, read once here, whose connection mode is
+     *   [ConnectionMode.OFFLINE]
+     * @throws ConfigDirectorValidationException if the connection mode is not
+     *   [ConnectionMode.OFFLINE], since every other mode needs a client SDK key
+     */
+    @OptIn(ConfigDirectorWrapperApi::class)
+    public constructor(
+        androidContext: Context,
+        options: ClientOptions,
+    ) : this(
+        null,
+        options,
+        AndroidClientPlatform(androidContext, SdkIdentity.ANDROID_CLIENT_SDK, options),
         ::telemetryFor,
         ::transportFor,
     )
@@ -106,11 +135,7 @@ public class ConfigDirectorClient internal constructor(
     ) : this(
         clientSdkKey,
         options,
-        SdkIdentity.ANDROID_CLIENT_SDK.toSdkMetaContext(
-            options.metadata.filledFromApplication(androidContext, options.logger),
-        ),
-        currentClientSession(sharedPreferencesInstanceIdStorage(androidContext), options.logger),
-        appLifecycleObserver(androidContext, options.logger),
+        AndroidClientPlatform(androidContext, SdkIdentity.ANDROID_CLIENT_SDK, options),
         ::telemetryFor,
         transportFactory,
     )
@@ -127,7 +152,8 @@ public class ConfigDirectorClient internal constructor(
      * @param clientSdkKey the client SDK key from the ConfigDirector dashboard
      * @param options settings for this client, read once here
      * @param identity the wrapper the client reports itself as
-     * @throws ConfigDirectorValidationException if [clientSdkKey] is blank
+     * @throws ConfigDirectorValidationException if [clientSdkKey] is blank and the connection mode
+     *   is not [ConnectionMode.OFFLINE]
      */
     @ConfigDirectorWrapperApi
     public constructor(
@@ -138,18 +164,16 @@ public class ConfigDirectorClient internal constructor(
     ) : this(
         clientSdkKey,
         options,
-        identity.toSdkMetaContext(options.metadata.filledFromApplication(androidContext, options.logger)),
-        currentClientSession(sharedPreferencesInstanceIdStorage(androidContext), options.logger),
-        appLifecycleObserver(androidContext, options.logger),
+        AndroidClientPlatform(androidContext, identity, options),
         ::telemetryFor,
         ::transportFor,
     )
 
     private val logger: ConfigDirectorLogger = options.logger
     private val timeoutMillis: Long = options.connection.timeoutMillis
+    private val connectionPlan: ConnectionPlan = planConnection(clientSdkKey, options.connection, logger)
     private val store: ConfigStore
     private val telemetry: TelemetryClient
-    private val httpClient: OkHttpClient
     private val transport: Transport
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val closed = AtomicBoolean(false)
@@ -157,40 +181,34 @@ public class ConfigDirectorClient internal constructor(
     private val hasConnected = AtomicBoolean(false)
     private val pausedWhileBackgrounded = AtomicBoolean(false)
     private val pausesWhileBackgrounded: Boolean = options.connection.pausesWhileBackgrounded
-    private val lifecycle: AppLifecycleObserver = lifecycle
+    private val lifecycle: AppLifecycleObserver
 
     init {
-        if (clientSdkKey.isBlank()) {
-            throw ConfigDirectorValidationException(
-                "No client SDK key was provided. The client cannot be created without a valid " +
-                    "client SDK key.",
-            )
-        }
-
-        val baseUrl = options.connection.baseUrl?.trim().orEmpty().ifEmpty { Constants.CLIENT_BASE_URL }
-        if (!baseUrl.startsWith("https://", ignoreCase = true)) {
-            logger.warn {
-                "The base URL '$baseUrl' is not HTTPS. The client SDK key, every context you " +
-                    "send, and every config value served back travel in plain text."
+        when (val plan = connectionPlan) {
+            is ConnectionPlan.Connect -> {
+                val transportOptions = TransportOptions(
+                    clientSdkKey = plan.clientSdkKey,
+                    baseUrl = plan.baseUrl,
+                    metaContext = platform.metaContext(),
+                    clientSession = platform.clientSession(),
+                    logger = logger,
+                    pollingIntervalMillis = plan.pollingIntervalMillis,
+                    httpClient = sdkHttpClient(timeoutMillis, logger),
+                )
+                telemetry = telemetryFactory(transportOptions)
+                store = ConfigStore(logger, telemetry)
+                transport = transportFactory(plan.mode, transportOptions) { configSet ->
+                    store.handleConfigSet(configSet)
+                }
+                lifecycle = platform.lifecycleObserver()
             }
-        }
 
-        httpClient = sdkHttpClient(timeoutMillis, logger)
-
-        val transportOptions = TransportOptions(
-            clientSdkKey = clientSdkKey,
-            baseUrl = baseUrl,
-            metaContext = metaContext,
-            clientSession = clientSession,
-            logger = logger,
-            pollingIntervalMillis = resolvePollingIntervalMillis(options.connection, logger),
-            httpClient = httpClient,
-        )
-
-        telemetry = telemetryFactory(transportOptions)
-        store = ConfigStore(logger, telemetry)
-        transport = transportFactory(options.connection.mode, transportOptions) { configSet ->
-            store.handleConfigSet(configSet)
+            is ConnectionPlan.StayOffline -> {
+                telemetry = DiscardingTelemetryClient
+                store = ConfigStore(logger, telemetry)
+                transport = OfflineTransport(plan.configs) { configSet -> store.handleConfigSet(configSet) }
+                lifecycle = NoLifecycleObserver
+            }
         }
 
         lifecycle.start(::handleLifecyclePhase)
@@ -209,7 +227,8 @@ public class ConfigDirectorClient internal constructor(
 
     /**
      * Whether the client is ready, meaning the connection to the server succeeded and config state
-     * was received.
+     * was received. In [ConnectionMode.OFFLINE] it is ready once [initialize] has loaded the
+     * offline values.
      */
     public val isReady: Boolean
         get() = store.isReady
@@ -232,6 +251,9 @@ public class ConfigDirectorClient internal constructor(
      * A context whose [ConfigDirectorContext.kind] is invalid is ignored as a whole: the client logs
      * an error and connects as if no context was given.
      *
+     * In [ConnectionMode.OFFLINE] it opens no connection: the client is ready with the offline
+     * values when it returns.
+     *
      * @param context the current user's context, used to evaluate targeting rules
      */
     @JvmSynthetic
@@ -247,6 +269,9 @@ public class ConfigDirectorClient internal constructor(
      * A context whose [ConfigDirectorContext.kind] is invalid is ignored as a whole: the client logs
      * an error and connects as if no context was given.
      *
+     * In [ConnectionMode.OFFLINE] it opens no connection: the client is ready with the offline
+     * values when [callback] is called.
+     *
      * @param context the current user's context, or null to evaluate without one
      * @param callback told when the attempt finishes, whether or not it made the client ready
      */
@@ -259,10 +284,16 @@ public class ConfigDirectorClient internal constructor(
      *
      * A context whose [ConfigDirectorContext.kind] is invalid is ignored as a whole: the client logs
      * an error, stops using the previous context, and re-evaluates as if no context was given.
+     *
+     * In [ConnectionMode.OFFLINE] the new context takes effect at once and no value changes.
      */
     @JvmSynthetic
     public suspend fun updateContext(context: ConfigDirectorContext) {
-        connect(contextToConnectWith(context, ConnectReason.CONTEXT_UPDATE), ConnectReason.CONTEXT_UPDATE)
+        val admittedContext = contextToConnectWith(context, ConnectReason.CONTEXT_UPDATE)
+        when (connectionPlan) {
+            is ConnectionPlan.Connect -> connect(admittedContext, ConnectReason.CONTEXT_UPDATE)
+            is ConnectionPlan.StayOffline -> adoptContext(admittedContext)
+        }
     }
 
     /**
@@ -271,6 +302,8 @@ public class ConfigDirectorClient internal constructor(
      *
      * A context whose [ConfigDirectorContext.kind] is invalid is ignored as a whole: the client logs
      * an error, stops using the previous context, and re-evaluates as if no context was given.
+     *
+     * In [ConnectionMode.OFFLINE] the new context takes effect at once and no value changes.
      */
     public fun updateContext(context: ConfigDirectorContext, callback: CompletionCallback) {
         launchThenCallBack(callback) { updateContext(context) }
@@ -441,25 +474,38 @@ public class ConfigDirectorClient internal constructor(
      * Reads keep serving the last config state the client received, and [isReady] turns false until
      * [resumeNetwork] reconnects. The client does this on its own while the app is backgrounded,
      * unless that was turned off with `ConnectionOptions.pausesWhileBackgrounded`.
+     *
+     * In [ConnectionMode.OFFLINE], which has no connection, it does nothing.
      */
     public fun pauseNetwork() {
-        logger.debug { "pauseNetwork() called, pausing the connection to the server" }
-        transport.disconnect()
-        store.markNotReady()
+        when (connectionPlan) {
+            is ConnectionPlan.Connect -> {
+                logger.debug { "pauseNetwork() called, pausing the connection to the server" }
+                transport.disconnect()
+                store.markNotReady()
+            }
+
+            is ConnectionPlan.StayOffline -> Unit
+        }
     }
 
     /**
      * Reconnects a connection paused by [pauseNetwork], re-evaluating configs against the context
-     * the client already had.
+     * the client already had. In [ConnectionMode.OFFLINE], which has no connection, it does
+     * nothing.
      */
     @JvmSynthetic
     public suspend fun resumeNetwork() {
-        connect(store.context, ConnectReason.NETWORK_RESUME)
+        when (connectionPlan) {
+            is ConnectionPlan.Connect -> connect(store.context, ConnectReason.NETWORK_RESUME)
+            is ConnectionPlan.StayOffline -> Unit
+        }
     }
 
     /**
      * Reconnects a connection paused by [pauseNetwork], calling [callback] on the main thread once
-     * the client is ready again or the attempt times out.
+     * the client is ready again or the attempt times out. In [ConnectionMode.OFFLINE], which has no
+     * connection, it only calls [callback].
      */
     public fun resumeNetwork(callback: CompletionCallback) {
         launchThenCallBack(callback) { resumeNetwork() }
@@ -549,8 +595,7 @@ public class ConfigDirectorClient internal constructor(
         }
 
         hasConnected.set(true)
-        telemetry.updateContext(context)
-        store.setContext(context)
+        adoptContext(context)
 
         val remaining = timeoutMillis - (System.nanoTime() - startedAt) / NANOS_PER_MILLISECOND
         if (remaining > 0) {
@@ -563,6 +608,11 @@ public class ConfigDirectorClient internal constructor(
                     "return their default value until the connection succeeds."
             }
         }
+    }
+
+    private fun adoptContext(context: ConfigDirectorContext?) {
+        telemetry.updateContext(context)
+        store.setContext(context)
     }
 
     private fun handleLifecyclePhase(phase: AppLifecyclePhase) {
@@ -591,23 +641,6 @@ public class ConfigDirectorClient internal constructor(
 
     private companion object {
         private const val NANOS_PER_MILLISECOND = 1_000_000L
-
-        private fun resolvePollingIntervalMillis(
-            connection: ConnectionOptions,
-            logger: ConfigDirectorLogger,
-        ): Long {
-            val configuredPollingIntervalMillis = connection.pollingIntervalMillis
-            if (connection.mode != ConnectionMode.POLLING) return configuredPollingIntervalMillis
-            if (configuredPollingIntervalMillis >= MINIMUM_POLLING_INTERVAL_MILLIS) {
-                return configuredPollingIntervalMillis
-            }
-
-            logger.warn {
-                "pollingIntervalMillis of $configuredPollingIntervalMillis ms is below the minimum " +
-                    "of $MINIMUM_POLLING_INTERVAL_MILLIS ms. Using $MINIMUM_POLLING_INTERVAL_MILLIS ms."
-            }
-            return MINIMUM_POLLING_INTERVAL_MILLIS
-        }
     }
 }
 
@@ -617,13 +650,13 @@ internal fun telemetryFor(options: TransportOptions): TelemetryClient =
     TelemetryEventCollector(HttpEventReporter(options), options.logger)
 
 internal typealias TransportFactory =
-    (mode: ConnectionMode, options: TransportOptions, onConfigSet: (ConfigSet) -> Unit) -> Transport
+    (mode: LiveConnectionMode, options: TransportOptions, onConfigSet: (ConfigSet) -> Unit) -> Transport
 
 internal fun transportFor(
-    mode: ConnectionMode,
+    mode: LiveConnectionMode,
     options: TransportOptions,
     onConfigSet: (ConfigSet) -> Unit,
 ): Transport = when (mode) {
-    ConnectionMode.STREAMING -> StreamingTransport(options, onConfigSet)
-    ConnectionMode.POLLING -> PollingTransport(options, onConfigSet)
+    LiveConnectionMode.STREAMING -> StreamingTransport(options, onConfigSet)
+    LiveConnectionMode.POLLING -> PollingTransport(options, onConfigSet)
 }

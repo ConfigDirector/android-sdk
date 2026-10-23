@@ -121,6 +121,8 @@ class ConfigDirectorClientTest {
                     timeoutMillis = timeoutMillis,
                     baseUrl = baseUrl,
                     pausesWhileBackgrounded = true,
+                    values = null,
+                    offlineConfigs = emptyMap(),
                 ),
             )
         },

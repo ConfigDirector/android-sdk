@@ -9,16 +9,19 @@ import com.configdirector.ConfigDirectorWrapperApi
 import com.configdirector.ConnectReason
 import com.configdirector.Metadata
 import com.configdirector.SdkIdentity
+import com.configdirector.internal.ClientPlatform
 import com.configdirector.internal.ClientSession
 import com.configdirector.internal.ConfigSet
 import com.configdirector.internal.ConfigSetKind
 import com.configdirector.internal.ConfigState
 import com.configdirector.internal.Constants
+import com.configdirector.internal.encodeNativeValue
+import com.configdirector.internal.encodeNativeValues
 import com.configdirector.internal.lifecycle.AppLifecycleObserver
-import com.configdirector.internal.lifecycle.AppLifecyclePhase
-import com.configdirector.internal.telemetry.EvaluatedConfigEvent
-import com.configdirector.internal.telemetry.TelemetryClient
+import com.configdirector.internal.lifecycle.NoLifecycleObserver
+import com.configdirector.internal.telemetry.DiscardingTelemetryClient
 import com.configdirector.internal.transport.ConnectionFailedException
+import com.configdirector.internal.transport.SdkMetaContext
 import com.configdirector.internal.transport.Transport
 import com.configdirector.internal.transport.toSdkMetaContext
 import java.util.UUID
@@ -48,7 +51,7 @@ public class InMemoryConnection(
 ) {
 
     private val lock = Any()
-    private var configs: MutableMap<String, ConfigState> = LinkedHashMap(encodeTestValues(values))
+    private var configs: MutableMap<String, ConfigState> = LinkedHashMap(encodeNativeValues(values))
     private val initialization = AttemptControls()
     private val contextUpdate = AttemptControls()
     private val recordedContexts = mutableListOf<ConfigDirectorContext>()
@@ -58,16 +61,13 @@ public class InMemoryConnection(
     private lateinit var onConfigSet: (ConfigSet) -> Unit
 
     /** The client under test. It starts uninitialized, like a production client. */
-    @OptIn(ConfigDirectorWrapperApi::class)
     public val client: ConfigDirectorClient = ConfigDirectorClient(
         clientSdkKey = PLACEHOLDER_SDK_KEY,
         options = ClientOptions.build {
             logger(logger)
             connection { timeoutMillis(timeoutMillis) }
         },
-        metaContext = SdkIdentity.ANDROID_CLIENT_SDK.toSdkMetaContext(Metadata.empty()),
-        clientSession = ClientSession(UUID.randomUUID().toString(), ephemeral = true),
-        lifecycle = NoLifecycleObserver,
+        platform = InMemoryClientPlatform,
         telemetryFactory = { DiscardingTelemetryClient },
         transportFactory = { _, _, handler ->
             onConfigSet = handler
@@ -98,7 +98,7 @@ public class InMemoryConnection(
      *   non-`String` key
      */
     public fun setValue(key: String, value: Any) {
-        val configState = encodeTestValue(key, value)
+        val configState = encodeNativeValue(key, value)
         synchronized(lock) {
             configs[key] = configState
             deliverIfConnectedLocked(ConfigSet(mapOf(key to configState), ConfigSetKind.DELTA))
@@ -123,7 +123,7 @@ public class InMemoryConnection(
      * client is connected, delivers a full update. See [setValue] for the accepted values.
      */
     public fun replaceValues(values: Map<String, @JvmSuppressWildcards Any>) {
-        val encoded = encodeTestValues(values)
+        val encoded = encodeNativeValues(values)
         synchronized(lock) {
             configs = LinkedHashMap(encoded)
             initialization.armed = Armed.NOTHING
@@ -348,20 +348,11 @@ private class AttemptControls {
     var held: CompletableDeferred<AttemptOutcome>? = null
 }
 
-private object NoLifecycleObserver : AppLifecycleObserver {
-    override fun start(onChange: (AppLifecyclePhase) -> Unit) = Unit
+@OptIn(ConfigDirectorWrapperApi::class)
+private object InMemoryClientPlatform : ClientPlatform {
+    override fun metaContext(): SdkMetaContext = SdkIdentity.ANDROID_CLIENT_SDK.toSdkMetaContext(Metadata.empty())
 
-    override fun stop() = Unit
-}
+    override fun clientSession(): ClientSession = ClientSession(UUID.randomUUID().toString(), ephemeral = true)
 
-private object DiscardingTelemetryClient : TelemetryClient {
-    override fun evaluatedConfig(event: EvaluatedConfigEvent) = Unit
-
-    override fun recordInvalidContextSubmission(contextKindSample: String) = Unit
-
-    override fun updateContext(context: ConfigDirectorContext?) = Unit
-
-    override suspend fun flush() = Unit
-
-    override fun close() = Unit
+    override fun lifecycleObserver(): AppLifecycleObserver = NoLifecycleObserver
 }

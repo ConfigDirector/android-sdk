@@ -1,7 +1,10 @@
 package com.configdirector
 
+import com.configdirector.internal.ConfigState
+import com.configdirector.internal.encodeNativeValues
 import java.net.URI
 import java.net.URISyntaxException
+import java.util.Collections
 
 /**
  * How the client connects to the ConfigDirector server.
@@ -25,11 +28,15 @@ public class ConnectionOptions internal constructor(
      * How long initialization and context updates wait for config state.
      *
      * When streaming, the operation may still succeed after it elapses as long as nothing
-     * unrecoverable happened. When polling, a timed-out operation is not retried.
+     * unrecoverable happened. When polling, a timed-out operation is not retried. Not used in
+     * [ConnectionMode.OFFLINE].
      */
     public val timeoutMillis: Long,
 
-    /** The base URL of the ConfigDirector SDK server, set only when routing through a proxy. */
+    /**
+     * The base URL of the ConfigDirector SDK server, set only when routing through a proxy. Not
+     * used in [ConnectionMode.OFFLINE].
+     */
     public val baseUrl: String?,
 
     /**
@@ -38,9 +45,18 @@ public class ConnectionOptions internal constructor(
      *
      * Android stops background connections on its own, so this is on by default. Set it to false to
      * manage the connection yourself with `ConfigDirectorClient.pauseNetwork()` and
-     * `ConfigDirectorClient.resumeNetwork()`.
+     * `ConfigDirectorClient.resumeNetwork()`. Not used in [ConnectionMode.OFFLINE].
      */
     public val pausesWhileBackgrounded: Boolean,
+
+    /**
+     * The values the client serves in [ConnectionMode.OFFLINE], keyed by config key, or null when
+     * none were given. A copy of the map given to the builder.
+     */
+    public val values: Map<String, Any>?,
+
+    @get:JvmSynthetic
+    internal val offlineConfigs: Map<String, ConfigState>,
 ) {
 
     override fun equals(other: Any?): Boolean =
@@ -51,7 +67,8 @@ public class ConnectionOptions internal constructor(
                     pollingIntervalMillis == other.pollingIntervalMillis &&
                     timeoutMillis == other.timeoutMillis &&
                     baseUrl == other.baseUrl &&
-                    pausesWhileBackgrounded == other.pausesWhileBackgrounded
+                    pausesWhileBackgrounded == other.pausesWhileBackgrounded &&
+                    values == other.values
                 )
 
     override fun hashCode(): Int {
@@ -60,13 +77,14 @@ public class ConnectionOptions internal constructor(
         result = 31 * result + timeoutMillis.hashCode()
         result = 31 * result + baseUrl.hashCode()
         result = 31 * result + pausesWhileBackgrounded.hashCode()
+        result = 31 * result + values.hashCode()
         return result
     }
 
     override fun toString(): String =
         "ConnectionOptions(mode=$mode, pollingIntervalMillis=$pollingIntervalMillis, " +
             "timeoutMillis=$timeoutMillis, baseUrl=$baseUrl, " +
-            "pausesWhileBackgrounded=$pausesWhileBackgrounded)"
+            "pausesWhileBackgrounded=$pausesWhileBackgrounded, values=$values)"
 
     /** Collects connection settings. Every setter returns this, so calls chain. */
     public class Builder internal constructor() {
@@ -75,6 +93,7 @@ public class ConnectionOptions internal constructor(
         private var timeoutMillis: Long = DEFAULT_TIMEOUT_MILLIS
         private var baseUrl: String? = null
         private var pausesWhileBackgrounded: Boolean = true
+        private var values: Map<String, Any>? = null
 
         /** How the client keeps its config state current. Defaults to [ConnectionMode.STREAMING]. */
         public fun mode(mode: ConnectionMode): Builder = apply { this.mode = mode }
@@ -89,12 +108,16 @@ public class ConnectionOptions internal constructor(
 
         /**
          * How long initialization and context updates wait for config state, in milliseconds.
-         * Defaults to 3 seconds. Must be positive.
+         * Defaults to 3 seconds. Must be positive, except in [ConnectionMode.OFFLINE], which does
+         * not use it.
          */
         public fun timeoutMillis(timeoutMillis: Long): Builder =
             apply { this.timeoutMillis = timeoutMillis }
 
-        /** The base URL to connect to. Only needed when routing through a proxy. */
+        /**
+         * The base URL to connect to. Only needed when routing through a proxy. Not used in
+         * [ConnectionMode.OFFLINE].
+         */
         public fun baseUrl(baseUrl: String?): Builder = apply { this.baseUrl = baseUrl }
 
         /**
@@ -104,21 +127,44 @@ public class ConnectionOptions internal constructor(
             apply { this.pausesWhileBackgrounded = pausesWhileBackgrounded }
 
         /**
-         * Builds the settings.
+         * The values to serve in [ConnectionMode.OFFLINE], keyed by config key, the same to every
+         * context. Only that mode takes them. Each value's type decides its config's type: a
+         * `Boolean` is a boolean config; an `Int` or a `Long` an integer config; a `Float` or a
+         * `Double` a float config; a `String` a string config; and a `Map` with `String` keys or a
+         * `List` a JSON config. The map is copied when the settings are built.
+         */
+        public fun values(values: Map<String, Any>?): Builder = apply { this.values = values }
+
+        /**
+         * Builds the settings. In [ConnectionMode.OFFLINE] the timeout and the base URL are not
+         * used, so they are not checked.
          *
-         * @throws ConfigDirectorValidationException if the timeout is not positive or is longer
-         *   than can be waited on, or the base URL is not absolute or names no host.
+         * @throws ConfigDirectorValidationException if values are given in a mode other than
+         *   [ConnectionMode.OFFLINE], a value is null, not finite or of a type no config has, a
+         *   key is blank, the timeout is not positive or is longer than can be waited on, or the
+         *   base URL is not absolute or names no host.
          */
         public fun build(): ConnectionOptions {
-            requirePositive(timeoutMillis, "timeoutMillis")
-            requireAtMostMaxInt(timeoutMillis, "timeoutMillis")
-            requireUsableUrl(baseUrl)
+            val givenValues = values?.let { Collections.unmodifiableMap(LinkedHashMap(it)) }
+            val offlineConfigs = when (mode) {
+                ConnectionMode.STREAMING, ConnectionMode.POLLING -> {
+                    requireNoValues(mode, givenValues)
+                    requirePositive(timeoutMillis, "timeoutMillis")
+                    requireAtMostMaxInt(timeoutMillis, "timeoutMillis")
+                    requireUsableUrl(baseUrl)
+                    emptyMap()
+                }
+
+                ConnectionMode.OFFLINE -> encodeNativeValues(givenValues.orEmpty())
+            }
             return ConnectionOptions(
                 mode = mode,
                 pollingIntervalMillis = pollingIntervalMillis,
                 timeoutMillis = timeoutMillis,
                 baseUrl = baseUrl,
                 pausesWhileBackgrounded = pausesWhileBackgrounded,
+                values = givenValues,
+                offlineConfigs = offlineConfigs,
             )
         }
     }
@@ -150,6 +196,14 @@ public class ConnectionOptions internal constructor(
 }
 
 internal const val MINIMUM_POLLING_INTERVAL_MILLIS = 30_000L
+
+private fun requireNoValues(mode: ConnectionMode, values: Map<String, Any>?) {
+    if (values != null) {
+        throw ConfigDirectorValidationException(
+            "The values apply only in OFFLINE mode, but the mode is $mode.",
+        )
+    }
+}
 
 private fun requirePositive(value: Long, name: String) {
     if (value <= 0) {

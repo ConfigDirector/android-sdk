@@ -1,12 +1,15 @@
 package com.configdirector.testing;
 
 import static com.google.common.truth.Truth.assertThat;
+import static org.junit.Assert.assertThrows;
 
 import com.configdirector.ConfigDirectorClient;
 import com.configdirector.ConfigDirectorContext;
+import com.configdirector.ConfigDirectorValidationException;
 import com.configdirector.EvaluationReason;
 import com.configdirector.LogLevel;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -68,6 +71,31 @@ public class TestClientJavaTest {
     initialize(client, null);
 
     assertThat(client.getBoolean("flag", false)).isTrue();
+  }
+
+  @Test
+  public void refusesANullValue() {
+    Map<String, Object> values = new HashMap<>();
+    values.put("flag", null);
+
+    ConfigDirectorValidationException failure =
+        assertThrows(
+            ConfigDirectorValidationException.class,
+            () -> ConfigDirectorTesting.createTestClient(values));
+
+    assertThat(failure).hasMessageThat().contains("Invalid value for 'flag'");
+  }
+
+  @Test
+  public void refusesANullValueWhenReplacingValues() {
+    testClient = ConfigDirectorTesting.createTestClient();
+    Map<String, Object> values = new HashMap<>();
+    values.put("flag", null);
+
+    ConfigDirectorValidationException failure =
+        assertThrows(ConfigDirectorValidationException.class, () -> testClient.replaceValues(values));
+
+    assertThat(failure).hasMessageThat().contains("Invalid value for 'flag'");
   }
 
   @Test

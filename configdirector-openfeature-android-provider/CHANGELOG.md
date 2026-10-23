@@ -8,6 +8,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `ConfigDirectorProvider(androidContext, options)` creates a provider without a client SDK key,
+  for the SDK's offline mode, in which the provider serves the values in `options` without
+  connecting to ConfigDirector. The constructor that takes a key also accepts a blank one in
+  offline mode. Requires version 1.9.0 of the SDK, which adds offline mode.
+
 ## [1.4.0] - 2026-10-15
 
 ### Added

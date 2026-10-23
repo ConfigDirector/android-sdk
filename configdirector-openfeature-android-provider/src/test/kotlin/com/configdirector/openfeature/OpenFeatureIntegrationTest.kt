@@ -1,6 +1,7 @@
 package com.configdirector.openfeature
 
 import com.configdirector.ClientOptions
+import com.configdirector.ConnectionMode
 import com.google.common.truth.Truth.assertThat
 import dev.openfeature.kotlin.sdk.ImmutableContext
 import dev.openfeature.kotlin.sdk.OpenFeatureAPI
@@ -82,6 +83,31 @@ class OpenFeatureIntegrationTest {
         assertThat(missing.value).isTrue()
         assertThat(missing.errorCode).isEqualTo(ErrorCode.FLAG_NOT_FOUND)
         assertThat(missing.reason).isEqualTo("ERROR")
+    }
+
+    @Test
+    fun `serves offline values through the OpenFeature client without a client SDK key`() = runBlocking<Unit> {
+        val provider = ConfigDirectorProvider(
+            RuntimeEnvironment.getApplication(),
+            ClientOptions.build {
+                logger(SilentLogger)
+                connection {
+                    mode(ConnectionMode.OFFLINE)
+                    baseUrl(server.baseUrl)
+                    values(mapOf("new-checkout" to true, "max-items" to 20))
+                }
+            },
+        )
+
+        OpenFeatureAPI.setProviderAndWait(provider, proContext)
+
+        assertThat(OpenFeatureAPI.getStatus()).isEqualTo(OpenFeatureStatus.Ready)
+        val client = OpenFeatureAPI.getClient()
+        val newCheckout = client.getBooleanDetails("new-checkout", false)
+        assertThat(newCheckout.value).isTrue()
+        assertThat(newCheckout.reason).isEqualTo("TARGETING_MATCH")
+        assertThat(client.getIntegerValue("max-items", 0)).isEqualTo(20)
+        assertThat(server.requestCount).isEqualTo(0)
     }
 
     @Test

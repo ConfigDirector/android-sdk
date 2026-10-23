@@ -1,4 +1,5 @@
 public final class com/configdirector/openfeature/ConfigDirectorProvider : dev/openfeature/kotlin/sdk/FeatureProvider {
+	public fun <init> (Landroid/content/Context;Lcom/configdirector/ClientOptions;)V
 	public fun <init> (Landroid/content/Context;Ljava/lang/String;Lcom/configdirector/ClientOptions;)V
 	public synthetic fun <init> (Landroid/content/Context;Ljava/lang/String;Lcom/configdirector/ClientOptions;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Lcom/configdirector/ConfigDirectorClient;)V

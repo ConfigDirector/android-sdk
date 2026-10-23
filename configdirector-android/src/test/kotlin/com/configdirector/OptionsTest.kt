@@ -1,6 +1,7 @@
 package com.configdirector
 
 import com.google.common.truth.Truth.assertThat
+import java.util.Date
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
@@ -103,6 +104,125 @@ class OptionsTest {
         val connection = ConnectionOptions.build { baseUrl("  ") }
 
         assertThat(connection.baseUrl).isEqualTo("  ")
+    }
+
+    @Test
+    fun `builds offline connection options with values from the Kotlin DSL`() {
+        val connection = ConnectionOptions.build {
+            mode(ConnectionMode.OFFLINE)
+            values(mapOf("new-checkout" to true, "max-items" to 20))
+        }
+
+        assertThat(connection.mode).isEqualTo(ConnectionMode.OFFLINE)
+        assertThat(connection.values).containsExactly("new-checkout", true, "max-items", 20)
+    }
+
+    @Test
+    fun `keeps the values it was built with when the map changes afterwards`() {
+        val values = mutableMapOf<String, Any>("new-checkout" to true)
+        val connection = ConnectionOptions.build {
+            mode(ConnectionMode.OFFLINE)
+            values(values)
+        }
+
+        values["new-checkout"] = false
+        values["max-items"] = 20
+
+        assertThat(connection.values).containsExactly("new-checkout", true)
+    }
+
+    @Test
+    fun `tells apart connection options that differ only in their values`() {
+        val newCheckoutOn = ConnectionOptions.build {
+            mode(ConnectionMode.OFFLINE)
+            values(mapOf("new-checkout" to true))
+        }
+        val newCheckoutOff = ConnectionOptions.build {
+            mode(ConnectionMode.OFFLINE)
+            values(mapOf("new-checkout" to false))
+        }
+
+        assertThat(newCheckoutOn).isNotEqualTo(newCheckoutOff)
+    }
+
+    @Test
+    fun `rejects values given in streaming mode`() {
+        val failure = assertThrows(ConfigDirectorValidationException::class.java) {
+            ConnectionOptions.build {
+                mode(ConnectionMode.STREAMING)
+                values(mapOf("new-checkout" to true))
+            }
+        }
+
+        assertThat(failure).hasMessageThat().contains("only in OFFLINE mode, but the mode is STREAMING")
+    }
+
+    @Test
+    fun `rejects values given in polling mode`() {
+        val failure = assertThrows(ConfigDirectorValidationException::class.java) {
+            ConnectionOptions.build {
+                mode(ConnectionMode.POLLING)
+                values(mapOf("new-checkout" to true))
+            }
+        }
+
+        assertThat(failure).hasMessageThat().contains("only in OFFLINE mode, but the mode is POLLING")
+    }
+
+    @Test
+    fun `rejects an offline value of a type no config has`() {
+        val failure = assertThrows(ConfigDirectorValidationException::class.java) {
+            ConnectionOptions.build {
+                mode(ConnectionMode.OFFLINE)
+                values(mapOf("launch-date" to Date(0)))
+            }
+        }
+
+        assertThat(failure).hasMessageThat().contains("Invalid value for 'launch-date'")
+    }
+
+    @Test
+    fun `rejects an offline value that is not finite`() {
+        val failure = assertThrows(ConfigDirectorValidationException::class.java) {
+            ConnectionOptions.build {
+                mode(ConnectionMode.OFFLINE)
+                values(mapOf("sample-rate" to Double.NaN))
+            }
+        }
+
+        assertThat(failure).hasMessageThat().contains("Invalid value for 'sample-rate'")
+    }
+
+    @Test
+    fun `rejects an offline value under a blank key`() {
+        val failure = assertThrows(ConfigDirectorValidationException::class.java) {
+            ConnectionOptions.build {
+                mode(ConnectionMode.OFFLINE)
+                values(mapOf(" " to true))
+            }
+        }
+
+        assertThat(failure).hasMessageThat().contains("Invalid config key ' '")
+    }
+
+    @Test
+    fun `leaves the timeout unchecked in offline mode`() {
+        val connection = ConnectionOptions.build {
+            mode(ConnectionMode.OFFLINE)
+            timeoutMillis(-1)
+        }
+
+        assertThat(connection.timeoutMillis).isEqualTo(-1)
+    }
+
+    @Test
+    fun `leaves the base URL unchecked in offline mode`() {
+        val connection = ConnectionOptions.build {
+            mode(ConnectionMode.OFFLINE)
+            baseUrl("/configs")
+        }
+
+        assertThat(connection.baseUrl).isEqualTo("/configs")
     }
 
     @Test

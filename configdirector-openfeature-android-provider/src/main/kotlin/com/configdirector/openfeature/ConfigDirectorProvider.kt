@@ -7,6 +7,7 @@ import com.configdirector.ConfigDirectorClient
 import com.configdirector.ConfigDirectorContext
 import com.configdirector.ConfigDirectorValidationException
 import com.configdirector.ConfigDirectorWrapperApi
+import com.configdirector.ConnectionMode
 import com.configdirector.SdkIdentity
 import com.configdirector.events
 import com.configdirector.openfeature.internal.Constants
@@ -111,7 +112,8 @@ public class ConfigDirectorProvider private constructor(
      * @param clientSdkKey the client SDK key from the ConfigDirector dashboard
      * @param options settings for the underlying client: application metadata, the connection mode
      *   and timeout, and logging
-     * @throws ConfigDirectorValidationException if [clientSdkKey] is blank
+     * @throws ConfigDirectorValidationException if [clientSdkKey] is blank and the connection mode
+     *   is not [ConnectionMode.OFFLINE]
      */
     @OptIn(ConfigDirectorWrapperApi::class)
     public constructor(
@@ -127,6 +129,19 @@ public class ConfigDirectorProvider private constructor(
         ),
         ownsClient = true,
     )
+
+    /**
+     * Creates a provider that needs no client SDK key, because its connection mode is
+     * [ConnectionMode.OFFLINE]: it never connects to ConfigDirector and serves the values in
+     * [options].
+     *
+     * @param androidContext any Android context
+     * @param options settings for the underlying client, whose connection mode is
+     *   [ConnectionMode.OFFLINE]
+     * @throws ConfigDirectorValidationException if the connection mode is not
+     *   [ConnectionMode.OFFLINE], since every other mode needs a client SDK key
+     */
+    public constructor(androidContext: Context, options: ClientOptions) : this(androidContext, "", options)
 
     /**
      * Creates a provider over [client], a client the caller owns, for tests: usually the `client`

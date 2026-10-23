@@ -9,6 +9,41 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Offline mode (`android-sdk`): `ConnectionMode.OFFLINE` runs the client without connecting to
+  ConfigDirector. It serves the values given with `ConnectionOptions.Builder.values`, one per
+  config key and the same to every context, or every in-code default value with
+  `CONFIG_STATE_MISSING` when no values are given. Each value's type decides its config's type: a
+  `Boolean` is a boolean config, an `Int` or a `Long` an integer config, a `Float` or a `Double` a
+  float config, a `String` a string config, and a `Map` with `String` keys or a `List` a JSON
+  config. It sends
+  nothing, so the app is invisible to the dashboard. `initialize` returns with the client ready and
+  delivers `ClientEvent.Ready` once, `updateContext` takes the new context at once and changes no
+  value, and `pauseNetwork` and `resumeNetwork` do nothing. `ConnectionOptions.values` reads the
+  values back.
+- `ConfigDirectorClient(androidContext, options)` (`android-sdk`) creates a client without a client
+  SDK key, which only offline mode allows. The constructor that takes a key also accepts a blank
+  one in offline mode.
+- `ConnectionOptions.Builder.build()` (`android-sdk`) throws `ConfigDirectorValidationException` for
+  values given in `STREAMING` or `POLLING` mode, and for a value that is null, not finite or of a
+  type no config has, or that has a blank key. In offline mode it skips its timeout and base URL
+  checks, since that mode uses neither.
+- The Compose bindings (`android-sdk-compose`) work over an offline client with no change:
+  `ConfigDirectorProvider(client)` takes one like any other client.
+
+### Changed
+
+- `ConnectionMode` (`android-sdk`) has a third entry, so a Kotlin `when` that lists every mode needs
+  an `OFFLINE` branch. From Java, `new ConfigDirectorClient(context, null)` no longer compiles,
+  because `null` matches both the key and the options constructor; it threw before.
+
+### Fixed
+
+- A test client (`android-sdk-testing`) given a null value from Java, in `createTestClient` or
+  `replaceValues`, throws `ConfigDirectorValidationException`, as documented, instead of a
+  `NullPointerException`.
+
 ## [1.8.0] - 2026-10-15
 
 ### Added

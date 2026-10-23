@@ -66,6 +66,7 @@ public abstract interface class com/configdirector/CompletionCallback {
 }
 
 public final class com/configdirector/ConfigDirectorClient : java/io/Closeable {
+	public fun <init> (Landroid/content/Context;Lcom/configdirector/ClientOptions;)V
 	public fun <init> (Landroid/content/Context;Ljava/lang/String;)V
 	public fun <init> (Landroid/content/Context;Ljava/lang/String;Lcom/configdirector/ClientOptions;)V
 	public synthetic fun <init> (Landroid/content/Context;Ljava/lang/String;Lcom/configdirector/ClientOptions;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
@@ -179,6 +180,7 @@ public final class com/configdirector/ConnectReason : java/lang/Enum {
 }
 
 public final class com/configdirector/ConnectionMode : java/lang/Enum {
+	public static final field OFFLINE Lcom/configdirector/ConnectionMode;
 	public static final field POLLING Lcom/configdirector/ConnectionMode;
 	public static final field STREAMING Lcom/configdirector/ConnectionMode;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
@@ -196,6 +198,7 @@ public final class com/configdirector/ConnectionOptions {
 	public final fun getPausesWhileBackgrounded ()Z
 	public final fun getPollingIntervalMillis ()J
 	public final fun getTimeoutMillis ()J
+	public final fun getValues ()Ljava/util/Map;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
@@ -207,6 +210,7 @@ public final class com/configdirector/ConnectionOptions$Builder {
 	public final fun pausesWhileBackgrounded (Z)Lcom/configdirector/ConnectionOptions$Builder;
 	public final fun pollingIntervalMillis (J)Lcom/configdirector/ConnectionOptions$Builder;
 	public final fun timeoutMillis (J)Lcom/configdirector/ConnectionOptions$Builder;
+	public final fun values (Ljava/util/Map;)Lcom/configdirector/ConnectionOptions$Builder;
 }
 
 public final class com/configdirector/ConnectionOptions$Companion {

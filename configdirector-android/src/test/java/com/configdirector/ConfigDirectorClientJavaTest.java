@@ -248,6 +248,32 @@ public class ConfigDirectorClientJavaTest {
   }
 
   @Test
+  public void servesOfflineValuesWithoutAClientSdkKey() throws InterruptedException {
+    ConfigDirectorClient client =
+        new ConfigDirectorClient(
+            RuntimeEnvironment.getApplication(),
+            ClientOptions.builder()
+                .logger(logger)
+                .connection(
+                    ConnectionOptions.builder()
+                        .mode(ConnectionMode.OFFLINE)
+                        .values(Map.of("new-checkout", true, "max-items", 20))
+                        .baseUrl(server.getBaseUrl())
+                        .build())
+                .build());
+    CountDownLatch initialized = new CountDownLatch(1);
+
+    client.initialize(null, initialized::countDown);
+
+    assertThat(initialized.await(5, TimeUnit.SECONDS)).isTrue();
+    assertThat(client.isReady()).isTrue();
+    assertThat(client.getBoolean("new-checkout", false)).isTrue();
+    assertThat(client.getInt("max-items", 0)).isEqualTo(20);
+    assertThat(server.getRequestCount()).isEqualTo(0);
+    client.close();
+  }
+
+  @Test
   public void closesWithTryWithResources() throws InterruptedException {
     CountDownLatch initialized = new CountDownLatch(1);
     ConfigDirectorClient closed;

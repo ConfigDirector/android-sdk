@@ -3,6 +3,8 @@ package com.configdirector;
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertThrows;
 
+import java.util.HashMap;
+import java.util.Map;
 import org.junit.Test;
 
 public class OptionsJavaTest {
@@ -58,6 +60,31 @@ public class OptionsJavaTest {
         assertThrows(ConfigDirectorValidationException.class, builder::build);
 
     assertThat(failure).hasMessageThat().contains("absolute and name a host");
+  }
+
+  @Test
+  public void buildsOfflineConnectionOptionsWithValuesFromTheBuilder() {
+    ConnectionOptions connection =
+        ConnectionOptions.builder()
+            .mode(ConnectionMode.OFFLINE)
+            .values(Map.of("new-checkout", true, "max-items", 20))
+            .build();
+
+    assertThat(connection.getMode()).isEqualTo(ConnectionMode.OFFLINE);
+    assertThat(connection.getValues()).containsExactly("new-checkout", true, "max-items", 20);
+  }
+
+  @Test
+  public void rejectsAnOfflineValueThatIsNull() {
+    Map<String, Object> values = new HashMap<>();
+    values.put("new-checkout", null);
+    ConnectionOptions.Builder builder =
+        ConnectionOptions.builder().mode(ConnectionMode.OFFLINE).values(values);
+
+    ConfigDirectorValidationException failure =
+        assertThrows(ConfigDirectorValidationException.class, builder::build);
+
+    assertThat(failure).hasMessageThat().contains("Invalid value for 'new-checkout'");
   }
 
   @Test

@@ -15,6 +15,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   connecting to ConfigDirector. The constructor that takes a key also accepts a blank one in
   offline mode. Requires version 1.9.0 of the SDK, which adds offline mode.
 
+### Changed
+
+- With version 1.9.0 of the SDK, the instance ID the SDK stores for the app lasts for the life of
+  the install, instead of being replaced six hours after it was created, so a person using the app
+  without a targeting key counts as one monthly active user a month.
+
 ## [1.4.0] - 2026-10-15
 
 ### Added

@@ -322,15 +322,6 @@ class ConfigDirectorClientTest {
     private fun storedInstanceIdRecord(): JSONObject =
         JSONObject(checkNotNull(instanceIdPreferences().getString("instance-id", null)))
 
-    private fun storeInstanceIdRecord(id: String, createdAt: Long) {
-        instanceIdPreferences().edit()
-            .putString(
-                "instance-id",
-                JSONObject().put("v", 1).put("id", id).put("createdAt", createdAt).toString(),
-            )
-            .commit()
-    }
-
     @Test
     fun `stores the instance ID it generates and a client created later sends the same one`() =
         runBlocking {
@@ -351,14 +342,17 @@ class ConfigDirectorClientTest {
         }
 
     @Test
-    fun `starts a new client session when the stored instance ID is six hours old`() = runBlocking {
-        storeInstanceIdRecord(STORED_INSTANCE_ID, createdAt = System.currentTimeMillis() - SIX_HOURS_MILLIS)
+    fun `connects with the instance ID an earlier version of the SDK stored`() = runBlocking {
+        val storedByEarlierVersion =
+            """{"v":1,"id":"$STORED_INSTANCE_ID","createdAt":1760000000000}"""
+        instanceIdPreferences().edit().putString("instance-id", storedByEarlierVersion).commit()
 
         client().initialize(proContext)
 
-        val instanceId = sentPayload().getString("instanceId")
-        assertThat(instanceId).isNotEqualTo(STORED_INSTANCE_ID)
-        assertThat(storedInstanceIdRecord().getString("id")).isEqualTo(instanceId)
+        val payload = sentPayload()
+        assertThat(payload.getString("instanceId")).isEqualTo(STORED_INSTANCE_ID)
+        assertThat(payload.has("ephemeral")).isFalse()
+        assertThat(instanceIdPreferences().getString("instance-id", null)).isEqualTo(storedByEarlierVersion)
     }
 
     @Test
@@ -1230,5 +1224,4 @@ private class CountingMap(
         }
 }
 
-private const val SIX_HOURS_MILLIS = 6 * 60 * 60 * 1_000L
 private const val STORED_INSTANCE_ID = "11111111-1111-4111-8111-111111111111"

@@ -37,6 +37,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `ConnectionMode` (`android-sdk`) has a third entry, so a Kotlin `when` that lists every mode needs
   an `OFFLINE` branch. From Java, `new ConfigDirectorClient(context, null)` no longer compiles,
   because `null` matches both the key and the options constructor; it threw before.
+- Instance ID (`android-sdk`): the instance ID the SDK stores in the app's `SharedPreferences` now
+  lasts for the life of the install, instead of being replaced six hours after it was created, so a
+  person using the app without a context ID counts as one monthly active user a month. An instance
+  ID stored by an earlier version is kept.
 
 ### Fixed
 

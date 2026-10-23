@@ -41,8 +41,8 @@ class ClientSessionTest {
     private fun storedRecord(): JSONObject = JSONObject(checkNotNull(storage.record))
 
     @Test
-    fun `reuses the stored instance ID while it is under six hours old`() {
-        val createdAt = System.currentTimeMillis() - SIX_HOURS_MILLIS + 60_000
+    fun `reuses the stored instance ID without rewriting it a year after it was generated`() {
+        val createdAt = System.currentTimeMillis() - ONE_YEAR_MILLIS
         storage.record = record(createdAt = createdAt)
 
         val session = currentClientSession(storage, logger)
@@ -68,24 +68,14 @@ class ClientSessionTest {
     }
 
     @Test
-    fun `generates and stores a new instance ID when the stored one is six hours old`() {
-        storage.record = record(createdAt = System.currentTimeMillis() - SIX_HOURS_MILLIS)
-
-        val session = currentClientSession(storage, logger)
-
-        assertThat(session.instanceId).isNotEqualTo(STORED_ID)
-        assertThat(session.ephemeral).isFalse()
-        assertThat(storedRecord().getString("id")).isEqualTo(session.instanceId)
-    }
-
-    @Test
-    fun `generates a new instance ID when the stored creation time is in the future`() {
+    fun `reuses the stored instance ID when its creation time is in the future`() {
         storage.record = record(createdAt = System.currentTimeMillis() + 60_000)
 
         val session = currentClientSession(storage, logger)
 
-        assertThat(session.instanceId).isNotEqualTo(STORED_ID)
-        assertThat(storedRecord().getString("id")).isEqualTo(session.instanceId)
+        assertThat(session.instanceId).isEqualTo(STORED_ID)
+        assertThat(session.ephemeral).isFalse()
+        assertThat(storage.writes).isEmpty()
     }
 
     @Test
@@ -166,7 +156,7 @@ class ClientSessionTest {
     }
 }
 
-private const val SIX_HOURS_MILLIS = 6 * 60 * 60 * 1_000L
+private const val ONE_YEAR_MILLIS = 366 * 24 * 60 * 60 * 1_000L
 private const val STORED_ID = "11111111-1111-4111-8111-111111111111"
 private const val UUID_V4_PATTERN =
     "[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"

@@ -18,9 +18,10 @@ public class ConfigDirectorContext private constructor(
     /**
      * The user's identifier, which should uniquely identify an application user.
      *
-     * For anonymous users you may generate a UUID, or leave this unset and let the SDK generate a
-     * random one. This value segments users in percentage rollouts, so changing it can move a user
-     * into a different percentile.
+     * For anonymous users you may generate a UUID, or leave this unset. ConfigDirector then derives
+     * an identifier from an ID the SDK stores for the app install, so it stays the same until the
+     * app is uninstalled or its data is cleared. This value segments users in percentage rollouts,
+     * so changing it can move a user into a different percentile.
      */
     public val id: String?,
 

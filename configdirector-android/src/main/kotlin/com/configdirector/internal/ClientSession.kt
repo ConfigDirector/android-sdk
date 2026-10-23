@@ -18,7 +18,6 @@ internal interface InstanceIdStorage {
 }
 
 private const val RECORD_VERSION = 1
-private const val MAX_AGE_MILLIS = 6 * 60 * 60 * 1_000L
 private const val PREFERENCES_NAME = "configdirector-sdk"
 private const val INSTANCE_ID_KEY = "instance-id"
 private val UUID_V4_PATTERN =
@@ -32,23 +31,17 @@ private sealed interface StoredInstanceId {
     object Unreadable : StoredInstanceId
 }
 
-internal fun currentClientSession(storage: InstanceIdStorage, logger: ConfigDirectorLogger): ClientSession {
-    val now = System.currentTimeMillis()
-    return when (val stored = storedInstanceId(storage, now, logger)) {
+internal fun currentClientSession(storage: InstanceIdStorage, logger: ConfigDirectorLogger): ClientSession =
+    when (val stored = storedInstanceId(storage, logger)) {
         is StoredInstanceId.Current -> ClientSession(stored.instanceId, ephemeral = false)
         StoredInstanceId.Unreadable -> ClientSession(UUID.randomUUID().toString(), ephemeral = true)
         StoredInstanceId.NothingUsable -> {
             val instanceId = UUID.randomUUID().toString()
-            ClientSession(instanceId, ephemeral = !store(storage, instanceId, now, logger))
+            ClientSession(instanceId, ephemeral = !store(storage, instanceId, logger))
         }
     }
-}
 
-private fun storedInstanceId(
-    storage: InstanceIdStorage,
-    now: Long,
-    logger: ConfigDirectorLogger,
-): StoredInstanceId {
+private fun storedInstanceId(storage: InstanceIdStorage, logger: ConfigDirectorLogger): StoredInstanceId {
     val raw = try {
         storage.read() ?: return StoredInstanceId.NothingUsable
     } catch (failure: Exception) {
@@ -64,30 +57,22 @@ private fun storedInstanceId(
     }
 
     val instanceId = record.optString("id")
-    if (record.optInt("v") != RECORD_VERSION || !UUID_V4_PATTERN.matches(instanceId)) {
+    val usable = record.optInt("v") == RECORD_VERSION &&
+        UUID_V4_PATTERN.matches(instanceId) &&
+        record.optLong("createdAt") > 0
+    if (!usable) {
         logger.debug { "The stored instance ID failed validation, generating a new one" }
-        return StoredInstanceId.NothingUsable
-    }
-
-    val age = now - record.optLong("createdAt")
-    if (age < 0 || age >= MAX_AGE_MILLIS) {
-        logger.debug { "The stored instance ID has expired, generating a new one" }
         return StoredInstanceId.NothingUsable
     }
 
     return StoredInstanceId.Current(instanceId)
 }
 
-private fun store(
-    storage: InstanceIdStorage,
-    instanceId: String,
-    createdAt: Long,
-    logger: ConfigDirectorLogger,
-): Boolean {
+private fun store(storage: InstanceIdStorage, instanceId: String, logger: ConfigDirectorLogger): Boolean {
     val record = JSONObject()
         .put("v", RECORD_VERSION)
         .put("id", instanceId)
-        .put("createdAt", createdAt)
+        .put("createdAt", System.currentTimeMillis())
         .toString()
     val stored = try {
         storage.write(record)
@@ -101,8 +86,8 @@ private fun store(
 }
 
 private fun couldNot(action: String): String =
-    "The ConfigDirector SDK could not $action its instance ID, so this app start counts as a new " +
-        "client session."
+    "The ConfigDirector SDK could not $action its instance ID, so this app start looks like a new " +
+        "install to ConfigDirector."
 
 internal fun sharedPreferencesInstanceIdStorage(androidContext: Context): InstanceIdStorage =
     object : InstanceIdStorage {

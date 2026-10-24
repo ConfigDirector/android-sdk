@@ -63,7 +63,7 @@ Then add the dependency to your app module:
 
 ```kotlin
 dependencies {
-    implementation("com.configdirector:openfeature-android-provider:1.4.0")
+    implementation("com.configdirector:openfeature-android-provider:1.5.0")
 }
 ```
 
@@ -100,7 +100,7 @@ sits behind the `@ConfigDirectorProviderTestingApi` opt-in, which keeps it out o
 
 ```kotlin
 dependencies {
-    testImplementation("com.configdirector:android-sdk-testing:1.8.0")
+    testImplementation("com.configdirector:android-sdk-testing:1.9.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
 }
 ```

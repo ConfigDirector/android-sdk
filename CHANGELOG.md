@@ -9,6 +9,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-10-24
+
 ### Added
 
 - Values kept on the device (`android-sdk`): the client keeps the last values it received from

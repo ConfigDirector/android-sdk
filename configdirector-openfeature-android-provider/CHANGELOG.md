@@ -8,6 +8,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-24
+
 ### Added
 
 - Values kept on the device: with version 1.9.0 of the SDK, the provider serves the values the SDK

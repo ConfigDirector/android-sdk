@@ -26,10 +26,12 @@ internal fun parseConfigSet(body: String): ConfigSet {
         },
         kind = if (json.optString("kind") == "delta") ConfigSetKind.DELTA else ConfigSetKind.FULL,
         timestamp = json.optStringOrNull("timestamp"),
+        environmentId = json.optString("environmentId"),
+        projectId = json.optString("projectId"),
     )
 }
 
-private fun JSONObject.toConfigState(key: String) = ConfigState(
+internal fun JSONObject.toConfigState(key: String): ConfigState = ConfigState(
     key = optStringOrNull("key") ?: key,
     type = ConfigType.of(optString("type")),
     value = optStringOrNull("value"),
@@ -39,5 +41,5 @@ private fun JSONObject.toConfigState(key: String) = ConfigState(
 
 // optString hands back "" for a missing field and for an explicit JSON null alike, and a config with
 // no value is meaningfully different from one holding an empty string.
-private fun JSONObject.optStringOrNull(name: String): String? =
+internal fun JSONObject.optStringOrNull(name: String): String? =
     if (isNull(name)) null else optString(name).ifEmpty { null }

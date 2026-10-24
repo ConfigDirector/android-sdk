@@ -18,17 +18,25 @@ public class ClientOptions private constructor(
     /** How the client connects to the ConfigDirector server. */
     public val connection: ConnectionOptions,
 
+    /**
+     * Whether, and where, the client keeps the last values it received on the device and serves
+     * them on the next launch of the same context until live values arrive. On by default, in the
+     * app's `SharedPreferences`; ignored in [ConnectionMode.OFFLINE].
+     */
+    public val caching: CachingOptions,
+
     /** Where the SDK writes its logs. Defaults to an [AndroidLogger] at [LogLevel.WARN]. */
     public val logger: ConfigDirectorLogger,
 ) {
 
     override fun toString(): String =
-        "ClientOptions(metadata=$metadata, connection=$connection, logger=$logger)"
+        "ClientOptions(metadata=$metadata, connection=$connection, caching=$caching, logger=$logger)"
 
     /** Collects client settings. Every setter returns this, so calls chain. */
     public class Builder internal constructor() {
         private var metadata: Metadata = Metadata.empty()
         private var connection: ConnectionOptions = ConnectionOptions.defaults()
+        private var caching: CachingOptions = CachingOptions.defaults()
         private var logger: ConfigDirectorLogger = AndroidLogger()
 
         /** Describes the calling application. */
@@ -47,12 +55,20 @@ public class ClientOptions private constructor(
         public fun connection(configure: ConnectionOptions.Builder.() -> Unit): Builder =
             connection(ConnectionOptions.build(configure))
 
+        /** Adjusts whether, and where, the client keeps the last values it received on the device. */
+        public fun caching(caching: CachingOptions): Builder = apply { this.caching = caching }
+
+        /** Adjusts whether, and where, the client keeps the last values it received on the device. */
+        @JvmSynthetic
+        public fun caching(configure: CachingOptions.Builder.() -> Unit): Builder =
+            caching(CachingOptions.build(configure))
+
         /** Where the SDK writes its logs. */
         public fun logger(logger: ConfigDirectorLogger): Builder = apply { this.logger = logger }
 
         /** Builds the settings. */
         public fun build(): ClientOptions =
-            ClientOptions(metadata = metadata, connection = connection, logger = logger)
+            ClientOptions(metadata = metadata, connection = connection, caching = caching, logger = logger)
     }
 
     public companion object {

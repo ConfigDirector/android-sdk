@@ -19,11 +19,14 @@ public class JavaSurfaceTest {
 
   private static final Class<?>[] PUBLIC_API = {
     AndroidLogger.class,
+    CachingOptions.class,
+    CachingOptions.Builder.class,
     CompletionCallback.class,
     ConfigDirectorClient.class,
     ClientOptions.class,
     ClientOptions.Builder.class,
     ClientEvent.class,
+    ClientEvent.CachedValuesLoaded.class,
     ClientEvent.ConfigsUpdated.class,
     ClientEvent.ContextUpdated.class,
     ClientEvent.Ready.class,

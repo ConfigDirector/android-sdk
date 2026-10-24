@@ -27,9 +27,23 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+
+internal enum class ConfigSetSource(val matchedReason: EvaluationReason) {
+    NONE(EvaluationReason.FOUND_MATCH),
+    CACHED_VALUES(EvaluationReason.CACHED),
+    LIVE_PAYLOAD(EvaluationReason.FOUND_MATCH),
+}
+
+private class HeldConfigs(
+    val configs: Map<String, ConfigState>,
+    val source: ConfigSetSource,
+    val environmentId: String = "",
+    val projectId: String = "",
+)
 
 /**
  * Holds the config state the client evaluates against, and everything that observes it: the ready
@@ -38,12 +52,19 @@ import kotlinx.coroutines.withTimeoutOrNull
 internal class ConfigStore(
     private val logger: ConfigDirectorLogger,
     private val telemetry: TelemetryClient,
+    caching: CachingPlan,
 ) {
 
-    private val configs = AtomicReference<Map<String, ConfigState>>(emptyMap())
+    private val cachedValuesStore: CachedValuesStore? = when (caching) {
+        is CachingPlan.KeepValues -> caching.store
+        is CachingPlan.KeepNothing -> null
+    }
+    private val held = AtomicReference(HeldConfigs(emptyMap(), ConfigSetSource.NONE))
+    private val heldLock = Any()
     private val contextHolder = AtomicReference<ConfigDirectorContext?>(null)
+    private val submittedContext = AtomicReference<ConfigDirectorContext?>(null)
     private val pendingReason = AtomicReference(ConnectReason.INITIALIZATION)
-    private val configSetReceived = AtomicBoolean(false)
+    private val cachedValuesAdoptionStarted = AtomicBoolean(false)
     private val ready = MutableStateFlow(false)
     private val closedState = MutableStateFlow(false)
 
@@ -56,18 +77,33 @@ internal class ConfigStore(
     // one. The scope is built on first use: reaching for the main dispatcher on a plain JVM throws,
     // and a client that never registers a listener should still work in a consumer's unit tests.
     private val callbackScope = lazy { CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate) }
+    private val adoptionScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     val isReady: Boolean get() = ready.value
 
-    val hasReceivedConfigSet: Boolean get() = configSetReceived.get()
+    val hasReceivedConfigSet: Boolean get() = held.get().source == ConfigSetSource.LIVE_PAYLOAD
 
     val context: ConfigDirectorContext? get() = contextHolder.get()
 
     val closed: StateFlow<Boolean> get() = closedState
 
-    fun beginConnect(reason: ConnectReason) {
+    fun beginConnect(reason: ConnectReason, context: ConfigDirectorContext?) {
         pendingReason.set(reason)
+        submittedContext.set(context)
         ready.value = false
+    }
+
+    fun adoptCachedValuesOnce(launchContext: ConfigDirectorContext?) {
+        val store = cachedValuesStore ?: return
+        if (cachedValuesAdoptionStarted.getAndSet(true)) return
+
+        val launchContextTag = store.contextTag(launchContext)
+        adoptionScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            when (val read = store.read()) {
+                is CachedValuesRead.Stored -> adopt(read.cachedValues, launchContextTag)
+                CachedValuesRead.NothingStored, CachedValuesRead.NotAnEntry, CachedValuesRead.StorageFailed -> Unit
+            }
+        }
     }
 
     fun markNotReady() {
@@ -80,17 +116,27 @@ internal class ConfigStore(
     }
 
     fun handleConfigSet(configSet: ConfigSet) {
-        val previous = configs.get()
-        val isDelta = configSet.kind == ConfigSetKind.DELTA && configSetReceived.get()
-        val replacesPrevious = !isDelta && configSetReceived.get()
-        configs.set(if (isDelta) previous + configSet.configs else configSet.configs)
-        configSetReceived.set(true)
+        val live: HeldConfigs
+        val removedKeys: List<String>
+        synchronized(heldLock) {
+            val previous = held.get()
+            val holdsValues = previous.source != ConfigSetSource.NONE
+            val isDelta = configSet.kind == ConfigSetKind.DELTA && holdsValues
+            live = HeldConfigs(
+                configs = if (isDelta) previous.configs + configSet.configs else configSet.configs,
+                source = ConfigSetSource.LIVE_PAYLOAD,
+                environmentId = configSet.environmentId.ifEmpty { previous.environmentId },
+                projectId = configSet.projectId.ifEmpty { previous.projectId },
+            )
+            removedKeys = if (!isDelta && holdsValues) previous.configs.keys.filterNot { it in configSet.configs } else emptyList()
+            held.set(live)
+        }
         val keys = configSet.configs.keys.toList()
-        val removedKeys = if (replacesPrevious) previous.keys.filterNot { it in configSet.configs } else emptyList()
 
         markReady()
         emit(ClientEvent.ConfigsUpdated(keys, removedKeys))
         (keys + removedKeys).forEach { key -> watchers[key]?.values?.forEach { reevaluate -> reevaluate() } }
+        keepOnDevice(live)
 
         logger.debug { "Config state received from the server: $keys, removed: $removedKeys" }
     }
@@ -183,6 +229,59 @@ internal class ConfigStore(
         if (callbackScope.isInitialized()) {
             callbackScope.value.cancel()
         }
+        adoptionScope.cancel()
+        cachedValuesStore?.close()
+    }
+
+    private fun adopt(cachedValues: CachedValues, launchContextTag: ContextTag) {
+        val adoption = synchronized(heldLock) {
+            val adoption = decideCachedValuesAdoption(
+                cachedValues,
+                launchContextTag,
+                hasReceivedLiveValues = hasReceivedConfigSet,
+                isClosed = closedState.value,
+            )
+            if (adoption == CachedValuesAdoption.ADOPT) {
+                held.set(
+                    HeldConfigs(
+                        cachedValues.configs,
+                        ConfigSetSource.CACHED_VALUES,
+                        cachedValues.environmentId,
+                        cachedValues.projectId,
+                    ),
+                )
+            }
+            adoption
+        }
+        val keys = cachedValues.configs.keys.toList()
+
+        when (adoption) {
+            CachedValuesAdoption.ADOPT -> {
+                emit(ClientEvent.CachedValuesLoaded)
+                emit(ClientEvent.ConfigsUpdated(keys, emptyList()))
+                keys.forEach { key -> watchers[key]?.values?.forEach { reevaluate -> reevaluate() } }
+                logger.debug { "Serving the values kept on the device until live values arrive: $keys" }
+            }
+            CachedValuesAdoption.LIVE_VALUES_ALREADY_ARRIVED ->
+                logger.debug { "The values kept on the device were not adopted: live values already arrived" }
+            CachedValuesAdoption.CONTEXT_MISMATCH ->
+                logger.debug { "The values kept on the device were not adopted: the launch context differs" }
+            CachedValuesAdoption.CLIENT_CLOSED -> Unit
+        }
+    }
+
+    private fun keepOnDevice(live: HeldConfigs) {
+        val store = cachedValuesStore ?: return
+
+        store.replace(
+            CachedValues(
+                contextTag = store.contextTag(submittedContext.get()),
+                environmentId = live.environmentId,
+                projectId = live.projectId,
+                configs = live.configs,
+                receivedAt = System.currentTimeMillis(),
+            ),
+        )
     }
 
     private fun <T : Any> evaluate(
@@ -190,8 +289,9 @@ internal class ConfigStore(
         defaultValue: T,
         parse: (ConfigState) -> EvaluationResult<T>,
     ): EvaluationResult<T> {
-        val configState = configs.get()[key]
-        val result = configState?.let(parse) ?: EvaluationResult.usedDefault(
+        val heldConfigs = held.get()
+        val configState = heldConfigs.configs[key]
+        val result = configState?.let(parse)?.servedFrom(heldConfigs.source) ?: EvaluationResult.usedDefault(
             defaultValue,
             if (isReady) EvaluationReason.CONFIG_STATE_MISSING else EvaluationReason.CLIENT_NOT_READY,
         )
@@ -218,6 +318,9 @@ internal class ConfigStore(
         logger.debug { "Evaluated '$key' to '${result.value}' (${result.reason.wireName})" }
         return result
     }
+
+    private fun <T> EvaluationResult<T>.servedFrom(source: ConfigSetSource): EvaluationResult<T> =
+        if (usedDefault) this else copy(reason = source.matchedReason)
 
     private fun EvaluationResult<*>.describe(key: String): ConfigEvaluation = ConfigEvaluation(
         key = key,

@@ -6,7 +6,41 @@ public final class com/configdirector/AndroidLogger : com/configdirector/ConfigD
 	public fun log (Lcom/configdirector/LogLevel;Ljava/lang/String;Ljava/lang/Throwable;)V
 }
 
+public final class com/configdirector/CachingOptions {
+	public static final field Companion Lcom/configdirector/CachingOptions$Companion;
+	public synthetic fun <init> (ZLcom/configdirector/CachingProvider;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public static final fun builder ()Lcom/configdirector/CachingOptions$Builder;
+	public static final fun defaults ()Lcom/configdirector/CachingOptions;
+	public final fun getEnabled ()Z
+	public final fun getProvider ()Lcom/configdirector/CachingProvider;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/configdirector/CachingOptions$Builder {
+	public final fun build ()Lcom/configdirector/CachingOptions;
+	public final fun enabled (Z)Lcom/configdirector/CachingOptions$Builder;
+	public final fun provider (Lcom/configdirector/CachingProvider;)Lcom/configdirector/CachingOptions$Builder;
+}
+
+public final class com/configdirector/CachingOptions$Companion {
+	public final synthetic fun build (Lkotlin/jvm/functions/Function1;)Lcom/configdirector/CachingOptions;
+	public final fun builder ()Lcom/configdirector/CachingOptions$Builder;
+	public final fun defaults ()Lcom/configdirector/CachingOptions;
+}
+
+public abstract interface class com/configdirector/CachingProvider {
+	public abstract fun read (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun remove (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun sizeLimit ()I
+	public abstract fun write (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
 public abstract class com/configdirector/ClientEvent {
+}
+
+public final class com/configdirector/ClientEvent$CachedValuesLoaded : com/configdirector/ClientEvent {
+	public static final field INSTANCE Lcom/configdirector/ClientEvent$CachedValuesLoaded;
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class com/configdirector/ClientEvent$ConfigsUpdated : com/configdirector/ClientEvent {
@@ -37,9 +71,10 @@ public abstract interface class com/configdirector/ClientEventListener {
 
 public final class com/configdirector/ClientOptions {
 	public static final field Companion Lcom/configdirector/ClientOptions$Companion;
-	public synthetic fun <init> (Lcom/configdirector/Metadata;Lcom/configdirector/ConnectionOptions;Lcom/configdirector/ConfigDirectorLogger;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Lcom/configdirector/Metadata;Lcom/configdirector/ConnectionOptions;Lcom/configdirector/CachingOptions;Lcom/configdirector/ConfigDirectorLogger;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public static final fun builder ()Lcom/configdirector/ClientOptions$Builder;
 	public static final fun defaults ()Lcom/configdirector/ClientOptions;
+	public final fun getCaching ()Lcom/configdirector/CachingOptions;
 	public final fun getConnection ()Lcom/configdirector/ConnectionOptions;
 	public final fun getLogger ()Lcom/configdirector/ConfigDirectorLogger;
 	public final fun getMetadata ()Lcom/configdirector/Metadata;
@@ -48,6 +83,8 @@ public final class com/configdirector/ClientOptions {
 
 public final class com/configdirector/ClientOptions$Builder {
 	public final fun build ()Lcom/configdirector/ClientOptions;
+	public final fun caching (Lcom/configdirector/CachingOptions;)Lcom/configdirector/ClientOptions$Builder;
+	public final synthetic fun caching (Lkotlin/jvm/functions/Function1;)Lcom/configdirector/ClientOptions$Builder;
 	public final fun connection (Lcom/configdirector/ConnectionOptions;)Lcom/configdirector/ClientOptions$Builder;
 	public final synthetic fun connection (Lkotlin/jvm/functions/Function1;)Lcom/configdirector/ClientOptions$Builder;
 	public final fun logger (Lcom/configdirector/ConfigDirectorLogger;)Lcom/configdirector/ClientOptions$Builder;
@@ -224,6 +261,7 @@ public abstract interface class com/configdirector/EvaluationListener {
 }
 
 public final class com/configdirector/EvaluationReason : java/lang/Enum {
+	public static final field CACHED Lcom/configdirector/EvaluationReason;
 	public static final field CLIENT_NOT_READY Lcom/configdirector/EvaluationReason;
 	public static final field CONFIG_STATE_MISSING Lcom/configdirector/EvaluationReason;
 	public static final field FOUND_MATCH Lcom/configdirector/EvaluationReason;

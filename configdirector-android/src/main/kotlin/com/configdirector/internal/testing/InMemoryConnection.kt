@@ -1,5 +1,6 @@
 package com.configdirector.internal.testing
 
+import com.configdirector.CachingProvider
 import com.configdirector.ClientOptions
 import com.configdirector.ConfigDirectorClient
 import com.configdirector.ConfigDirectorContext
@@ -355,4 +356,6 @@ private object InMemoryClientPlatform : ClientPlatform {
     override fun clientSession(): ClientSession = ClientSession(UUID.randomUUID().toString(), ephemeral = true)
 
     override fun lifecycleObserver(): AppLifecycleObserver = NoLifecycleObserver
+
+    override fun cachingProvider(clientSdkKey: String): CachingProvider? = null
 }

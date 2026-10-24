@@ -10,6 +10,8 @@ internal fun <T> ConfigEvaluation.toProviderEvaluation(value: T): ProviderEvalua
     EvaluationReason.FOUND_MATCH ->
         ProviderEvaluation(value, variant = valueId, reason = Reason.TARGETING_MATCH.name)
 
+    EvaluationReason.CACHED -> ProviderEvaluation(value, variant = valueId, reason = Reason.CACHED.name)
+
     EvaluationReason.VALUE_MISSING -> ProviderEvaluation(value, reason = Reason.DEFAULT.name)
 
     EvaluationReason.CONFIG_STATE_MISSING ->

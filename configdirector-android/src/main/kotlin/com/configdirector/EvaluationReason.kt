@@ -28,4 +28,10 @@ public enum class EvaluationReason(
 
     /** The config value could not be read as a boolean. */
     INVALID_BOOLEAN("invalid-boolean"),
+
+    /**
+     * The value was served from the values kept on the device from the last payload, before live
+     * values arrived. It is not an in-code default value.
+     */
+    CACHED("cached"),
 }

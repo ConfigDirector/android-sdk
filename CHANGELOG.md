@@ -11,6 +11,25 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Values kept on the device (`android-sdk`): the client keeps the last values it received from
+  ConfigDirector in the app's `SharedPreferences`, under a key derived from the client SDK key, and
+  serves them on the next launch of the same context, the same context kind and id, until live
+  values arrive. A value served this way reports the new `EvaluationReason.CACHED` with
+  `isDefaultValue` false; a key the kept values do not carry reports `CLIENT_NOT_READY` as before.
+  The client is not ready while it serves them: `isReady` stays false, `isInitializing` stays true,
+  `initialize` still waits for live values or its timeout, and `ClientEvent.Ready` fires once live
+  values arrive. The new `ClientEvent.CachedValuesLoaded` fires when the kept values are loaded,
+  followed by `ClientEvent.ConfigsUpdated` listing their keys; the first live full payload lists the
+  kept keys it no longer carries in `removedKeys`. A launch with another context, a first launch and
+  offline mode serve in-code default values as before, and a test client (`android-sdk-testing`)
+  keeps nothing.
+- `ClientOptions.caching` (`android-sdk`), a `CachingOptions` built with `CachingOptions.builder()`
+  or `CachingOptions.build { }`: `enabled`, true by default, turns the kept values off; `provider`
+  replaces the `SharedPreferences` store with a `CachingProvider` of your own, an interface of
+  `suspend fun read(): String?`, `suspend fun write(value: String)`, `suspend fun remove()` and
+  `fun sizeLimit(): Int` in bytes, implemented from Kotlin. The default store's limit is 256 KB; an
+  entry above the store's limit is removed with one warning, a store that fails is logged once and
+  never stops the client, and the entry's format belongs to the SDK and may change between versions.
 - Offline mode (`android-sdk`): `ConnectionMode.OFFLINE` runs the client without connecting to
   ConfigDirector. It serves the values given with `ConnectionOptions.Builder.values`, one per
   config key and the same to every context, or every in-code default value with
@@ -34,6 +53,9 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `EvaluationReason` (`android-sdk`) has a ninth entry and `ClientEvent` a fourth subclass, so a
+  Kotlin `when` that lists every reason needs a `CACHED` branch and one that lists every event a
+  `CachedValuesLoaded` branch.
 - `ConnectionMode` (`android-sdk`) has a third entry, so a Kotlin `when` that lists every mode needs
   an `OFFLINE` branch. From Java, `new ConfigDirectorClient(context, null)` no longer compiles,
   because `null` matches both the key and the options constructor; it threw before.

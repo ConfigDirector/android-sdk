@@ -9,6 +9,7 @@ import com.configdirector.ConfigDirectorValidationException
 import com.configdirector.ConfigDirectorWrapperApi
 import com.configdirector.ConnectionMode
 import com.configdirector.SdkIdentity
+import com.configdirector.Subscription
 import com.configdirector.events
 import com.configdirector.openfeature.internal.Constants
 import com.configdirector.openfeature.internal.toAny
@@ -19,13 +20,24 @@ import com.configdirector.openfeature.internal.unsupportedDefault
 import dev.openfeature.kotlin.sdk.EvaluationContext
 import dev.openfeature.kotlin.sdk.FeatureProvider
 import dev.openfeature.kotlin.sdk.Hook
+import dev.openfeature.kotlin.sdk.OpenFeatureAPI
+import dev.openfeature.kotlin.sdk.OpenFeatureStatus
 import dev.openfeature.kotlin.sdk.ProviderEvaluation
 import dev.openfeature.kotlin.sdk.ProviderMetadata
 import dev.openfeature.kotlin.sdk.Value
 import dev.openfeature.kotlin.sdk.events.OpenFeatureProviderEvents
 import dev.openfeature.kotlin.sdk.exceptions.OpenFeatureError
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * An [OpenFeature](https://openfeature.dev) provider that resolves flags with the ConfigDirector
@@ -67,8 +79,9 @@ import kotlinx.coroutines.flow.mapNotNull
  * ## Resolution details
  *
  * A flag ConfigDirector served resolves with the reason `TARGETING_MATCH` and the served value's
- * id as its variant. One the config has no value for resolves to the default with the reason
- * `DEFAULT`. Everything else is an error carrying the default: `FLAG_NOT_FOUND` for an unknown
+ * id as its variant; one served from the values kept on the device, before live values arrive,
+ * resolves the same way with the reason `CACHED`. One the config has no value for resolves to the
+ * default with the reason `DEFAULT`. Everything else is an error carrying the default: `FLAG_NOT_FOUND` for an unknown
  * key, `PROVIDER_NOT_READY` before config state has arrived, and `TYPE_MISMATCH` for a value that
  * cannot be read as the requested type.
  *
@@ -84,6 +97,12 @@ import kotlinx.coroutines.flow.mapNotNull
  * the OpenFeature SDK reports an error status. The underlying client keeps trying to connect, and
  * the provider emits a ready event as soon as it succeeds. Until then flags resolve to the config
  * state received earlier, or to their default values when there is none.
+ *
+ * When the client loads the values it kept on the device from an earlier launch, the provider
+ * emits a stale event and flags resolve to those values with the reason `CACHED` until live values
+ * arrive. A timed-out initialization or context change still fails as above, and the provider emits
+ * stale again right after the OpenFeature SDK has recorded that error, so the status reads stale
+ * while kept values are served. See `ClientOptions.caching` to turn this off.
  *
  * A configuration-changed event is emitted every time config state arrives, carrying the keys of
  * the configs in the update followed by the keys a full update removed.
@@ -155,6 +174,11 @@ public class ConfigDirectorProvider private constructor(
     @ConfigDirectorProviderTestingApi
     public constructor(client: ConfigDirectorClient) : this(client, ownsClient = false)
 
+    private val servingCachedValues = AtomicBoolean(false)
+    private val servedValuesTracking: Subscription = client.addEventListener { event -> trackServedValues(event) }
+    private val statusReports = MutableSharedFlow<OpenFeatureProviderEvents>(extraBufferCapacity = STATUS_REPORT_BUFFER)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     override val hooks: List<Hook<*>> = emptyList()
 
     override val metadata: ProviderMetadata = Metadata
@@ -176,16 +200,31 @@ public class ConfigDirectorProvider private constructor(
     }
 
     override fun shutdown() {
+        scope.cancel()
+        servedValuesTracking.close()
         if (ownsClient) client.close()
     }
 
-    override fun observe(): Flow<OpenFeatureProviderEvents> = client.events.mapNotNull { event ->
+    override fun observe(): Flow<OpenFeatureProviderEvents> = channelFlow {
+        val reporting = launch { statusReports.collect { report -> send(report) } }
+        client.events.collect { event -> providerEventFor(event)?.let { send(it) } }
+        reporting.cancel()
+    }
+
+    private fun providerEventFor(event: ClientEvent): OpenFeatureProviderEvents? = when (event) {
+        is ClientEvent.Ready -> OpenFeatureProviderEvents.ProviderReady()
+        is ClientEvent.ConfigsUpdated -> OpenFeatureProviderEvents.ProviderConfigurationChanged(
+            OpenFeatureProviderEvents.EventDetails(flagsChanged = (event.keys + event.removedKeys).toSet()),
+        )
+        is ClientEvent.CachedValuesLoaded -> if (servingCachedValues.get()) OpenFeatureProviderEvents.ProviderStale() else null
+        is ClientEvent.ContextUpdated -> null
+    }
+
+    private fun trackServedValues(event: ClientEvent) {
         when (event) {
-            is ClientEvent.Ready -> OpenFeatureProviderEvents.ProviderReady()
-            is ClientEvent.ConfigsUpdated -> OpenFeatureProviderEvents.ProviderConfigurationChanged(
-                OpenFeatureProviderEvents.EventDetails(flagsChanged = (event.keys + event.removedKeys).toSet()),
-            )
-            is ClientEvent.ContextUpdated -> null
+            is ClientEvent.CachedValuesLoaded -> if (!client.isReady) servingCachedValues.set(true)
+            is ClientEvent.Ready -> servingCachedValues.set(false)
+            is ClientEvent.ConfigsUpdated, is ClientEvent.ContextUpdated -> Unit
         }
     }
 
@@ -243,7 +282,26 @@ public class ConfigDirectorProvider private constructor(
     }
 
     private fun requireReady(message: String) {
-        if (!client.isReady) throw OpenFeatureError.ProviderNotReadyError(message)
+        if (client.isReady) return
+
+        when (FailureReport.decide(servingCachedValues.get())) {
+            FailureReport.ERROR -> Unit
+            FailureReport.ERROR_THEN_STALE -> reportStaleOnceTheErrorIsRecorded()
+        }
+        throw OpenFeatureError.ProviderNotReadyError(message)
+    }
+
+    private fun reportStaleOnceTheErrorIsRecorded() {
+        scope.launch {
+            awaitTheRecordedErrorStatus()
+            statusReports.emit(OpenFeatureProviderEvents.ProviderStale())
+        }
+    }
+
+    private suspend fun awaitTheRecordedErrorStatus() {
+        withTimeoutOrNull(ERROR_RECORD_WAIT_MILLIS) {
+            OpenFeatureAPI.statusFlow.first { status -> status is OpenFeatureStatus.Error }
+        }
     }
 
     private fun EvaluationContext.toContext(): ConfigDirectorContext = try {
@@ -254,5 +312,20 @@ public class ConfigDirectorProvider private constructor(
 
     private object Metadata : ProviderMetadata {
         override val name: String = Constants.PROVIDER_NAME
+    }
+
+    private companion object {
+        private const val STATUS_REPORT_BUFFER = 16
+        private const val ERROR_RECORD_WAIT_MILLIS = 1_000L
+    }
+}
+
+private enum class FailureReport {
+    ERROR,
+    ERROR_THEN_STALE,
+    ;
+
+    companion object {
+        fun decide(servingCachedValues: Boolean): FailureReport = if (servingCachedValues) ERROR_THEN_STALE else ERROR
     }
 }

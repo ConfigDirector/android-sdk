@@ -68,4 +68,12 @@ public sealed class ClientEvent {
 
         override fun toString(): String = "ContextUpdated(context=$context)"
     }
+
+    /**
+     * The values kept on the device from the last payload were loaded and are served until live
+     * values arrive. A [ConfigsUpdated] listing their keys follows; [Ready] does not fire for them.
+     */
+    public object CachedValuesLoaded : ClientEvent() {
+        override fun toString(): String = "CachedValuesLoaded"
+    }
 }

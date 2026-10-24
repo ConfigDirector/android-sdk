@@ -10,6 +10,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Values kept on the device: with version 1.9.0 of the SDK, the provider serves the values the SDK
+  kept from the last launch of the same context until live values arrive. It emits `ProviderStale`
+  when they load, so the OpenFeature status is `Stale` while they are served, and again right after
+  the `Error` a timed-out initialization or context change reports; `ProviderReady` follows once live
+  values arrive. A flag served from them resolves with the reason `CACHED` and the served value's id
+  as its variant. Turn it off, or supply your own store, with `ClientOptions.caching`.
 - `ConfigDirectorProvider(androidContext, options)` creates a provider without a client SDK key,
   for the SDK's offline mode, in which the provider serves the values in `options` without
   connecting to ConfigDirector. The constructor that takes a key also accepts a blank one in

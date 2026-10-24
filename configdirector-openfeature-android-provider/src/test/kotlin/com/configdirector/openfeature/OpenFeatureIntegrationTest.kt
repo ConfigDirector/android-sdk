@@ -1,5 +1,6 @@
 package com.configdirector.openfeature
 
+import android.content.Context
 import com.configdirector.ClientOptions
 import com.configdirector.ConnectionMode
 import com.google.common.truth.Truth.assertThat
@@ -13,7 +14,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.resetMain
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.test.setMain
+import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -42,17 +45,42 @@ class OpenFeatureIntegrationTest {
         Dispatchers.resetMain()
     }
 
-    private fun provider(timeoutMillis: Long = 3_000) = ConfigDirectorProvider(
+    private val unreachableBaseUrl: String = MockWebServer().let { closed ->
+        closed.start()
+        closed.url("/").toString().also { closed.shutdown() }
+    }
+
+    private fun provider(timeoutMillis: Long = 3_000, baseUrl: String = server.baseUrl) = ConfigDirectorProvider(
         RuntimeEnvironment.getApplication(),
         "client-sdk-key",
         ClientOptions.build {
             logger(SilentLogger)
             connection {
-                baseUrl(server.baseUrl)
+                baseUrl(baseUrl)
                 timeoutMillis(timeoutMillis)
             }
         },
     )
+
+    private fun waitFor(description: String, condition: () -> Boolean) {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (System.nanoTime() < deadline) {
+            if (condition()) return
+            Thread.sleep(10)
+        }
+        throw AssertionError("Timed out waiting for $description")
+    }
+
+    /** A registration that connected and kept its values on the device, then shut down, as an earlier app run. */
+    private suspend fun earlierLaunch() {
+        OpenFeatureAPI.setProviderAndWait(provider(), proContext)
+        waitFor("the earlier launch to keep its values") {
+            RuntimeEnvironment.getApplication()
+                .getSharedPreferences("configdirector-sdk", Context.MODE_PRIVATE)
+                .getString(CACHED_VALUES_KEY, null) != null
+        }
+        OpenFeatureAPI.shutdown()
+    }
 
     private val proContext = ImmutableContext(
         targetingKey = "user-123",
@@ -124,6 +152,31 @@ class OpenFeatureIntegrationTest {
     }
 
     @Test
+    fun `reports a stale status and serves the kept values while ConfigDirector is unreachable`() = runBlocking<Unit> {
+        earlierLaunch()
+
+        OpenFeatureAPI.setProviderAndWait(provider(timeoutMillis = 300, baseUrl = unreachableBaseUrl), proContext)
+
+        waitFor("the stale status") { OpenFeatureAPI.getStatus() == OpenFeatureStatus.Stale }
+        val darkMode = OpenFeatureAPI.getClient().getBooleanDetails("dark-mode", false)
+        assertThat(darkMode.value).isTrue()
+        assertThat(darkMode.variant).isEqualTo("dark-mode-pro")
+        assertThat(darkMode.reason).isEqualTo("CACHED")
+        assertThat(darkMode.errorCode).isNull()
+    }
+
+    @Test
+    fun `reports a ready status once live values replace the kept values`() = runBlocking<Unit> {
+        earlierLaunch()
+        server.responseDelayMillis = 500
+
+        OpenFeatureAPI.setProviderAndWait(provider(), proContext)
+
+        assertThat(OpenFeatureAPI.getStatus()).isEqualTo(OpenFeatureStatus.Ready)
+        assertThat(OpenFeatureAPI.getClient().getBooleanDetails("dark-mode", false).reason).isEqualTo("TARGETING_MATCH")
+    }
+
+    @Test
     fun `reports an error status and serves defaults while ConfigDirector is unreachable`() = runBlocking<Unit> {
         server.sendsConfigState = false
 
@@ -139,3 +192,6 @@ class OpenFeatureIntegrationTest {
         assertThat(darkMode.errorCode).isEqualTo(ErrorCode.PROVIDER_NOT_READY)
     }
 }
+
+/** `cached-values:` followed by the SHA-256 hex digest of the client SDK key `client-sdk-key`. */
+private const val CACHED_VALUES_KEY = "cached-values:24913e1336d021b669358fca9ac7212a3a52d53f77b98dca11ecb0e4441ab498"

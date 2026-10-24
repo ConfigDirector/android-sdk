@@ -226,11 +226,13 @@ class OptionsTest {
     }
 
     @Test
-    fun `carries default metadata, connection and logger`() {
+    fun `carries default metadata, connection, caching and logger`() {
         val options = ClientOptions.defaults()
 
         assertThat(options.metadata).isEqualTo(Metadata.empty())
         assertThat(options.connection).isEqualTo(ConnectionOptions.defaults())
+        assertThat(options.caching.enabled).isTrue()
+        assertThat(options.caching.provider).isNull()
         assertThat(options.logger).isInstanceOf(AndroidLogger::class.java)
         assertThat(options.logger.level).isEqualTo(LogLevel.WARN)
     }
@@ -242,12 +244,43 @@ class OptionsTest {
         val options = ClientOptions.build {
             metadata("Checkout", "4.2.0")
             connection { mode(ConnectionMode.POLLING) }
+            caching { enabled(false) }
             logger(logger)
         }
 
         assertThat(options.metadata).isEqualTo(Metadata("Checkout", "4.2.0"))
         assertThat(options.connection.mode).isEqualTo(ConnectionMode.POLLING)
+        assertThat(options.caching.enabled).isFalse()
         assertThat(options.logger).isSameInstanceAs(logger)
+    }
+
+    @Test
+    fun `keeps values on the device by default`() {
+        val caching = CachingOptions.defaults()
+
+        assertThat(caching.enabled).isTrue()
+        assertThat(caching.provider).isNull()
+    }
+
+    @Test
+    fun `builds caching options with a provider from the Kotlin DSL`() {
+        val provider = object : CachingProvider {
+            override suspend fun read(): String? = null
+
+            override suspend fun write(value: String) = Unit
+
+            override suspend fun remove() = Unit
+
+            override fun sizeLimit(): Int = 2_000_000
+        }
+
+        val caching = CachingOptions.build {
+            enabled(false)
+            provider(provider)
+        }
+
+        assertThat(caching.enabled).isFalse()
+        assertThat(caching.provider).isSameInstanceAs(provider)
     }
 
     @Test

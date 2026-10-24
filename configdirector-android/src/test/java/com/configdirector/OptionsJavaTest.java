@@ -93,21 +93,33 @@ public class OptionsJavaTest {
         ClientOptions.builder()
             .metadata("Checkout", "4.2.0")
             .connection(ConnectionOptions.builder().mode(ConnectionMode.POLLING).build())
+            .caching(CachingOptions.builder().enabled(false).build())
             .logger(new AndroidLogger(LogLevel.DEBUG))
             .build();
 
     assertThat(options.getMetadata()).isEqualTo(new Metadata("Checkout", "4.2.0"));
     assertThat(options.getConnection().getMode()).isEqualTo(ConnectionMode.POLLING);
+    assertThat(options.getCaching().getEnabled()).isFalse();
     assertThat(options.getLogger().getLevel()).isEqualTo(LogLevel.DEBUG);
   }
 
   @Test
-  public void carriesDefaultMetadataConnectionAndLogger() {
+  public void carriesDefaultMetadataConnectionCachingAndLogger() {
     ClientOptions options = ClientOptions.defaults();
 
     assertThat(options.getMetadata()).isEqualTo(Metadata.empty());
     assertThat(options.getConnection()).isEqualTo(ConnectionOptions.defaults());
+    assertThat(options.getCaching().getEnabled()).isTrue();
+    assertThat(options.getCaching().getProvider()).isNull();
     assertThat(options.getLogger().getLevel()).isEqualTo(LogLevel.WARN);
+  }
+
+  @Test
+  public void keepsValuesOnTheDeviceByDefault() {
+    CachingOptions caching = CachingOptions.defaults();
+
+    assertThat(caching.getEnabled()).isTrue();
+    assertThat(caching.getProvider()).isNull();
   }
 
   @Test

@@ -1,5 +1,6 @@
 package com.configdirector.openfeature
 
+import android.content.Context
 import com.configdirector.ClientOptions
 import com.configdirector.openfeature.internal.Constants
 import com.google.common.truth.Truth.assertThat
@@ -20,6 +21,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
+import okhttp3.mockwebserver.MockWebServer
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertThrows
@@ -40,6 +42,10 @@ class ConfigDirectorProviderTest {
     private val server = FakeSdkServer()
     private val collectors = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
     private var provider: ConfigDirectorProvider? = null
+    private val unreachableBaseUrl: String = MockWebServer().let { closed ->
+        closed.start()
+        closed.url("/").toString().also { closed.shutdown() }
+    }
 
     @Before
     fun setUpMainDispatcher() {
@@ -54,18 +60,31 @@ class ConfigDirectorProviderTest {
         Dispatchers.resetMain()
     }
 
-    private fun provider(timeoutMillis: Long = 3_000): ConfigDirectorProvider = ConfigDirectorProvider(
-        RuntimeEnvironment.getApplication(),
-        "client-sdk-key",
-        ClientOptions.build {
-            logger(SilentLogger)
-            metadata("Checkout", "4.2.0")
-            connection {
-                baseUrl(server.baseUrl)
-                timeoutMillis(timeoutMillis)
-            }
-        },
-    ).also { provider = it }
+    private fun provider(timeoutMillis: Long = 3_000, baseUrl: String = server.baseUrl): ConfigDirectorProvider =
+        ConfigDirectorProvider(
+            RuntimeEnvironment.getApplication(),
+            "client-sdk-key",
+            ClientOptions.build {
+                logger(SilentLogger)
+                metadata("Checkout", "4.2.0")
+                connection {
+                    baseUrl(baseUrl)
+                    timeoutMillis(timeoutMillis)
+                }
+            },
+        ).also { provider = it }
+
+    /** A registration that connected and kept its values on the device, then shut down, as an earlier app run. */
+    private suspend fun earlierLaunch() {
+        val earlier = provider()
+        earlier.initialize(proContext)
+        waitFor("the earlier launch to keep its values") { keptEntry() != null }
+        earlier.shutdown()
+    }
+
+    private fun keptEntry(): String? = RuntimeEnvironment.getApplication()
+        .getSharedPreferences("configdirector-sdk", Context.MODE_PRIVATE)
+        .getString(CACHED_VALUES_KEY, null)
 
     private fun waitFor(description: String, timeoutSeconds: Long = 2, condition: () -> Boolean) {
         val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds)
@@ -397,6 +416,86 @@ class ConfigDirectorProviderTest {
     }
 
     @Test
+    fun `resolves a flag served from the kept values with the reason CACHED`() = runBlocking<Unit> {
+        earlierLaunch()
+        val provider = provider(timeoutMillis = 300, baseUrl = unreachableBaseUrl)
+
+        assertThrows(OpenFeatureError.ProviderNotReadyError::class.java) {
+            runBlocking { provider.initialize(proContext) }
+        }
+
+        val darkMode = provider.getBooleanEvaluation("dark-mode", false, null)
+        assertThat(darkMode.value).isTrue()
+        assertThat(darkMode.variant).isEqualTo("dark-mode-pro")
+        assertThat(darkMode.reason).isEqualTo("CACHED")
+        assertThat(darkMode.errorCode).isNull()
+        val missing = provider.getBooleanEvaluation("no-such-config", true, null)
+        assertThat(missing.errorCode).isEqualTo(ErrorCode.PROVIDER_NOT_READY)
+    }
+
+    @Test
+    fun `emits stale when the kept values load and ready once live values arrive`() = runBlocking<Unit> {
+        earlierLaunch()
+        server.responseDelayMillis = 500
+        val provider = provider()
+        val events = observing(provider)
+
+        provider.initialize(proContext)
+
+        waitFor("the ready event") { events.any { it is OpenFeatureProviderEvents.ProviderReady } }
+        assertThat(events.indexOfFirst { it is OpenFeatureProviderEvents.ProviderStale })
+            .isLessThan(events.indexOfFirst { it is OpenFeatureProviderEvents.ProviderReady })
+        assertThat(provider.getBooleanEvaluation("dark-mode", false, null).reason).isEqualTo("TARGETING_MATCH")
+    }
+
+    @Test
+    fun `emits stale again after initialization times out while it serves the kept values`() = runBlocking<Unit> {
+        earlierLaunch()
+        val provider = provider(timeoutMillis = 300, baseUrl = unreachableBaseUrl)
+        val events = observing(provider)
+
+        assertThrows(OpenFeatureError.ProviderNotReadyError::class.java) {
+            runBlocking { provider.initialize(proContext) }
+        }
+
+        waitFor("the second stale event") { events.count { it is OpenFeatureProviderEvents.ProviderStale } == 2 }
+        assertThat(events.filterIsInstance<OpenFeatureProviderEvents.ProviderReady>()).isEmpty()
+    }
+
+    @Test
+    fun `emits stale again after a context change that cannot connect while it serves the kept values`() =
+        runBlocking<Unit> {
+            earlierLaunch()
+            val provider = provider(timeoutMillis = 300, baseUrl = unreachableBaseUrl)
+            val events = observing(provider)
+            assertThrows(OpenFeatureError.ProviderNotReadyError::class.java) {
+                runBlocking { provider.initialize(proContext) }
+            }
+            waitFor("the stale events of initialization") { events.count { it is OpenFeatureProviderEvents.ProviderStale } == 2 }
+
+            assertThrows(OpenFeatureError.ProviderNotReadyError::class.java) {
+                runBlocking { provider.onContextSet(proContext, freeContext) }
+            }
+
+            waitFor("the third stale event") { events.count { it is OpenFeatureProviderEvents.ProviderStale } == 3 }
+            assertThat(provider.getBooleanEvaluation("dark-mode", false, null).reason).isEqualTo("CACHED")
+        }
+
+    @Test
+    fun `emits no stale event when nothing is kept on the device`() = runBlocking<Unit> {
+        val provider = provider(timeoutMillis = 300, baseUrl = unreachableBaseUrl)
+        val events = observing(provider)
+
+        assertThrows(OpenFeatureError.ProviderNotReadyError::class.java) {
+            runBlocking { provider.initialize(proContext) }
+        }
+
+        Thread.sleep(200)
+        assertThat(events.filterIsInstance<OpenFeatureProviderEvents.ProviderStale>()).isEmpty()
+        assertThat(provider.getBooleanEvaluation("dark-mode", true, null).errorCode).isEqualTo(ErrorCode.PROVIDER_NOT_READY)
+    }
+
+    @Test
     fun `stops talking to the server once shut down`() = runBlocking<Unit> {
         val provider = provider()
         provider.initialize(proContext)
@@ -411,3 +510,6 @@ class ConfigDirectorProviderTest {
         assertThat(provider.getBooleanEvaluation("dark-mode", false, null).value).isTrue()
     }
 }
+
+/** `cached-values:` followed by the SHA-256 hex digest of the client SDK key `client-sdk-key`. */
+private const val CACHED_VALUES_KEY = "cached-values:24913e1336d021b669358fca9ac7212a3a52d53f77b98dca11ecb0e4441ab498"

@@ -18,7 +18,7 @@ internal interface InstanceIdStorage {
 }
 
 private const val RECORD_VERSION = 1
-private const val PREFERENCES_NAME = "configdirector-sdk"
+internal const val PREFERENCES_NAME = "configdirector-sdk"
 private const val INSTANCE_ID_KEY = "instance-id"
 private val UUID_V4_PATTERN =
     Regex("[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}")

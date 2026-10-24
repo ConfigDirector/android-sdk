@@ -55,4 +55,6 @@ internal data class ConfigSet(
      * answer with a delta.
      */
     val timestamp: String? = null,
+    val environmentId: String = "",
+    val projectId: String = "",
 )

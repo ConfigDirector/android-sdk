@@ -2,6 +2,7 @@ package com.configdirector
 
 import android.content.Context
 import com.configdirector.internal.AndroidClientPlatform
+import com.configdirector.internal.CachingPlan
 import com.configdirector.internal.ClientPlatform
 import com.configdirector.internal.ConfigSet
 import com.configdirector.internal.ConfigStore
@@ -12,6 +13,7 @@ import com.configdirector.internal.admissionOf
 import com.configdirector.internal.lifecycle.AppLifecycleObserver
 import com.configdirector.internal.lifecycle.AppLifecyclePhase
 import com.configdirector.internal.lifecycle.NoLifecycleObserver
+import com.configdirector.internal.planCaching
 import com.configdirector.internal.planConnection
 import com.configdirector.internal.transport.OfflineTransport
 import com.configdirector.internal.transport.PollingTransport
@@ -196,7 +198,14 @@ public class ConfigDirectorClient internal constructor(
                     httpClient = sdkHttpClient(timeoutMillis, logger),
                 )
                 telemetry = telemetryFactory(transportOptions)
-                store = ConfigStore(logger, telemetry)
+                val caching = planCaching(
+                    options.caching,
+                    plan.clientSdkKey,
+                    transportOptions.clientSession.instanceId,
+                    platformProvider = { platform.cachingProvider(plan.clientSdkKey) },
+                    logger = logger,
+                )
+                store = ConfigStore(logger, telemetry, caching)
                 transport = transportFactory(plan.mode, transportOptions) { configSet ->
                     store.handleConfigSet(configSet)
                 }
@@ -205,7 +214,7 @@ public class ConfigDirectorClient internal constructor(
 
             is ConnectionPlan.StayOffline -> {
                 telemetry = DiscardingTelemetryClient
-                store = ConfigStore(logger, telemetry)
+                store = ConfigStore(logger, telemetry, CachingPlan.KeepNothing)
                 transport = OfflineTransport(plan.configs) { configSet -> store.handleConfigSet(configSet) }
                 lifecycle = NoLifecycleObserver
             }
@@ -259,7 +268,9 @@ public class ConfigDirectorClient internal constructor(
     @JvmSynthetic
     public suspend fun initialize(context: ConfigDirectorContext? = null) {
         initializing.set(true)
-        connect(contextToConnectWith(context, ConnectReason.INITIALIZATION), ConnectReason.INITIALIZATION)
+        val launchContext = contextToConnectWith(context, ConnectReason.INITIALIZATION)
+        store.adoptCachedValuesOnce(launchContext)
+        connect(launchContext, ConnectReason.INITIALIZATION)
     }
 
     /**
@@ -581,7 +592,7 @@ public class ConfigDirectorClient internal constructor(
             return
         }
 
-        store.beginConnect(reason)
+        store.beginConnect(reason, context)
         val startedAt = System.nanoTime()
 
         try {

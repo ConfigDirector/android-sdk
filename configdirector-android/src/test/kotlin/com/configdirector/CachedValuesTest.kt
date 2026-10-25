@@ -247,6 +247,7 @@ class CachedValuesTest {
     @Test
     fun `replaces the kept values once live values arrive`() = runBlocking<Unit> {
         earlierLaunch(proContext)
+        server.scriptFullWithOnly("dark-mode", "boolean", "true")
         server.responseDelayMillis = 500
         val client = client(timeoutMillis = 3_000)
         val events = client.recordEvents()
@@ -256,7 +257,6 @@ class CachedValuesTest {
         assertThat(client.isReady).isFalse()
         assertThat(client.isInitializing).isTrue()
 
-        server.scriptFullWithOnly("dark-mode", "boolean", "true")
         initialization.join()
 
         assertThat(client.isReady).isTrue()

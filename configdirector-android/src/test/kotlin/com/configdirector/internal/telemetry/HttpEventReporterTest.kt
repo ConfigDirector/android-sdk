@@ -35,12 +35,15 @@ class HttpEventReporterTest {
         server.shutdown()
     }
 
-    private fun reporter(timeoutMillis: Long = 5_000) = HttpEventReporter(
+    private fun reporter(
+        timeoutMillis: Long = 5_000,
+        clientSession: ClientSession = ClientSession("instance-1", ephemeral = false),
+    ) = HttpEventReporter(
         TransportOptions(
             clientSdkKey = "client-sdk-key",
             baseUrl = server.url("/").toString(),
             metaContext = SdkMetaContext("android-client-sdk", "9.9.9", "Sample", "1.0", "Android"),
-            clientSession = ClientSession("instance-1", ephemeral = false),
+            clientSession = clientSession,
             logger = logger,
             pollingIntervalMillis = 60_000,
             httpClient = OkHttpClient(),
@@ -65,7 +68,7 @@ class HttpEventReporterTest {
     )
 
     @Test
-    fun `posts the key, the metadata, the context and what was collected`() = runBlocking<Unit> {
+    fun `posts the key, the instance ID, the metadata, the context and what was collected`() = runBlocking<Unit> {
         server.enqueue(MockResponse())
 
         val outcome = reporter().report(report(listOf(evaluation("dark-mode"), evaluation("dark-mode"))))
@@ -77,6 +80,8 @@ class HttpEventReporterTest {
 
         val body = JSONObject(request.body.readUtf8())
         assertThat(body.getString("clientSdkKey")).isEqualTo("client-sdk-key")
+        assertThat(body.getString("instanceId")).isEqualTo("instance-1")
+        assertThat(body.has("ephemeral")).isFalse()
         assertThat(body.getJSONObject("metaContext").getString("sdkName"))
             .isEqualTo("android-client-sdk")
         assertThat(body.getJSONObject("metaContext").getString("sdkVersion")).isEqualTo("9.9.9")
@@ -86,14 +91,14 @@ class HttpEventReporterTest {
         assertThat(body.getJSONObject("context").getString("id")).isEqualTo("user-123")
         assertThat(body.getJSONObject("droppedEvents").getInt("evaluatedConfig")).isEqualTo(0)
 
-        val aggregated = body.getJSONObject("aggregatedEvents").getJSONArray("evaluatedConfig")
-        assertThat(aggregated.length()).isEqualTo(1)
-        val entry = aggregated.getJSONObject(0)
-        assertThat(entry.getInt("count")).isEqualTo(2)
-        assertThat(entry.getString("startTime")).isEqualTo("2026-08-31T00:00:00.123Z")
-        assertThat(entry.getString("endTime")).isEqualTo("2026-08-31T00:00:01.123Z")
+        val aggregatedEvaluations = body.getJSONObject("aggregatedEvents").getJSONArray("evaluatedConfig")
+        assertThat(aggregatedEvaluations.length()).isEqualTo(1)
+        val aggregatedEvaluation = aggregatedEvaluations.getJSONObject(0)
+        assertThat(aggregatedEvaluation.getInt("count")).isEqualTo(2)
+        assertThat(aggregatedEvaluation.getString("startTime")).isEqualTo("2026-08-31T00:00:00.123Z")
+        assertThat(aggregatedEvaluation.getString("endTime")).isEqualTo("2026-08-31T00:00:01.123Z")
 
-        val event = entry.getJSONObject("event")
+        val event = aggregatedEvaluation.getJSONObject("event")
         assertThat(event.getString("key")).isEqualTo("dark-mode")
         assertThat(event.getString("contextId")).isEqualTo("user-123")
         assertThat(event.getString("type")).isEqualTo("boolean")
@@ -106,20 +111,34 @@ class HttpEventReporterTest {
     }
 
     @Test
+    fun `leaves out that an instance ID which is not storage-backed is ephemeral`() = runBlocking<Unit> {
+        server.enqueue(MockResponse())
+
+        reporter(clientSession = ClientSession("instance-1", ephemeral = true))
+            .report(report(listOf(evaluation("dark-mode"))))
+
+        val body = JSONObject(request().body.readUtf8())
+        assertThat(body.getString("instanceId")).isEqualTo("instance-1")
+        assertThat(body.has("ephemeral")).isFalse()
+    }
+
+    @Test
     fun `reports a value too large to send by its id`() = runBlocking<Unit> {
         server.enqueue(MockResponse())
-        val long = "a".repeat(TelemetryValue.MAX_VALUE_LENGTH + 1)
+        val valueTooLargeToSend = "a".repeat(TelemetryValue.MAX_VALUE_LENGTH + 1)
 
-        reporter().report(report(listOf(evaluation("dark-mode", evaluated = long, valueId = null))))
+        reporter().report(
+            report(listOf(evaluation("dark-mode", evaluatedValue = valueTooLargeToSend, valueId = null))),
+        )
 
-        val event = JSONObject(request().body.readUtf8())
+        val evaluatedValue = JSONObject(request().body.readUtf8())
             .getJSONObject("aggregatedEvents")
             .getJSONArray("evaluatedConfig")
             .getJSONObject(0)
             .getJSONObject("event")
             .getJSONObject("evaluatedValue")
-        assertThat(event.has("value")).isFalse()
-        assertThat(event.getString("valueId")).isEqualTo(valueIdFor(long))
+        assertThat(evaluatedValue.has("value")).isFalse()
+        assertThat(evaluatedValue.getString("valueId")).isEqualTo(valueIdFor(valueTooLargeToSend))
     }
 
     @Test
@@ -200,9 +219,9 @@ class HttpEventReporterTest {
         )
 
         assertThat(outcome).isEqualTo(ReportOutcome.SUCCEEDED)
-        val aggregated = JSONObject(request().body.readUtf8()).getJSONObject("aggregatedEvents")
-        assertThat(aggregated.getJSONArray("evaluatedConfig").length()).isEqualTo(0)
-        assertThat(aggregated.getJSONArray("invalidContext").getJSONObject(0).getInt("count")).isEqualTo(1)
+        val aggregatedEvents = JSONObject(request().body.readUtf8()).getJSONObject("aggregatedEvents")
+        assertThat(aggregatedEvents.getJSONArray("evaluatedConfig").length()).isEqualTo(0)
+        assertThat(aggregatedEvents.getJSONArray("invalidContext").getJSONObject(0).getInt("count")).isEqualTo(1)
     }
 
     @Test
@@ -266,7 +285,7 @@ class HttpEventReporterTest {
 
     private fun evaluation(
         key: String,
-        evaluated: String = "true",
+        evaluatedValue: String = "true",
         valueId: String? = "v1",
     ) = EvaluatedConfigEvent(
         contextId = "user-123",
@@ -274,7 +293,7 @@ class HttpEventReporterTest {
         type = ConfigType.BOOLEAN,
         defaultValue = TelemetryValue(value = "false", type = ConfigType.BOOLEAN),
         requestedType = "Boolean",
-        evaluatedValue = TelemetryValue(value = evaluated, valueId = valueId, type = ConfigType.BOOLEAN),
+        evaluatedValue = TelemetryValue(value = evaluatedValue, valueId = valueId, type = ConfigType.BOOLEAN),
         evaluatedValueId = valueId,
         usedDefault = false,
         evaluationReason = EvaluationReason.FOUND_MATCH,

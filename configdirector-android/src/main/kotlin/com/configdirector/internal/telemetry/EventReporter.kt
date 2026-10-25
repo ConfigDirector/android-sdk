@@ -57,14 +57,14 @@ internal class HttpEventReporter(
         if (stopped.get()) return ReportOutcome.FAILED_FATALLY
         if (report.isEmpty) return ReportOutcome.SUCCEEDED
 
-        val aggregated = EventQueueSnapshot(
+        val aggregatedEvaluations = EventQueueSnapshot(
             startTime = report.snapshot.startTime,
             endTime = report.snapshot.endTime,
             events = report.snapshot.events.map { it.compacted() },
             droppedCount = report.snapshot.droppedCount,
         ).aggregated()
 
-        val outcome = send(payload(aggregated, report))
+        val outcome = send(payload(aggregatedEvaluations, report))
         if (outcome == ReportOutcome.FAILED_FATALLY) {
             stopped.set(true)
         }
@@ -75,20 +75,21 @@ internal class HttpEventReporter(
         stopped.set(true)
     }
 
-    private fun payload(aggregated: List<AggregatedEvent>, report: EventReport): String {
-        val events = JSONArray().apply { aggregated.forEach { put(it.toJson()) } }
+    private fun payload(aggregatedEvaluations: List<AggregatedEvent>, report: EventReport): String {
+        val evaluations = JSONArray().apply { aggregatedEvaluations.forEach { put(it.toJson()) } }
         val invalidContextSubmissions =
             JSONArray().apply { report.invalidContextSubmissionSummaries.forEach { put(it.toJson()) } }
 
         return JSONObject()
             .put("clientSdkKey", options.clientSdkKey)
+            .put("instanceId", options.clientSession.instanceId)
             .put("metaContext", options.metaContext.toJson())
             .apply { report.context?.let { put("context", it.toJson()) } }
             .put("discreteEvents", JSONObject())
             .put(
                 "aggregatedEvents",
                 JSONObject()
-                    .put("evaluatedConfig", events)
+                    .put("evaluatedConfig", evaluations)
                     .put("invalidContext", invalidContextSubmissions),
             )
             .put(

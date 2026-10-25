@@ -9,6 +9,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Telemetry (`android-sdk`): the client now sends its instance ID with telemetry, the same ID it
+  connects with, so ConfigDirector can tell which app install the telemetry came from.
+
 ## [1.9.0] - 2026-10-24
 
 ### Added

@@ -8,6 +8,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-10-25
+
+### Changed
+
+- Depends on version 1.9.1 of the SDK, which sends the app's instance ID with telemetry, so
+  ConfigDirector can tell which app install the telemetry came from.
+
 ## [1.5.0] - 2026-10-24
 
 ### Added

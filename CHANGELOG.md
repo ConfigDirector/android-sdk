@@ -9,6 +9,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-10-25
+
 ### Changed
 
 - Telemetry (`android-sdk`): the client now sends its instance ID with telemetry, the same ID it

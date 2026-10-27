@@ -6,7 +6,8 @@ import com.configdirector.internal.transport.toConfigState
 import org.json.JSONException
 import org.json.JSONObject
 
-private const val ENTRY_FORMAT_VERSION = 1
+private const val ENTRY_FORMAT_VERSION = 2
+private const val FIRST_ENTRY_FORMAT_VERSION = 1
 private const val DEFAULT_CONTEXT_KIND = "user"
 
 internal sealed class ContextTag {
@@ -43,10 +44,10 @@ internal fun decideCachedValuesAdoption(
     else -> CachedValuesAdoption.ADOPT
 }
 
-internal fun serializeCachedValuesEntry(clientSdkKey: String, cachedValues: CachedValues): String =
+internal fun serializeCachedValuesEntry(clientSdkKeyDigest: String, cachedValues: CachedValues): String =
     JSONObject()
         .put("formatVersion", ENTRY_FORMAT_VERSION)
-        .put("clientSdkKey", clientSdkKey)
+        .put("clientSdkKeyDigest", clientSdkKeyDigest)
         .put("contextTag", cachedValues.contextTag.toJson())
         .put("environmentId", cachedValues.environmentId)
         .put("projectId", cachedValues.projectId)
@@ -54,27 +55,39 @@ internal fun serializeCachedValuesEntry(clientSdkKey: String, cachedValues: Cach
         .put("receivedAt", cachedValues.receivedAt)
         .toString()
 
-internal fun cachedValuesIn(serialized: String, clientSdkKey: String): CachedValues? {
+internal fun parseCachedValuesEntry(
+    serialized: String,
+    clientSdkKeyDigest: String,
+): CachedValuesRead.EntryParseOutcome {
     val entry = try {
         JSONObject(serialized)
     } catch (malformed: JSONException) {
-        return null
+        return CachedValuesRead.NotAnEntry
     }
-    if (entry.optInt("formatVersion") != ENTRY_FORMAT_VERSION) return null
-    if (entry.optString("clientSdkKey") != clientSdkKey) return null
+    return when (entry.optInt("formatVersion")) {
+        ENTRY_FORMAT_VERSION -> entry.cachedValuesFor(clientSdkKeyDigest)
+            ?.let { CachedValuesRead.Stored(it) }
+            ?: CachedValuesRead.NotAnEntry
+        FIRST_ENTRY_FORMAT_VERSION -> CachedValuesRead.FirstFormatEntry
+        else -> CachedValuesRead.NotAnEntry
+    }
+}
 
-    val contextTag = entry.optJSONObject("contextTag")?.toContextTag() ?: return null
-    val configsJson = entry.optJSONObject("configs") ?: return null
-    if (!entry.has("receivedAt")) return null
+private fun JSONObject.cachedValuesFor(clientSdkKeyDigest: String): CachedValues? {
+    if (optString("clientSdkKeyDigest") != clientSdkKeyDigest) return null
+
+    val contextTag = optJSONObject("contextTag")?.toContextTag() ?: return null
+    val configsJson = optJSONObject("configs") ?: return null
+    if (!has("receivedAt")) return null
 
     return CachedValues(
         contextTag = contextTag,
-        environmentId = entry.optString("environmentId"),
-        projectId = entry.optString("projectId"),
+        environmentId = optString("environmentId"),
+        projectId = optString("projectId"),
         configs = buildMap {
             configsJson.keys().forEach { key -> configsJson.optJSONObject(key)?.let { put(key, it.toConfigState(key)) } }
         },
-        receivedAt = entry.optLong("receivedAt"),
+        receivedAt = optLong("receivedAt"),
     )
 }
 

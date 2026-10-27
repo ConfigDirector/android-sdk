@@ -49,7 +49,7 @@ class CachedValuesStoreTest {
     @Test
     fun `writes only the latest values queued while a write is in flight`() = runBlocking<Unit> {
         val provider = GatedCachingProvider()
-        val store = CachedValuesStore(provider, CLIENT_SDK_KEY, INSTANCE_ID, logger)
+        val store = CachedValuesStore(provider, CLIENT_SDK_KEY_DIGEST, INSTANCE_ID, logger)
         store.replace(cachedValues("first"))
         waitFor("the first write to start") { provider.writes.size == 1 }
 
@@ -60,11 +60,11 @@ class CachedValuesStoreTest {
         waitFor("the queued write") { provider.writes.size == 2 }
         Thread.sleep(200)
         assertThat(provider.writes).hasSize(2)
-        val written = checkNotNull(cachedValuesIn(provider.writes[1], CLIENT_SDK_KEY))
-        assertThat(written.configs.getValue("dark-mode").value).isEqualTo("third")
+        assertThat(parseCachedValuesEntry(provider.writes[1], CLIENT_SDK_KEY_DIGEST))
+            .isEqualTo(CachedValuesRead.Stored(cachedValues("third")))
         store.close()
     }
 }
 
-private const val CLIENT_SDK_KEY = "client-sdk-key"
+private const val CLIENT_SDK_KEY_DIGEST = "24913e1336d021b669358fca9ac7212a3a52d53f77b98dca11ecb0e4441ab498"
 private const val INSTANCE_ID = "11111111-1111-4111-8111-111111111111"

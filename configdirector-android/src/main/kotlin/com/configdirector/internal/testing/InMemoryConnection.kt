@@ -357,5 +357,5 @@ private object InMemoryClientPlatform : ClientPlatform {
 
     override fun lifecycleObserver(): AppLifecycleObserver = NoLifecycleObserver
 
-    override fun cachingProvider(clientSdkKey: String): CachingProvider? = null
+    override fun cachingProvider(clientSdkKeyDigest: String): CachingProvider? = null
 }

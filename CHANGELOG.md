@@ -9,6 +9,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Values kept on the device (`android-sdk`): the values the client keeps, in the app's
+  `SharedPreferences` or a `CachingProvider` of your own, no longer include the client SDK key, only
+  its SHA-256 digest. Values kept by an earlier version are removed without a warning on the first
+  start after the upgrade, so that start serves in-code default values until live values arrive.
+
 ## [1.9.1] - 2026-10-25
 
 ### Changed

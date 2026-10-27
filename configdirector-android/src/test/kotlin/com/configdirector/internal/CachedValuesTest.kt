@@ -51,11 +51,12 @@ class CachedValuesTest {
 
     @Test
     fun `serializes an entry it reads back as the same cached values`() {
-        val serialized = serializeCachedValuesEntry(CLIENT_SDK_KEY, cachedValues)
+        val serialized = serializeCachedValuesEntry(CLIENT_SDK_KEY_DIGEST, cachedValues)
 
         val entry = JSONObject(serialized)
-        assertThat(entry.getInt("formatVersion")).isEqualTo(1)
-        assertThat(entry.getString("clientSdkKey")).isEqualTo(CLIENT_SDK_KEY)
+        assertThat(entry.getInt("formatVersion")).isEqualTo(2)
+        assertThat(entry.getString("clientSdkKeyDigest")).isEqualTo(CLIENT_SDK_KEY_DIGEST)
+        assertThat(entry.has("clientSdkKey")).isFalse()
         assertThat(entry.getJSONObject("contextTag").getString("contextKind")).isEqualTo("user")
         assertThat(entry.getJSONObject("contextTag").getString("contextId")).isEqualTo("user-123")
         assertThat(entry.getString("environmentId")).isEqualTo("env-1")
@@ -67,44 +68,51 @@ class CachedValuesTest {
         assertThat(darkMode.getString("value")).isEqualTo("true")
         assertThat(darkMode.getString("valueId")).isEqualTo("dark-mode-pro")
         assertThat(entry.getJSONObject("configs").getJSONObject("beta-banner").isNull("value")).isTrue()
-        assertThat(cachedValuesIn(serialized, CLIENT_SDK_KEY)).isEqualTo(cachedValues)
+        assertThat(parseCachedValuesEntry(serialized, CLIENT_SDK_KEY_DIGEST)).isEqualTo(CachedValuesRead.Stored(cachedValues))
     }
 
     @Test
     fun `serializes an anonymous context tag with the instance ID`() {
         val anonymous = cachedValues.copy(contextTag = ContextTag.Anonymous(contextKind = "device", instanceId = INSTANCE_ID))
 
-        val serialized = serializeCachedValuesEntry(CLIENT_SDK_KEY, anonymous)
+        val serialized = serializeCachedValuesEntry(CLIENT_SDK_KEY_DIGEST, anonymous)
 
         val tag = JSONObject(serialized).getJSONObject("contextTag")
         assertThat(tag.getString("contextKind")).isEqualTo("device")
         assertThat(tag.getString("anonymousInstanceId")).isEqualTo(INSTANCE_ID)
         assertThat(tag.has("contextId")).isFalse()
-        assertThat(cachedValuesIn(serialized, CLIENT_SDK_KEY)).isEqualTo(anonymous)
+        assertThat(parseCachedValuesEntry(serialized, CLIENT_SDK_KEY_DIGEST)).isEqualTo(CachedValuesRead.Stored(anonymous))
+    }
+
+    @Test
+    fun `reads the entry an earlier release kept as a first format entry`() {
+        assertThat(parseCachedValuesEntry(FIRST_FORMAT_ENTRY, CLIENT_SDK_KEY_DIGEST)).isEqualTo(CachedValuesRead.FirstFormatEntry)
     }
 
     @Test
     fun `reads no cached values from an entry with another format version`() {
-        val entry = JSONObject(serializeCachedValuesEntry(CLIENT_SDK_KEY, cachedValues)).put("formatVersion", 2)
+        val entry = JSONObject(serializeCachedValuesEntry(CLIENT_SDK_KEY_DIGEST, cachedValues)).put("formatVersion", 3)
 
-        assertThat(cachedValuesIn(entry.toString(), CLIENT_SDK_KEY)).isNull()
+        assertThat(parseCachedValuesEntry(entry.toString(), CLIENT_SDK_KEY_DIGEST)).isEqualTo(CachedValuesRead.NotAnEntry)
     }
 
     @Test
     fun `reads no cached values from an entry written for another client SDK key`() {
-        val serialized = serializeCachedValuesEntry("another-client-sdk-key", cachedValues)
+        val serialized = serializeCachedValuesEntry(ANOTHER_CLIENT_SDK_KEY_DIGEST, cachedValues)
 
-        assertThat(cachedValuesIn(serialized, CLIENT_SDK_KEY)).isNull()
+        assertThat(parseCachedValuesEntry(serialized, CLIENT_SDK_KEY_DIGEST)).isEqualTo(CachedValuesRead.NotAnEntry)
     }
 
     @Test
     fun `reads no cached values from text that is not JSON`() {
-        assertThat(cachedValuesIn("{oops", CLIENT_SDK_KEY)).isNull()
+        assertThat(parseCachedValuesEntry("{oops", CLIENT_SDK_KEY_DIGEST)).isEqualTo(CachedValuesRead.NotAnEntry)
     }
 
     @Test
     fun `reads no cached values from an entry without a context tag`() {
-        assertThat(cachedValuesIn("""{"formatVersion":1,"clientSdkKey":"$CLIENT_SDK_KEY"}""", CLIENT_SDK_KEY)).isNull()
+        val bareEntry = """{"formatVersion":2,"clientSdkKeyDigest":"$CLIENT_SDK_KEY_DIGEST"}"""
+
+        assertThat(parseCachedValuesEntry(bareEntry, CLIENT_SDK_KEY_DIGEST)).isEqualTo(CachedValuesRead.NotAnEntry)
     }
 
     @Test
@@ -168,5 +176,10 @@ class CachedValuesTest {
     }
 }
 
-private const val CLIENT_SDK_KEY = "client-sdk-key"
+private const val CLIENT_SDK_KEY_DIGEST = "24913e1336d021b669358fca9ac7212a3a52d53f77b98dca11ecb0e4441ab498"
+private const val ANOTHER_CLIENT_SDK_KEY_DIGEST = "1b7c1cc1b967c42801d6886d061d42850d4a0fa49c5670403917512f9ccbde8b"
+private const val FIRST_FORMAT_ENTRY =
+    """{"formatVersion":1,"clientSdkKey":"client-sdk-key","contextTag":{"contextKind":"user","contextId":"user-123"},""" +
+        """"environmentId":"env-1","projectId":"project-1","configs":{"dark-mode":{"id":"dark-mode-id","key":"dark-mode",""" +
+        """"type":"boolean","value":"true","valueId":"dark-mode-pro"}},"receivedAt":1761000000000}"""
 private const val INSTANCE_ID = "11111111-1111-4111-8111-111111111111"

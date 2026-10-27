@@ -17,7 +17,7 @@ internal interface ClientPlatform {
 
     fun lifecycleObserver(): AppLifecycleObserver
 
-    fun cachingProvider(clientSdkKey: String): CachingProvider?
+    fun cachingProvider(clientSdkKeyDigest: String): CachingProvider?
 }
 
 @OptIn(ConfigDirectorWrapperApi::class)
@@ -34,6 +34,6 @@ internal class AndroidClientPlatform(
 
     override fun lifecycleObserver(): AppLifecycleObserver = appLifecycleObserver(androidContext, options.logger)
 
-    override fun cachingProvider(clientSdkKey: String): CachingProvider =
-        SharedPreferencesCachingProvider(androidContext, clientSdkKey)
+    override fun cachingProvider(clientSdkKeyDigest: String): CachingProvider =
+        SharedPreferencesCachingProvider(androidContext, clientSdkKeyDigest)
 }

@@ -422,6 +422,29 @@ class CachedValuesTest {
     }
 
     @Test
+    fun `hands the caching provider it was given the digest of the client SDK key, never the key`() =
+        runBlocking<Unit> {
+            val provider = RecordingCachingProvider()
+            val client = client(timeoutMillis = 3_000) { provider(provider) }
+
+            client.initialize(proContext)
+
+            waitFor("the entry to be written") { provider.writes.isNotEmpty() }
+            val written = provider.writes.first()
+            assertThat(JSONObject(written).optString("clientSdkKeyDigest")).isEqualTo(CLIENT_SDK_KEY_DIGEST)
+            assertThat(written).doesNotContain(CLIENT_SDK_KEY)
+        }
+
+    @Test
+    fun `keeps only the digest of the client SDK key in the app's preferences`() = runBlocking<Unit> {
+        earlierLaunch(proContext)
+
+        val entry = checkNotNull(storedEntry())
+        assertThat(JSONObject(entry).optString("clientSdkKeyDigest")).isEqualTo(CLIENT_SDK_KEY_DIGEST)
+        assertThat(entry).doesNotContain(CLIENT_SDK_KEY)
+    }
+
+    @Test
     fun `keeps nothing in offline mode`() = runBlocking<Unit> {
         val provider = RecordingCachingProvider()
         val client = ConfigDirectorClient(
@@ -508,7 +531,7 @@ class CachedValuesTest {
     @Test
     fun `removes an entry whose format version it does not know`() = runBlocking<Unit> {
         earlierLaunch(proContext)
-        val newerEntry = JSONObject(checkNotNull(storedEntry())).put("formatVersion", 2).toString()
+        val newerEntry = JSONObject(checkNotNull(storedEntry())).put("formatVersion", 3).toString()
         preferences().edit().putString(CACHED_VALUES_KEY, newerEntry).commit()
         val client = client(baseUrl = unreachableBaseUrl)
 
@@ -516,6 +539,34 @@ class CachedValuesTest {
 
         assertThat(client.evaluateBoolean("dark-mode", true).reason).isEqualTo(EvaluationReason.CLIENT_NOT_READY)
         waitFor("the entry to be removed") { storedEntry() == null }
+        assertThat(warnings("could not be read")).hasSize(1)
+    }
+
+    @Test
+    fun `removes the entry an earlier release kept without a warning`() = runBlocking<Unit> {
+        preferences().edit().putString(CACHED_VALUES_KEY, FIRST_FORMAT_ENTRY).commit()
+        val client = client(baseUrl = unreachableBaseUrl)
+
+        client.initialize(proContext)
+
+        assertThat(client.evaluateBoolean("dark-mode", true).reason).isEqualTo(EvaluationReason.CLIENT_NOT_READY)
+        waitFor("the entry to be removed") { storedEntry() == null }
+        assertThat(warnings("device")).isEmpty()
+    }
+
+    @Test
+    fun `ignores and removes the values kept for another client SDK key`() = runBlocking<Unit> {
+        val provider = RecordingCachingProvider()
+        earlierLaunch(proContext, caching = { provider(provider) }, keptEntry = { provider.entry })
+        provider.entry = JSONObject(checkNotNull(provider.entry))
+            .put("clientSdkKeyDigest", ANOTHER_CLIENT_SDK_KEY_DIGEST)
+            .toString()
+        val client = client(baseUrl = unreachableBaseUrl) { provider(provider) }
+
+        client.initialize(proContext)
+
+        assertThat(client.evaluateBoolean("dark-mode", true).reason).isEqualTo(EvaluationReason.CLIENT_NOT_READY)
+        waitFor("the entry to be removed") { provider.entry == null }
         assertThat(warnings("could not be read")).hasSize(1)
     }
 
@@ -565,6 +616,10 @@ class CachedValuesTest {
 }
 
 private const val CLIENT_SDK_KEY = "client-sdk-key"
-
-/** `cached-values:` followed by the SHA-256 hex digest of the client SDK key. */
-private const val CACHED_VALUES_KEY = "cached-values:24913e1336d021b669358fca9ac7212a3a52d53f77b98dca11ecb0e4441ab498"
+private const val CLIENT_SDK_KEY_DIGEST = "24913e1336d021b669358fca9ac7212a3a52d53f77b98dca11ecb0e4441ab498"
+private const val ANOTHER_CLIENT_SDK_KEY_DIGEST = "1b7c1cc1b967c42801d6886d061d42850d4a0fa49c5670403917512f9ccbde8b"
+private const val FIRST_FORMAT_ENTRY =
+    """{"formatVersion":1,"clientSdkKey":"client-sdk-key","contextTag":{"contextKind":"user","contextId":"user-123"},""" +
+        """"environmentId":"env-1","projectId":"project-1","configs":{"dark-mode":{"id":"dark-mode-id","key":"dark-mode",""" +
+        """"type":"boolean","value":"true","valueId":"dark-mode-pro"}},"receivedAt":1761000000000}"""
+private const val CACHED_VALUES_KEY = "cached-values:$CLIENT_SDK_KEY_DIGEST"

@@ -6,6 +6,7 @@ import com.configdirector.ConfigDirectorContext
 import com.configdirector.ConfigDirectorLogger
 import com.configdirector.debug
 import com.configdirector.warn
+import java.security.MessageDigest
 import java.util.Collections
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -25,7 +26,7 @@ internal fun planCaching(
     caching: CachingOptions,
     clientSdkKey: String,
     instanceId: String,
-    platformProvider: () -> CachingProvider?,
+    platformProvider: (clientSdkKeyDigest: String) -> CachingProvider?,
     logger: ConfigDirectorLogger,
 ): CachingPlan {
     if (!caching.enabled) {
@@ -33,26 +34,36 @@ internal fun planCaching(
         return CachingPlan.KeepNothing
     }
 
-    val provider = caching.provider ?: platformProvider() ?: run {
+    val clientSdkKeyDigest = sha256HexDigest(clientSdkKey)
+    val provider = caching.provider ?: platformProvider(clientSdkKeyDigest) ?: run {
         logger.debug { "No values are kept on the device: this platform has no store for them" }
         return CachingPlan.KeepNothing
     }
-    return CachingPlan.KeepValues(CachedValuesStore(provider, clientSdkKey, instanceId, logger))
+    return CachingPlan.KeepValues(CachedValuesStore(provider, clientSdkKeyDigest, instanceId, logger))
 }
 
+private fun sha256HexDigest(text: String): String =
+    MessageDigest.getInstance("SHA-256")
+        .digest(text.toByteArray(Charsets.UTF_8))
+        .joinToString("") { byte -> "%02x".format(byte) }
+
 internal sealed class CachedValuesRead {
-    class Stored(val cachedValues: CachedValues) : CachedValuesRead()
+    sealed class EntryParseOutcome : CachedValuesRead()
+
+    data class Stored(val cachedValues: CachedValues) : EntryParseOutcome()
 
     object NothingStored : CachedValuesRead()
 
-    object NotAnEntry : CachedValuesRead()
+    object FirstFormatEntry : EntryParseOutcome()
+
+    object NotAnEntry : EntryParseOutcome()
 
     object StorageFailed : CachedValuesRead()
 }
 
 internal class CachedValuesStore(
     private val provider: CachingProvider,
-    private val clientSdkKey: String,
+    private val clientSdkKeyDigest: String,
     private val instanceId: String,
     logger: ConfigDirectorLogger,
 ) {
@@ -83,7 +94,7 @@ internal class CachedValuesStore(
     }
 
     private suspend fun writeEntry(cachedValues: CachedValues) {
-        val serialized = serializeCachedValuesEntry(clientSdkKey, cachedValues)
+        val serialized = serializeCachedValuesEntry(clientSdkKeyDigest, cachedValues)
         val size = serialized.toByteArray(Charsets.UTF_8).size
         val limit = provider.sizeLimit()
         if (size > limit) {
@@ -116,15 +127,19 @@ internal class CachedValuesStore(
         }
         if (stored.isNullOrEmpty()) return CachedValuesRead.NothingStored
 
-        val cachedValues = cachedValuesIn(stored, clientSdkKey) ?: run {
-            warnings.warnOnce(CachingWarnings.Kind.NOT_AN_ENTRY) {
-                "The values kept on the device could not be read and were removed, so this launch starts " +
-                    "without them."
+        val read = parseCachedValuesEntry(stored, clientSdkKeyDigest)
+        when (read) {
+            is CachedValuesRead.Stored -> Unit
+            CachedValuesRead.FirstFormatEntry -> removeEntry()
+            CachedValuesRead.NotAnEntry -> {
+                warnings.warnOnce(CachingWarnings.Kind.NOT_AN_ENTRY) {
+                    "The values kept on the device could not be read and were removed, so this launch starts " +
+                        "without them."
+                }
+                removeEntry()
             }
-            removeEntry()
-            return CachedValuesRead.NotAnEntry
         }
-        return CachedValuesRead.Stored(cachedValues)
+        return read
     }
 
     private suspend fun removeEntry() {

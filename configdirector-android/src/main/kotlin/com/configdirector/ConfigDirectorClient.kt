@@ -202,7 +202,7 @@ public class ConfigDirectorClient internal constructor(
                     options.caching,
                     plan.clientSdkKey,
                     transportOptions.clientSession.instanceId,
-                    platformProvider = { platform.cachingProvider(plan.clientSdkKey) },
+                    platformProvider = platform::cachingProvider,
                     logger = logger,
                 )
                 store = ConfigStore(logger, telemetry, caching)

@@ -101,7 +101,11 @@ internal class ConfigStore(
         adoptionScope.launch(start = CoroutineStart.UNDISPATCHED) {
             when (val read = store.read()) {
                 is CachedValuesRead.Stored -> adopt(read.cachedValues, launchContextTag)
-                CachedValuesRead.NothingStored, CachedValuesRead.NotAnEntry, CachedValuesRead.StorageFailed -> Unit
+                CachedValuesRead.NothingStored,
+                CachedValuesRead.FirstFormatEntry,
+                CachedValuesRead.NotAnEntry,
+                CachedValuesRead.StorageFailed,
+                -> Unit
             }
         }
     }

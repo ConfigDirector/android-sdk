@@ -11,7 +11,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import kotlinx.coroutines.Dispatchers;
 import kotlinx.coroutines.test.TestDispatchers;
-import okhttp3.mockwebserver.RecordedRequest;
 import org.json.JSONObject;
 import org.junit.After;
 import org.junit.Before;
@@ -223,9 +222,9 @@ public class ConfigDirectorClientJavaTest {
     client.initialize(null, initialized::countDown);
     assertThat(initialized.await(5, TimeUnit.SECONDS)).isTrue();
 
-    RecordedRequest request = server.takeRequest(5_000);
+    ReceivedRequest request = server.takeRequest(5_000);
     assertThat(request).isNotNull();
-    JSONObject meta = new JSONObject(request.getBody().readUtf8()).getJSONObject("metaContext");
+    JSONObject meta = new JSONObject(request.getBody()).getJSONObject("metaContext");
     assertThat(meta.getString("sdkName")).isEqualTo("android-openfeature-client-provider");
     assertThat(meta.getString("sdkVersion")).isEqualTo("9.9.9");
     client.close();

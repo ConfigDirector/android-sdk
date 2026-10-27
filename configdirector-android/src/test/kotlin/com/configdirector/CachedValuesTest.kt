@@ -583,7 +583,7 @@ class CachedValuesTest {
 
         val relaunchRequest = checkNotNull(server.takeRequest())
         assertThat(relaunchRequest.path).isEqualTo("/client/polling/v1")
-        assertThat(JSONObject(relaunchRequest.body.readUtf8()).has("lastUpdateTimestamp")).isFalse()
+        assertThat(JSONObject(relaunchRequest.body).has("lastUpdateTimestamp")).isFalse()
     }
 
     @Test

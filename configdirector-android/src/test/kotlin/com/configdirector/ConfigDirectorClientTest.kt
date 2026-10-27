@@ -182,7 +182,7 @@ class ConfigDirectorClientTest {
         generateSequence { server.takeRequest() }
             .filter { it.path == path }
             .take(count)
-            .map { JSONObject(it.body.readUtf8()).getJSONObject("givenContext").toString() }
+            .map { JSONObject(it.body).getJSONObject("givenContext").toString() }
             .toList()
 
     @Test
@@ -300,7 +300,7 @@ class ConfigDirectorClientTest {
 
         val request = checkNotNull(server.takeRequest())
         assertThat(request.path).isEqualTo("/client/sse/v1")
-        val body = JSONObject(request.body.readUtf8())
+        val body = JSONObject(request.body)
         assertThat(body.getString("clientSdkKey")).isEqualTo("client-sdk-key")
         assertThat(body.getString("instanceId")).isNotEmpty()
         assertThat(body.getJSONObject("givenContext").getString("id")).isEqualTo("user-123")
@@ -314,7 +314,7 @@ class ConfigDirectorClientTest {
     }
 
     private fun sentPayload(): JSONObject =
-        JSONObject(checkNotNull(server.takeRequest()).body.readUtf8())
+        JSONObject(checkNotNull(server.takeRequest()).body)
 
     private fun instanceIdPreferences(): SharedPreferences = RuntimeEnvironment.getApplication()
         .getSharedPreferences("configdirector-sdk", Context.MODE_PRIVATE)
@@ -470,7 +470,7 @@ class ConfigDirectorClientTest {
         wrapperClient(SdkIdentity.openFeatureProvider("9.9.9")).initialize(proContext)
 
         val request = checkNotNull(server.takeRequest())
-        val meta = JSONObject(request.body.readUtf8()).getJSONObject("metaContext")
+        val meta = JSONObject(request.body).getJSONObject("metaContext")
         assertThat(meta.getString("sdkName")).isEqualTo("android-openfeature-client-provider")
         assertThat(meta.getString("sdkVersion")).isEqualTo("9.9.9")
         assertThat(meta.getString("appName")).isEqualTo("Checkout")

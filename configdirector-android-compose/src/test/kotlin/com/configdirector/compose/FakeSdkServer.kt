@@ -5,6 +5,7 @@ import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
+import org.json.JSONException
 import org.json.JSONObject
 
 /**
@@ -31,9 +32,13 @@ class FakeSdkServer : Closeable {
 
     private fun respondTo(request: RecordedRequest): MockResponse {
         val response = MockResponse()
+
+        val payload = payloadOrNull(request)
+            ?: return response.setResponseCode(BAD_REQUEST).setBody("the server could not parse the request body")
+
         if (request.path?.contains("telemetry") == true) return response
 
-        val isPro = JSONObject(request.body.peek().readUtf8())
+        val isPro = payload
             .optJSONObject("givenContext")
             ?.optJSONObject("traits")
             ?.optString("plan") == "pro"
@@ -59,5 +64,16 @@ class FakeSdkServer : Closeable {
         } else {
             response.setHeader("Content-Type", "application/json").setBody(body)
         }
+    }
+
+    private fun payloadOrNull(request: RecordedRequest): JSONObject? =
+        try {
+            JSONObject(request.body.peek().readUtf8())
+        } catch (malformed: JSONException) {
+            null
+        }
+
+    private companion object {
+        const val BAD_REQUEST = 400
     }
 }

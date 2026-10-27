@@ -8,6 +8,7 @@ import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
+import org.json.JSONException
 import org.json.JSONObject
 
 /**
@@ -49,8 +50,10 @@ class FakeSdkServer : Closeable {
 
     /** The next request the server received, or null if none arrived within [timeoutMillis]. An
      * unbounded wait would hang the whole suite when the client never connects. */
-    fun takeRequest(timeoutMillis: Long = 5_000): RecordedRequest? =
-        server.takeRequest(timeoutMillis, TimeUnit.MILLISECONDS)
+    fun takeRequest(timeoutMillis: Long = 5_000): ReceivedRequest? =
+        server.takeRequest(timeoutMillis, TimeUnit.MILLISECONDS)?.let { request ->
+            ReceivedRequest(request.path.orEmpty(), request.body.peek().readUtf8())
+        }
 
     /** Answers the next request with [body] instead of evaluating the context it carries. */
     fun script(body: String) {
@@ -85,8 +88,11 @@ class FakeSdkServer : Closeable {
     private fun respondTo(request: RecordedRequest): MockResponse {
         val response = MockResponse().setHeadersDelay(responseDelayMillis, TimeUnit.MILLISECONDS)
 
+        val payload = payloadOrNull(request)
+            ?: return response.setResponseCode(BAD_REQUEST).setBody("the server could not parse the request body")
+
         if (request.path?.contains("telemetry") == true) {
-            telemetry += JSONObject(request.body.peek().readUtf8())
+            telemetry += payload
             return response
         }
 
@@ -103,7 +109,7 @@ class FakeSdkServer : Closeable {
             }
         }
 
-        val body = scripted.poll() ?: evaluate(request.body.peek().readUtf8())
+        val body = scripted.poll() ?: evaluate(payload)
 
         return if (isStream) {
             response.setHeader("Content-Type", "text/event-stream").setBody("data: $body\n\n")
@@ -112,8 +118,15 @@ class FakeSdkServer : Closeable {
         }
     }
 
-    private fun evaluate(payload: String): String {
-        val given = JSONObject(payload).optJSONObject("givenContext") ?: JSONObject()
+    private fun payloadOrNull(request: RecordedRequest): JSONObject? =
+        try {
+            JSONObject(request.body.peek().readUtf8())
+        } catch (malformed: JSONException) {
+            null
+        }
+
+    private fun evaluate(payload: JSONObject): String {
+        val given = payload.optJSONObject("givenContext") ?: JSONObject()
         val isPro = given.optJSONObject("traits")?.optString("plan") == "pro"
         val variant = if (isPro) "pro" else "free"
         val name = given.optString("name").ifEmpty { "there" }
@@ -154,6 +167,7 @@ class FakeSdkServer : Closeable {
         .put("valueId", valueId ?: JSONObject.NULL)
 
     companion object {
+        private const val BAD_REQUEST = 400
         private const val NO_CONTENT = 204
 
         const val THEME_DOCUMENT: String =
@@ -161,3 +175,5 @@ class FakeSdkServer : Closeable {
         const val TIMESTAMP: String = "2026-08-31T00:00:00Z"
     }
 }
+
+data class ReceivedRequest(val path: String, val body: String)

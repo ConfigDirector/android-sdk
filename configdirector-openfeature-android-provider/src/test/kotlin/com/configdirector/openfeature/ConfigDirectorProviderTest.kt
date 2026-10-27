@@ -131,7 +131,7 @@ class ConfigDirectorProviderTest {
         provider().initialize(proContext)
 
         val request = checkNotNull(server.takeRequest())
-        val meta = JSONObject(request.body.readUtf8()).getJSONObject("metaContext")
+        val meta = JSONObject(request.body).getJSONObject("metaContext")
         assertThat(meta.getString("sdkName")).isEqualTo("android-openfeature-client-provider")
         assertThat(meta.getString("sdkVersion")).isEqualTo(Constants.PROVIDER_VERSION)
         assertThat(meta.getString("appName")).isEqualTo("Checkout")
@@ -143,7 +143,7 @@ class ConfigDirectorProviderTest {
         provider().initialize(proContext)
 
         val request = checkNotNull(server.takeRequest())
-        val given = JSONObject(request.body.readUtf8()).getJSONObject("givenContext")
+        val given = JSONObject(request.body).getJSONObject("givenContext")
         assertThat(given.getString("id")).isEqualTo("user-123")
         assertThat(given.getString("name")).isEqualTo("Ada")
         assertThat(given.getJSONObject("traits").getString("plan")).isEqualTo("pro")

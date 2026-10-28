@@ -16,7 +16,6 @@ import com.configdirector.openfeature.internal.toAny
 import com.configdirector.openfeature.internal.toConfigDirectorContext
 import com.configdirector.openfeature.internal.toProviderEvaluation
 import com.configdirector.openfeature.internal.toValue
-import com.configdirector.openfeature.internal.unsupportedDefault
 import dev.openfeature.kotlin.sdk.EvaluationContext
 import dev.openfeature.kotlin.sdk.FeatureProvider
 import dev.openfeature.kotlin.sdk.Hook
@@ -26,9 +25,11 @@ import dev.openfeature.kotlin.sdk.ProviderEvaluation
 import dev.openfeature.kotlin.sdk.ProviderMetadata
 import dev.openfeature.kotlin.sdk.Value
 import dev.openfeature.kotlin.sdk.events.OpenFeatureProviderEvents
+import dev.openfeature.kotlin.sdk.exceptions.ErrorCode
 import dev.openfeature.kotlin.sdk.exceptions.OpenFeatureError
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -37,6 +38,8 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -80,29 +83,42 @@ import kotlinx.coroutines.withTimeoutOrNull
  *
  * A flag ConfigDirector served resolves with the reason `TARGETING_MATCH` and the served value's
  * id as its variant; one served from the values kept on the device, before live values arrive,
- * resolves the same way with the reason `CACHED`. One the config has no value for resolves to the
- * default with the reason `DEFAULT`. Everything else is an error carrying the default: `FLAG_NOT_FOUND` for an unknown
- * key, `PROVIDER_NOT_READY` before config state has arrived, and `TYPE_MISMATCH` for a value that
- * cannot be read as the requested type.
+ * resolves the same way with the reason `CACHED`. One the config has no value for resolves to its
+ * in-code default value with the reason `DEFAULT`.
  *
- * An object flag takes its type from the default value: a `Value.Structure` reads a JSON config as
- * a structure, a `Value.List` reads one as a list, and a string, integer, double or boolean reads
- * the config as that type. A `Value.Null` or `Value.Instant` default names no type to read, so it
- * resolves to itself with `TYPE_MISMATCH`.
+ * Every other read throws the matching OpenFeature error, so OpenFeature error hooks run for it:
+ * `FlagNotFoundError` for a key with no config, `ProviderNotReadyError` before config state has
+ * arrived, and `TypeMismatchError` for a value that cannot be read as the requested type. The
+ * OpenFeature client then hands the application its in-code default value with the reason `ERROR`
+ * and the error's code: `FLAG_NOT_FOUND`, `PROVIDER_NOT_READY` or `TYPE_MISMATCH`.
+ *
+ * An object flag takes its type from its in-code default value: a `Value.Structure` reads a JSON
+ * config as a structure, a `Value.List` reads one as a list, and a string, integer, double or
+ * boolean reads the config as that type. A `Value.Null` or `Value.Instant` in-code default value
+ * names no type to read, so the read throws `TypeMismatchError`.
  *
  * ## Provider status
  *
- * The provider is ready once ConfigDirector has delivered config state. When that does not happen
- * within `ConnectionOptions.timeoutMillis`, initialization fails with a `ProviderNotReadyError` and
- * the OpenFeature SDK reports an error status. The underlying client keeps trying to connect, and
- * the provider emits a ready event as soon as it succeeds. Until then flags resolve to the config
- * state received earlier, or to their default values when there is none.
+ * The provider is ready once ConfigDirector has delivered config state, and it emits a ready event
+ * when initialization succeeds. When config state does not arrive within
+ * `ConnectionOptions.timeoutMillis`, initialization fails with a `ProviderNotReadyError` and the
+ * OpenFeature SDK reports an error status; a context change that does not take in time fails the
+ * same way. Once the OpenFeature SDK has recorded that error, the provider also emits an error
+ * event with the same message and the `PROVIDER_NOT_READY` error code, and the OpenFeature Kotlin
+ * SDK sets the status's error from that code, with a message of its own. The underlying client
+ * keeps trying to connect, and the provider emits a ready event when values first arrive after the
+ * failure, including through a later context change that succeeds. Until then flags resolve to the
+ * config state received earlier, or to their in-code default values when there is none.
+ *
+ * A context change that succeeds emits no ready event: the OpenFeature SDK moves the status from
+ * reconciling to ready by itself. Neither does a connection the client resumes after the app comes
+ * back from the background, since the status stayed ready while it was paused.
  *
  * When the client loads the values it kept on the device from an earlier launch, the provider
  * emits a stale event and flags resolve to those values with the reason `CACHED` until live values
  * arrive. A timed-out initialization or context change still fails as above, and the provider emits
- * stale again right after the OpenFeature SDK has recorded that error, so the status reads stale
- * while kept values are served. See `ClientOptions.caching` to turn this off.
+ * stale again right after its error event, so the status reads stale while kept values are served.
+ * See `ClientOptions.caching` to turn this off.
  *
  * A configuration-changed event is emitted every time config state arrives, carrying the keys of
  * the configs in the update followed by the keys a full update removed.
@@ -175,9 +191,11 @@ public class ConfigDirectorProvider private constructor(
     public constructor(client: ConfigDirectorClient) : this(client, ownsClient = false)
 
     private val servingCachedValues = AtomicBoolean(false)
-    private val servedValuesTracking: Subscription = client.addEventListener { event -> trackServedValues(event) }
     private val statusReports = MutableSharedFlow<OpenFeatureProviderEvents>(extraBufferCapacity = STATUS_REPORT_BUFFER)
+    private val statusReportLock = Mutex()
+    private var awaitingRecovery = false
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val servedValuesTracking: Subscription = client.addEventListener { event -> trackServedValues(event) }
 
     override val hooks: List<Hook<*>> = emptyList()
 
@@ -185,18 +203,12 @@ public class ConfigDirectorProvider private constructor(
 
     override suspend fun initialize(initialContext: EvaluationContext?) {
         client.initialize(initialContext?.toContext())
-        requireReady(
-            "ConfigDirector did not become ready during initialization. Flags resolve to their " +
-                "default values until the connection succeeds.",
-        )
+        reportOutcome(LifecycleCall.INITIALIZATION)
     }
 
     override suspend fun onContextSet(oldContext: EvaluationContext?, newContext: EvaluationContext) {
         client.updateContext(newContext.toContext())
-        requireReady(
-            "ConfigDirector did not become ready after the context changed. Flags resolve " +
-                "against the previous context until the connection succeeds.",
-        )
+        reportOutcome(LifecycleCall.CONTEXT_UPDATE)
     }
 
     override fun shutdown() {
@@ -212,18 +224,20 @@ public class ConfigDirectorProvider private constructor(
     }
 
     private fun providerEventFor(event: ClientEvent): OpenFeatureProviderEvents? = when (event) {
-        is ClientEvent.Ready -> OpenFeatureProviderEvents.ProviderReady()
         is ClientEvent.ConfigsUpdated -> OpenFeatureProviderEvents.ProviderConfigurationChanged(
             OpenFeatureProviderEvents.EventDetails(flagsChanged = (event.keys + event.removedKeys).toSet()),
         )
         is ClientEvent.CachedValuesLoaded -> if (servingCachedValues.get()) OpenFeatureProviderEvents.ProviderStale() else null
-        is ClientEvent.ContextUpdated -> null
+        is ClientEvent.Ready, is ClientEvent.ContextUpdated -> null
     }
 
     private fun trackServedValues(event: ClientEvent) {
         when (event) {
             is ClientEvent.CachedValuesLoaded -> if (!client.isReady) servingCachedValues.set(true)
-            is ClientEvent.Ready -> servingCachedValues.set(false)
+            is ClientEvent.Ready -> {
+                servingCachedValues.set(false)
+                scope.launch { statusReportLock.withLock { recoverIfTheClientIsReady() } }
+            }
             is ClientEvent.ConfigsUpdated, is ClientEvent.ContextUpdated -> Unit
         }
     }
@@ -269,9 +283,8 @@ public class ConfigDirectorProvider private constructor(
             is Value.Integer -> client.evaluateInt(key, defaultValue.integer)
             is Value.Double -> client.evaluateDouble(key, defaultValue.double)
             is Value.Boolean -> client.evaluateBoolean(key, defaultValue.boolean)
-            is Value.Instant, Value.Null -> return unsupportedDefault(
-                defaultValue,
-                "A default of ${defaultValue::class.simpleName} names no type to read '$key' as. " +
+            is Value.Instant, Value.Null -> throw OpenFeatureError.TypeMismatchError(
+                "An in-code default value of ${defaultValue::class.simpleName} names no type to read '$key' as. " +
                     "Pass a Structure, List, String, Integer, Double or Boolean.",
             )
         }
@@ -281,20 +294,43 @@ public class ConfigDirectorProvider private constructor(
         )
     }
 
-    private fun requireReady(message: String) {
-        if (client.isReady) return
-
-        when (FailureReport.decide(servingCachedValues.get())) {
-            FailureReport.ERROR -> Unit
-            FailureReport.ERROR_THEN_STALE -> reportStaleOnceTheErrorIsRecorded()
+    private suspend fun reportOutcome(call: LifecycleCall) {
+        statusReportLock.withLock {
+            when (LifecycleReport.decide(call, client.isReady)) {
+                LifecycleReport.READY -> statusReports.emit(OpenFeatureProviderEvents.ProviderReady())
+                LifecycleReport.NO_EVENT -> Unit
+                LifecycleReport.FAILURE -> {
+                    awaitingRecovery = false
+                    reportFailureOnceTheErrorIsRecorded(call.failureMessage)
+                    throw OpenFeatureError.ProviderNotReadyError(call.failureMessage)
+                }
+            }
         }
-        throw OpenFeatureError.ProviderNotReadyError(message)
     }
 
-    private fun reportStaleOnceTheErrorIsRecorded() {
-        scope.launch {
+    private fun reportFailureOnceTheErrorIsRecorded(message: String) {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
             awaitTheRecordedErrorStatus()
-            statusReports.emit(OpenFeatureProviderEvents.ProviderStale())
+            statusReportLock.withLock {
+                statusReports.emit(
+                    OpenFeatureProviderEvents.ProviderError(
+                        OpenFeatureProviderEvents.EventDetails(message = message, errorCode = ErrorCode.PROVIDER_NOT_READY),
+                    ),
+                )
+                when (FailureReport.decide(servingCachedValues.get())) {
+                    FailureReport.ERROR -> Unit
+                    FailureReport.ERROR_THEN_STALE -> statusReports.emit(OpenFeatureProviderEvents.ProviderStale())
+                }
+                awaitingRecovery = true
+                recoverIfTheClientIsReady()
+            }
+        }
+    }
+
+    private suspend fun recoverIfTheClientIsReady() {
+        if (awaitingRecovery && client.isReady) {
+            awaitingRecovery = false
+            statusReports.emit(OpenFeatureProviderEvents.ProviderReady())
         }
     }
 
@@ -317,6 +353,31 @@ public class ConfigDirectorProvider private constructor(
     private companion object {
         private const val STATUS_REPORT_BUFFER = 16
         private const val ERROR_RECORD_WAIT_MILLIS = 1_000L
+    }
+}
+
+private enum class LifecycleCall(val successReport: LifecycleReport, val failureMessage: String) {
+    INITIALIZATION(
+        LifecycleReport.READY,
+        "ConfigDirector did not become ready during initialization. Flags resolve to their " +
+            "in-code default values until the connection succeeds.",
+    ),
+    CONTEXT_UPDATE(
+        LifecycleReport.NO_EVENT,
+        "ConfigDirector did not become ready after the context changed. Flags resolve " +
+            "against the previous context until the connection succeeds.",
+    ),
+}
+
+private enum class LifecycleReport {
+    READY,
+    NO_EVENT,
+    FAILURE,
+    ;
+
+    companion object {
+        fun decide(call: LifecycleCall, isClientReady: Boolean): LifecycleReport =
+            if (isClientReady) call.successReport else FAILURE
     }
 }
 

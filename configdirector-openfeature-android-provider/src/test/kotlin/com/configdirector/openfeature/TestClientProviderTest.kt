@@ -8,7 +8,6 @@ import dev.openfeature.kotlin.sdk.ImmutableContext
 import dev.openfeature.kotlin.sdk.Reason
 import dev.openfeature.kotlin.sdk.Value
 import dev.openfeature.kotlin.sdk.events.OpenFeatureProviderEvents
-import dev.openfeature.kotlin.sdk.exceptions.ErrorCode
 import dev.openfeature.kotlin.sdk.exceptions.OpenFeatureError
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
@@ -26,6 +25,7 @@ import org.junit.After
 import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
+import kotlin.reflect.KClass
 
 /**
  * The provider over a test client from the testing tools, the way a consumer's test creates it.
@@ -104,9 +104,9 @@ class TestClientProviderTest {
         )
         assertThat(provider.getObjectEvaluation("feature-list", Value.List(emptyList()), null).value)
             .isEqualTo(Value.List(listOf(Value.String("alpha"), Value.String("beta"))))
-        val missing = provider.getStringEvaluation("no-such-config", "fallback", null)
-        assertThat(missing.value).isEqualTo("fallback")
-        assertThat(missing.errorCode).isEqualTo(ErrorCode.FLAG_NOT_FOUND)
+        assertThrows(OpenFeatureError.FlagNotFoundError::class.java) {
+            provider.getStringEvaluation("no-such-config", "fallback", null)
+        }
     }
 
     @Test
@@ -128,16 +128,102 @@ class TestClientProviderTest {
         filterIsInstance<OpenFeatureProviderEvents.ProviderConfigurationChanged>().map { it.eventDetails?.flagsChanged }
 
     @Test
-    fun `falls back to the default value once the test client removes a value`() = runBlocking<Unit> {
+    fun `emits a configuration change and no ready event when the network resumes`() = runBlocking<Unit> {
+        val testClient = testClient(mapOf("dark-mode" to true))
+        val provider = ConfigDirectorProvider(testClient.client)
+        provider.initialize(proContext)
+        val events = observing(provider)
+
+        testClient.client.pauseNetwork()
+        testClient.client.resumeNetwork()
+
+        waitFor("the configuration change") { events.changedFlags().isNotEmpty() }
+        Thread.sleep(200)
+        assertThat(events.filterIsInstance<OpenFeatureProviderEvents.ProviderReady>()).isEmpty()
+    }
+
+    @Test
+    fun `emits ready once a context update succeeds after initialization failed`() = runBlocking<Unit> {
+        val testClient = testClient(mapOf("dark-mode" to true))
+        testClient.failInitialization()
+        val provider = ConfigDirectorProvider(testClient.client)
+        val events = observing(provider)
+        assertThrows(OpenFeatureError.ProviderNotReadyError::class.java) {
+            runBlocking { provider.initialize(proContext) }
+        }
+        waitFor("the error event") { events.any { it is OpenFeatureProviderEvents.ProviderError } }
+
+        provider.onContextSet(proContext, freeContext)
+
+        waitFor("the ready event") { events.any { it is OpenFeatureProviderEvents.ProviderReady } }
+        Thread.sleep(200)
+        assertThat(events.filterIsInstance<OpenFeatureProviderEvents.ProviderReady>()).hasSize(1)
+    }
+
+    @Test
+    fun `emits no ready event when the network resumes after a recovery`() = runBlocking<Unit> {
+        val testClient = testClient(mapOf("dark-mode" to true))
+        testClient.failInitialization()
+        val provider = ConfigDirectorProvider(testClient.client)
+        val events = observing(provider)
+        assertThrows(OpenFeatureError.ProviderNotReadyError::class.java) {
+            runBlocking { provider.initialize(proContext) }
+        }
+        waitFor("the error event") { events.any { it is OpenFeatureProviderEvents.ProviderError } }
+        provider.onContextSet(proContext, freeContext)
+        waitFor("the ready event of the recovery") { events.any { it is OpenFeatureProviderEvents.ProviderReady } }
+
+        testClient.client.pauseNetwork()
+        testClient.client.resumeNetwork()
+
+        waitFor("the configuration change of the resumed connection") { events.changedFlags().size == 2 }
+        Thread.sleep(200)
+        assertThat(events.filterIsInstance<OpenFeatureProviderEvents.ProviderReady>()).hasSize(1)
+    }
+
+    @Test
+    fun `emits ready once after the error when a context update succeeds right after a failed one`() =
+        runBlocking<Unit> {
+            val testClient = testClient(mapOf("dark-mode" to true))
+            testClient.failInitialization()
+            val provider = ConfigDirectorProvider(testClient.client)
+            val events = observing(provider)
+            assertThrows(OpenFeatureError.ProviderNotReadyError::class.java) {
+                runBlocking { provider.initialize(proContext) }
+            }
+            waitFor("the error event of initialization") { events.any { it is OpenFeatureProviderEvents.ProviderError } }
+            testClient.failContextUpdate()
+            assertThrows(OpenFeatureError.ProviderNotReadyError::class.java) {
+                runBlocking { provider.onContextSet(proContext, freeContext) }
+            }
+
+            provider.onContextSet(freeContext, proContext)
+
+            waitFor("the ready event") { events.any { it is OpenFeatureProviderEvents.ProviderReady } }
+            Thread.sleep(200)
+            assertThat(events.statusEvents())
+                .containsExactly(
+                    OpenFeatureProviderEvents.ProviderError::class,
+                    OpenFeatureProviderEvents.ProviderError::class,
+                    OpenFeatureProviderEvents.ProviderReady::class,
+                )
+                .inOrder()
+        }
+
+    private fun List<OpenFeatureProviderEvents>.statusEvents(): List<KClass<out OpenFeatureProviderEvents>> =
+        filterNot { it is OpenFeatureProviderEvents.ProviderConfigurationChanged }.map { it::class }
+
+    @Test
+    fun `throws FlagNotFoundError once the test client removes a value`() = runBlocking<Unit> {
         val testClient = testClient(mapOf("dark-mode" to true))
         val provider = ConfigDirectorProvider(testClient.client)
         provider.initialize(proContext)
 
         testClient.removeValue("dark-mode")
 
-        val evaluation = provider.getBooleanEvaluation("dark-mode", false, null)
-        assertThat(evaluation.value).isFalse()
-        assertThat(evaluation.errorCode).isEqualTo(ErrorCode.FLAG_NOT_FOUND)
+        assertThrows(OpenFeatureError.FlagNotFoundError::class.java) {
+            provider.getBooleanEvaluation("dark-mode", false, null)
+        }
     }
 
     @Test
@@ -187,8 +273,9 @@ class TestClientProviderTest {
         waitFor("initialize to start") { testClient.client.isInitializing }
         Thread.sleep(100)
         assertThat(initialization.isCompleted).isFalse()
-        assertThat(provider.getBooleanEvaluation("dark-mode", false, null).errorCode)
-            .isEqualTo(ErrorCode.PROVIDER_NOT_READY)
+        assertThrows(OpenFeatureError.ProviderNotReadyError::class.java) {
+            provider.getBooleanEvaluation("dark-mode", false, null)
+        }
 
         testClient.completeInitialization()
         initialization.join()
@@ -207,8 +294,9 @@ class TestClientProviderTest {
         }
 
         assertThat(failure).hasMessageThat().contains("did not become ready during initialization")
-        assertThat(provider.getBooleanEvaluation("dark-mode", false, null).errorCode)
-            .isEqualTo(ErrorCode.PROVIDER_NOT_READY)
+        assertThrows(OpenFeatureError.ProviderNotReadyError::class.java) {
+            provider.getBooleanEvaluation("dark-mode", false, null)
+        }
     }
 
     @Test

@@ -8,6 +8,31 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- A `ProviderError` event, with its message and the `PROVIDER_NOT_READY` error code, when
+  initialization or a context update does not finish in time. Before, only the status changed.
+  The status's error then carries the OpenFeature Kotlin SDK's own message for a provider that is
+  not ready; the event carries the provider's message.
+
+### Changed
+
+- The provider no longer reports `ProviderReady` after each successful context update or network
+  resume. It reports it when initialization succeeds, and when values first arrive after an
+  initialization or context update that did not finish in time, including a context update that
+  succeeds after a failed initialization. During a context update the status still moves from
+  `Reconciling` to `Ready`.
+- A config that does not exist, a value of another type and an evaluation before values arrive now
+  throw the matching OpenFeature error inside the provider, so OpenFeature error hooks run for them.
+  The application still receives its in-code default value with the same error code. Code that
+  calls the provider's `get…Evaluation` methods directly, such as a test over
+  `ConfigDirectorProvider(testClient.client)`, now catches that error instead of reading the error
+  code from the result.
+- The error the provider reports when initialization does not finish in time now says that flags
+  resolve to their in-code default values. An object flag read with a `Value.Null` or
+  `Value.Instant` in-code default value now throws `TypeMismatchError`, so error hooks run for it
+  too, and its message calls it an in-code default value.
+
 ## [1.5.1] - 2026-10-25
 
 ### Changed

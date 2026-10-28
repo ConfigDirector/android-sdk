@@ -202,7 +202,7 @@ class ConfigDirectorProviderTest {
     }
 
     @Test
-    fun `reads an object flag as the type of a primitive default`() = runBlocking<Unit> {
+    fun `reads an object flag as the type of a primitive in-code default value`() = runBlocking<Unit> {
         val provider = provider()
         provider.initialize(proContext)
 
@@ -218,69 +218,99 @@ class ConfigDirectorProviderTest {
             .isEqualTo(Value.String(FakeSdkServer.THEME_DOCUMENT))
     }
 
+    @Test
+    fun `throws TypeMismatchError for an object read with a null in-code default value`() = runBlocking<Unit> {
+        val provider = provider()
+        provider.initialize(proContext)
+
+        val failure = assertThrows(OpenFeatureError.TypeMismatchError::class.java) {
+            provider.getObjectEvaluation("theme", Value.Null, null)
+        }
+
+        assertThat(failure).hasMessageThat().contains("Null")
+    }
+
     @OptIn(ExperimentalTime::class)
     @Test
-    fun `cannot read an object flag as a null or an instant`() = runBlocking<Unit> {
+    fun `throws TypeMismatchError for an object read with an instant in-code default value`() = runBlocking<Unit> {
         val provider = provider()
         provider.initialize(proContext)
         val instant = Value.Instant(Instant.parse("2026-08-31T00:00:00Z"))
 
-        val fromNull = provider.getObjectEvaluation("theme", Value.Null, null)
-        assertThat(fromNull.value).isEqualTo(Value.Null)
-        assertThat(fromNull.reason).isEqualTo("ERROR")
-        assertThat(fromNull.errorCode).isEqualTo(ErrorCode.TYPE_MISMATCH)
-        assertThat(fromNull.errorMessage).contains("Null")
+        val failure = assertThrows(OpenFeatureError.TypeMismatchError::class.java) {
+            provider.getObjectEvaluation("theme", instant, null)
+        }
 
-        val fromInstant = provider.getObjectEvaluation("theme", instant, null)
-        assertThat(fromInstant.value).isEqualTo(instant)
-        assertThat(fromInstant.errorCode).isEqualTo(ErrorCode.TYPE_MISMATCH)
+        assertThat(failure).hasMessageThat().contains("Instant")
     }
 
     @Test
-    fun `hands back the default it was given when an object flag falls back`() = runBlocking<Unit> {
+    fun `hands back the in-code default value it was given when an object flag has no value`() = runBlocking<Unit> {
         val provider = provider()
         provider.initialize(proContext)
-        val fallback = Value.Structure(mapOf("fell" to Value.String("back")))
+        val inCodeDefaultValue = Value.Structure(mapOf("fell" to Value.String("back")))
 
-        val evaluation = provider.getObjectEvaluation("no-such-config", fallback, null)
+        val evaluation = provider.getObjectEvaluation("beta-banner", inCodeDefaultValue, null)
 
-        assertThat(evaluation.value).isSameInstanceAs(fallback)
-        assertThat(evaluation.errorCode).isEqualTo(ErrorCode.FLAG_NOT_FOUND)
+        assertThat(evaluation.value).isSameInstanceAs(inCodeDefaultValue)
+        assertThat(evaluation.reason).isEqualTo(Reason.DEFAULT.name)
     }
 
     @Test
-    fun `explains a flag it fell back on`() = runBlocking<Unit> {
+    fun `throws ProviderNotReadyError for a read before values arrive`() {
         val provider = provider()
 
-        val notReady = provider.getBooleanEvaluation("dark-mode", true, null)
-        assertThat(notReady.value).isTrue()
-        assertThat(notReady.variant).isNull()
-        assertThat(notReady.reason).isEqualTo("ERROR")
-        assertThat(notReady.errorCode).isEqualTo(ErrorCode.PROVIDER_NOT_READY)
-        assertThat(notReady.errorMessage).contains("not delivered config state")
+        assertThrows(OpenFeatureError.ProviderNotReadyError::class.java) {
+            provider.getBooleanEvaluation("dark-mode", true, null)
+        }
+    }
 
+    @Test
+    fun `throws FlagNotFoundError for a config that does not exist`() = runBlocking<Unit> {
+        val provider = provider()
         provider.initialize(proContext)
 
-        val notFound = provider.getBooleanEvaluation("no-such-config", true, null)
-        assertThat(notFound.value).isTrue()
-        assertThat(notFound.reason).isEqualTo("ERROR")
-        assertThat(notFound.errorCode).isEqualTo(ErrorCode.FLAG_NOT_FOUND)
-        assertThat(notFound.errorMessage).contains("no-such-config")
+        val failure = assertThrows(OpenFeatureError.FlagNotFoundError::class.java) {
+            provider.getBooleanEvaluation("no-such-config", true, null)
+        }
 
-        val mismatch = provider.getBooleanEvaluation("max-items", true, null)
-        assertThat(mismatch.value).isTrue()
-        assertThat(mismatch.errorCode).isEqualTo(ErrorCode.TYPE_MISMATCH)
-        assertThat(mismatch.errorMessage).contains("type-mismatch")
+        assertThat(failure).hasMessageThat().contains("no-such-config")
+    }
 
-        val unspellable = provider.getIntegerEvaluation("welcome-message", 7, null)
-        assertThat(unspellable.value).isEqualTo(7)
-        assertThat(unspellable.errorCode).isEqualTo(ErrorCode.TYPE_MISMATCH)
-        assertThat(unspellable.errorMessage).contains("invalid-number")
+    @Test
+    fun `throws TypeMismatchError for a value of another type`() = runBlocking<Unit> {
+        val provider = provider()
+        provider.initialize(proContext)
 
-        val unset = provider.getBooleanEvaluation("beta-banner", true, null)
-        assertThat(unset.value).isTrue()
-        assertThat(unset.reason).isEqualTo(Reason.DEFAULT.name)
-        assertThat(unset.errorCode).isNull()
+        val failure = assertThrows(OpenFeatureError.TypeMismatchError::class.java) {
+            provider.getBooleanEvaluation("max-items", true, null)
+        }
+
+        assertThat(failure).hasMessageThat().contains("type-mismatch")
+    }
+
+    @Test
+    fun `throws TypeMismatchError for a value that cannot be read as a number`() = runBlocking<Unit> {
+        val provider = provider()
+        provider.initialize(proContext)
+
+        val failure = assertThrows(OpenFeatureError.TypeMismatchError::class.java) {
+            provider.getIntegerEvaluation("welcome-message", 7, null)
+        }
+
+        assertThat(failure).hasMessageThat().contains("invalid-number")
+    }
+
+    @Test
+    fun `resolves a config with no value to the in-code default value with the reason DEFAULT`() = runBlocking<Unit> {
+        val provider = provider()
+        provider.initialize(proContext)
+
+        val evaluation = provider.getBooleanEvaluation("beta-banner", true, null)
+
+        assertThat(evaluation.value).isTrue()
+        assertThat(evaluation.reason).isEqualTo(Reason.DEFAULT.name)
+        assertThat(evaluation.errorCode).isNull()
     }
 
     @Test
@@ -323,19 +353,26 @@ class ConfigDirectorProviderTest {
     fun `reports it is not ready when no config state arrives in time`() = runBlocking<Unit> {
         server.sendsConfigState = false
         val provider = provider(timeoutMillis = 200)
+        val events = observing(provider)
 
         val failure = assertThrows(OpenFeatureError.ProviderNotReadyError::class.java) {
             runBlocking { provider.initialize(proContext) }
         }
 
         assertThat(failure).hasMessageThat().contains("did not become ready during initialization")
-        assertThat(provider.getBooleanEvaluation("dark-mode", true, null).errorCode)
-            .isEqualTo(ErrorCode.PROVIDER_NOT_READY)
+        assertThrows(OpenFeatureError.ProviderNotReadyError::class.java) {
+            provider.getBooleanEvaluation("dark-mode", true, null)
+        }
+        waitFor("the error event") { events.any { it is OpenFeatureProviderEvents.ProviderError } }
+        val error = events.filterIsInstance<OpenFeatureProviderEvents.ProviderError>().single()
+        assertThat(error.eventDetails?.errorCode).isEqualTo(ErrorCode.PROVIDER_NOT_READY)
+        assertThat(error.eventDetails?.message).isEqualTo(failure.message)
     }
 
     @Test
     fun `reports it is not ready when a context change does not take in time`() = runBlocking<Unit> {
         val provider = provider(timeoutMillis = 200)
+        val events = observing(provider)
         provider.initialize(proContext)
         server.sendsConfigState = false
 
@@ -345,6 +382,10 @@ class ConfigDirectorProviderTest {
 
         assertThat(failure).hasMessageThat().contains("after the context changed")
         assertThat(provider.getBooleanEvaluation("dark-mode", false, null).value).isTrue()
+        waitFor("the error event") { events.any { it is OpenFeatureProviderEvents.ProviderError } }
+        val error = events.filterIsInstance<OpenFeatureProviderEvents.ProviderError>().single()
+        assertThat(error.eventDetails?.errorCode).isEqualTo(ErrorCode.PROVIDER_NOT_READY)
+        assertThat(error.eventDetails?.message).isEqualTo(failure.message)
     }
 
     @Test
@@ -394,7 +435,9 @@ class ConfigDirectorProviderTest {
         }
         val change = events.filterIsInstance<OpenFeatureProviderEvents.ProviderConfigurationChanged>()[1]
         assertThat(change.eventDetails?.flagsChanged).containsAtLeast("welcome-message", "dark-mode", "theme")
-        assertThat(provider.getBooleanEvaluation("dark-mode", false, null).value).isFalse()
+        assertThrows(OpenFeatureError.FlagNotFoundError::class.java) {
+            provider.getBooleanEvaluation("dark-mode", false, null)
+        }
     }
 
     @Test
@@ -412,7 +455,22 @@ class ConfigDirectorProviderTest {
         waitFor("the provider to recover", timeoutSeconds = 10) {
             events.any { it is OpenFeatureProviderEvents.ProviderReady }
         }
+        assertThat(events.filterIsInstance<OpenFeatureProviderEvents.ProviderReady>()).hasSize(1)
         assertThat(provider.getBooleanEvaluation("dark-mode", false, null).value).isTrue()
+    }
+
+    @Test
+    fun `emits ready once when initialization succeeds`() = runBlocking<Unit> {
+        val provider = provider()
+        val events = observing(provider)
+
+        provider.initialize(proContext)
+
+        waitFor("the configuration change") {
+            events.any { it is OpenFeatureProviderEvents.ProviderConfigurationChanged }
+        }
+        Thread.sleep(200)
+        assertThat(events.filterIsInstance<OpenFeatureProviderEvents.ProviderReady>()).hasSize(1)
     }
 
     @Test
@@ -429,8 +487,9 @@ class ConfigDirectorProviderTest {
         assertThat(darkMode.variant).isEqualTo("dark-mode-pro")
         assertThat(darkMode.reason).isEqualTo("CACHED")
         assertThat(darkMode.errorCode).isNull()
-        val missing = provider.getBooleanEvaluation("no-such-config", true, null)
-        assertThat(missing.errorCode).isEqualTo(ErrorCode.PROVIDER_NOT_READY)
+        assertThrows(OpenFeatureError.ProviderNotReadyError::class.java) {
+            provider.getBooleanEvaluation("no-such-config", true, null)
+        }
     }
 
     @Test
@@ -492,7 +551,9 @@ class ConfigDirectorProviderTest {
 
         Thread.sleep(200)
         assertThat(events.filterIsInstance<OpenFeatureProviderEvents.ProviderStale>()).isEmpty()
-        assertThat(provider.getBooleanEvaluation("dark-mode", true, null).errorCode).isEqualTo(ErrorCode.PROVIDER_NOT_READY)
+        assertThrows(OpenFeatureError.ProviderNotReadyError::class.java) {
+            provider.getBooleanEvaluation("dark-mode", true, null)
+        }
     }
 
     @Test

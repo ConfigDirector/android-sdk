@@ -4,7 +4,7 @@ import com.configdirector.ConfigEvaluation
 import com.configdirector.EvaluationReason
 import dev.openfeature.kotlin.sdk.ProviderEvaluation
 import dev.openfeature.kotlin.sdk.Reason
-import dev.openfeature.kotlin.sdk.exceptions.ErrorCode
+import dev.openfeature.kotlin.sdk.exceptions.OpenFeatureError
 
 internal fun <T> ConfigEvaluation.toProviderEvaluation(value: T): ProviderEvaluation<T> = when (reason) {
     EvaluationReason.FOUND_MATCH ->
@@ -15,25 +15,17 @@ internal fun <T> ConfigEvaluation.toProviderEvaluation(value: T): ProviderEvalua
     EvaluationReason.VALUE_MISSING -> ProviderEvaluation(value, reason = Reason.DEFAULT.name)
 
     EvaluationReason.CONFIG_STATE_MISSING ->
-        error(value, ErrorCode.FLAG_NOT_FOUND, "No config with the key '$key' was found.")
+        throw OpenFeatureError.FlagNotFoundError(key, "No config with the key '$key' was found.")
 
     EvaluationReason.CLIENT_NOT_READY ->
-        error(value, ErrorCode.PROVIDER_NOT_READY, "ConfigDirector has not delivered config state yet.")
+        throw OpenFeatureError.ProviderNotReadyError("ConfigDirector has not delivered config state yet.")
 
     EvaluationReason.TYPE_MISMATCH,
     EvaluationReason.INVALID_BOOLEAN,
     EvaluationReason.INVALID_NUMBER,
     EvaluationReason.INVALID_JSON,
     ->
-        error(
-            value,
-            ErrorCode.TYPE_MISMATCH,
+        throw OpenFeatureError.TypeMismatchError(
             "The value of '$key' cannot be read as the requested type (${reason.wireName}).",
         )
 }
-
-internal fun <T> unsupportedDefault(value: T, message: String): ProviderEvaluation<T> =
-    error(value, ErrorCode.TYPE_MISMATCH, message)
-
-private fun <T> error(value: T, errorCode: ErrorCode, message: String): ProviderEvaluation<T> =
-    ProviderEvaluation(value, reason = Reason.ERROR.name, errorCode = errorCode, errorMessage = message)

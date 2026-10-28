@@ -4,14 +4,23 @@ import android.content.Context
 import com.configdirector.ClientOptions
 import com.configdirector.ConnectionMode
 import com.google.common.truth.Truth.assertThat
+import dev.openfeature.kotlin.sdk.FlagEvaluationDetails
+import dev.openfeature.kotlin.sdk.Hook
+import dev.openfeature.kotlin.sdk.HookContext
 import dev.openfeature.kotlin.sdk.ImmutableContext
 import dev.openfeature.kotlin.sdk.OpenFeatureAPI
 import dev.openfeature.kotlin.sdk.OpenFeatureStatus
 import dev.openfeature.kotlin.sdk.Value
+import dev.openfeature.kotlin.sdk.events.OpenFeatureProviderEvents
 import dev.openfeature.kotlin.sdk.exceptions.ErrorCode
 import dev.openfeature.kotlin.sdk.exceptions.OpenFeatureError
+import java.util.concurrent.CopyOnWriteArrayList
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.resetMain
 import java.util.concurrent.TimeUnit
@@ -24,6 +33,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
 
 /** The provider registered with the OpenFeature SDK itself, the way an application uses it. */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -32,6 +43,7 @@ import org.robolectric.annotation.Config
 class OpenFeatureIntegrationTest {
 
     private val server = FakeSdkServer()
+    private val collectors = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
 
     @Before
     fun setUpMainDispatcher() {
@@ -40,6 +52,8 @@ class OpenFeatureIntegrationTest {
 
     @After
     fun tearDown() {
+        collectors.cancel()
+        OpenFeatureAPI.clearHooks()
         runBlocking { OpenFeatureAPI.shutdown() }
         server.close()
         Dispatchers.resetMain()
@@ -114,6 +128,96 @@ class OpenFeatureIntegrationTest {
     }
 
     @Test
+    fun `serves the in-code default value with TYPE_MISMATCH for a value of another type`() = runBlocking<Unit> {
+        OpenFeatureAPI.setProviderAndWait(provider(), proContext)
+
+        val maxItems = OpenFeatureAPI.getClient().getBooleanDetails("max-items", true)
+
+        assertThat(maxItems.value).isTrue()
+        assertThat(maxItems.errorCode).isEqualTo(ErrorCode.TYPE_MISMATCH)
+        assertThat(maxItems.reason).isEqualTo("ERROR")
+    }
+
+    @Test
+    fun `serves the in-code default value with TYPE_MISMATCH for an object read with a null in-code default value`() =
+        runBlocking<Unit> {
+            OpenFeatureAPI.setProviderAndWait(provider(), proContext)
+
+            val theme = OpenFeatureAPI.getClient().getObjectDetails("theme", Value.Null)
+
+            assertThat(theme.value).isEqualTo(Value.Null)
+            assertThat(theme.errorCode).isEqualTo(ErrorCode.TYPE_MISMATCH)
+        }
+
+    @OptIn(ExperimentalTime::class)
+    @Test
+    fun `serves the in-code default value with TYPE_MISMATCH for an object read with an instant in-code default value`() =
+        runBlocking<Unit> {
+            OpenFeatureAPI.setProviderAndWait(provider(), proContext)
+            val instant = Value.Instant(Instant.parse("2026-08-31T00:00:00Z"))
+
+            val theme = OpenFeatureAPI.getClient().getObjectDetails("theme", instant)
+
+            assertThat(theme.value).isEqualTo(instant)
+            assertThat(theme.errorCode).isEqualTo(ErrorCode.TYPE_MISMATCH)
+        }
+
+    @Test
+    fun `runs an after hook with the reason and the variant of a served value`() = runBlocking<Unit> {
+        val served = mutableListOf<FlagEvaluationDetails<Boolean>>()
+        OpenFeatureAPI.addHooks(
+            listOf(
+                object : Hook<Boolean> {
+                    override fun after(
+                        ctx: HookContext<Boolean>,
+                        details: FlagEvaluationDetails<Boolean>,
+                        hints: Map<String, Any>,
+                    ) {
+                        served += details
+                    }
+                },
+            ),
+        )
+        OpenFeatureAPI.setProviderAndWait(provider(), proContext)
+
+        OpenFeatureAPI.getClient().getBooleanValue("dark-mode", false)
+
+        assertThat(served.single().reason).isEqualTo("TARGETING_MATCH")
+        assertThat(served.single().variant).isEqualTo("dark-mode-pro")
+    }
+
+    @Test
+    fun `runs an error hook for a config that does not exist`() = runBlocking<Unit> {
+        val errors = mutableListOf<Exception>()
+        val finished = mutableListOf<FlagEvaluationDetails<Boolean>>()
+        OpenFeatureAPI.addHooks(
+            listOf(
+                object : Hook<Boolean> {
+                    override fun error(ctx: HookContext<Boolean>, error: Exception, hints: Map<String, Any>) {
+                        errors += error
+                    }
+
+                    override fun finallyAfter(
+                        ctx: HookContext<Boolean>,
+                        details: FlagEvaluationDetails<Boolean>,
+                        hints: Map<String, Any>,
+                    ) {
+                        finished += details
+                    }
+                },
+            ),
+        )
+        OpenFeatureAPI.setProviderAndWait(provider(), proContext)
+
+        OpenFeatureAPI.getClient().getBooleanValue("no-such-config", true)
+
+        assertThat(errors.single()).isInstanceOf(OpenFeatureError.FlagNotFoundError::class.java)
+        assertThat(finished.single().value).isTrue()
+        assertThat(finished.single().errorCode).isEqualTo(ErrorCode.FLAG_NOT_FOUND)
+        assertThat(finished.single().reason).isEqualTo("ERROR")
+    }
+
+    @Test
     fun `serves offline values through the OpenFeature client without a client SDK key`() = runBlocking<Unit> {
         val provider = ConfigDirectorProvider(
             RuntimeEnvironment.getApplication(),
@@ -152,6 +256,45 @@ class OpenFeatureIntegrationTest {
     }
 
     @Test
+    fun `reports no ready event for a context update while the status moves from reconciling to ready`() =
+        runBlocking<Unit> {
+            OpenFeatureAPI.setProviderAndWait(provider(), proContext)
+            val events = CopyOnWriteArrayList<OpenFeatureProviderEvents>()
+            val statuses = CopyOnWriteArrayList<OpenFeatureStatus>()
+            collectors.launch { OpenFeatureAPI.observe<OpenFeatureProviderEvents>().collect { events += it } }
+            collectors.launch { OpenFeatureAPI.statusFlow.collect { statuses += it } }
+
+            OpenFeatureAPI.setEvaluationContextAndWait(ImmutableContext(targetingKey = "user-456"))
+
+            waitFor("the configuration change") {
+                events.any { it is OpenFeatureProviderEvents.ProviderConfigurationChanged }
+            }
+            Thread.sleep(200)
+            assertThat(events.filterIsInstance<OpenFeatureProviderEvents.ProviderReady>()).isEmpty()
+            assertThat(statuses)
+                .containsExactly(OpenFeatureStatus.Ready, OpenFeatureStatus.Reconciling, OpenFeatureStatus.Ready)
+                .inOrder()
+        }
+
+    @Test
+    fun `reports ready once ConfigDirector answers after a context update did not take in time`() =
+        runBlocking<Unit> {
+            OpenFeatureAPI.setProviderAndWait(provider(timeoutMillis = 200), proContext)
+            val readyEvents = CopyOnWriteArrayList<OpenFeatureProviderEvents.ProviderReady>()
+            collectors.launch { OpenFeatureAPI.observe<OpenFeatureProviderEvents.ProviderReady>().collect { readyEvents += it } }
+            server.status = 503
+            OpenFeatureAPI.setEvaluationContextAndWait(ImmutableContext(targetingKey = "user-456"))
+            assertThat(OpenFeatureAPI.getStatus()).isInstanceOf(OpenFeatureStatus.Error::class.java)
+
+            server.status = 200
+
+            waitFor("the ready status") { OpenFeatureAPI.getStatus() == OpenFeatureStatus.Ready }
+            Thread.sleep(200)
+            assertThat(readyEvents).hasSize(1)
+            assertThat(OpenFeatureAPI.getClient().getBooleanDetails("dark-mode", true).variant).isEqualTo("dark-mode-free")
+        }
+
+    @Test
     fun `reports a stale status and serves the kept values while ConfigDirector is unreachable`() = runBlocking<Unit> {
         earlierLaunch()
 
@@ -166,6 +309,20 @@ class OpenFeatureIntegrationTest {
     }
 
     @Test
+    fun `reports a ready status once ConfigDirector answers after initialization timed out on the kept values`() =
+        runBlocking<Unit> {
+            earlierLaunch()
+            server.status = 503
+            OpenFeatureAPI.setProviderAndWait(provider(timeoutMillis = 300), proContext)
+            waitFor("the stale status") { OpenFeatureAPI.getStatus() == OpenFeatureStatus.Stale }
+
+            server.status = 200
+
+            waitFor("the ready status") { OpenFeatureAPI.getStatus() == OpenFeatureStatus.Ready }
+            assertThat(OpenFeatureAPI.getClient().getBooleanDetails("dark-mode", false).reason).isEqualTo("TARGETING_MATCH")
+        }
+
+    @Test
     fun `reports a ready status once live values replace the kept values`() = runBlocking<Unit> {
         earlierLaunch()
         server.responseDelayMillis = 500
@@ -177,7 +334,7 @@ class OpenFeatureIntegrationTest {
     }
 
     @Test
-    fun `reports an error status and serves defaults while ConfigDirector is unreachable`() = runBlocking<Unit> {
+    fun `reports an error status and serves in-code default values while ConfigDirector is unreachable`() = runBlocking<Unit> {
         server.sendsConfigState = false
 
         OpenFeatureAPI.setProviderAndWait(provider(timeoutMillis = 200), proContext)

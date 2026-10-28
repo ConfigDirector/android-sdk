@@ -51,6 +51,10 @@ class ConfigDirectorClientTest {
         StreamingTransport(options.reconnectingAfter(20), onConfigSet)
     }
 
+    private val shortStallTimeoutTransportFactory: TransportFactory = { _, options, onConfigSet ->
+        StreamingTransport(options.reconnectingAfter(20, stallTimeoutMillis = 700), onConfigSet)
+    }
+
     private val connectReasons = CopyOnWriteArrayList<ConnectReason>()
 
     private val reasonRecordingTransportFactory: TransportFactory = { mode, options, onConfigSet ->
@@ -78,7 +82,10 @@ class ConfigDirectorClientTest {
         retryDelayMillis = retryDelayMillis,
     )
 
-    private fun TransportOptions.reconnectingAfter(retryDelayMillis: Long) = TransportOptions(
+    private fun TransportOptions.reconnectingAfter(
+        retryDelayMillis: Long,
+        stallTimeoutMillis: Long = this.stallTimeoutMillis,
+    ) = TransportOptions(
         clientSdkKey = clientSdkKey,
         baseUrl = baseUrl,
         metaContext = metaContext,
@@ -87,6 +94,7 @@ class ConfigDirectorClientTest {
         pollingIntervalMillis = pollingIntervalMillis,
         httpClient = httpClient,
         retryDelayMillis = { retryDelayMillis },
+        stallTimeoutMillis = stallTimeoutMillis,
     )
 
     @Before
@@ -150,6 +158,8 @@ class ConfigDirectorClientTest {
         name("Ada")
         trait("plan", "pro")
     }
+
+    private val freeContext = ConfigDirectorContext.build { id("user-456") }
 
     private val contextWithAnInvalidContextKind = ConfigDirectorContext.build {
         id("user-123")
@@ -1115,6 +1125,90 @@ class ConfigDirectorClientTest {
 
         assertThat(client.isReady).isFalse()
         assertThat(logger.messagesContaining("Timed out waiting for initialization")).hasSize(1)
+    }
+
+    @Test
+    fun `becomes ready on its own once a connection that stayed silent past the timeout is reopened`() =
+        runBlocking<Unit> {
+            server.responseDelayMillis = 2_500
+            val client = client(timeoutMillis = 200, transportFactory = shortStallTimeoutTransportFactory)
+            val events = CopyOnWriteArrayList<ClientEvent>()
+            client.addEventListener { events += it }
+
+            client.initialize()
+            server.responseDelayMillis = 0
+
+            assertThat(client.isReady).isFalse()
+            waitFor("the ready event") { ClientEvent.Ready(ConnectReason.INITIALIZATION) in events }
+            assertThat(sentContexts("/client/sse/v1", count = 2)).hasSize(2)
+        }
+
+    @Test
+    fun `takes the context it was initialized with once values arrive after the timeout`() = runBlocking<Unit> {
+        server.responseDelayMillis = 500
+        val client = client(timeoutMillis = 200)
+        val events = CopyOnWriteArrayList<ClientEvent>()
+        client.addEventListener { events += it }
+
+        client.initialize(proContext)
+
+        assertThat(client.context).isNull()
+        waitFor("the context event") { ClientEvent.ContextUpdated(proContext) in events }
+        assertThat(client.context).isEqualTo(proContext)
+        assertThat(events.map { it::class }).containsExactly(
+            ClientEvent.Ready::class,
+            ClientEvent.ConfigsUpdated::class,
+            ClientEvent.ContextUpdated::class,
+        ).inOrder()
+    }
+
+    @Test
+    fun `takes the context it was initialized with once a poll after the timeout brings values`() =
+        runBlocking<Unit> {
+            server.responseDelayMillis = 500
+            val client = client(
+                mode = ConnectionMode.POLLING,
+                timeoutMillis = 200,
+                transportFactory = fastPollingTransportFactory,
+            )
+            val contextUpdates = client.recordContextUpdates()
+
+            client.initialize(proContext)
+            server.responseDelayMillis = 0
+
+            assertThat(client.context).isNull()
+            waitFor("the context event") { ClientEvent.ContextUpdated(proContext) in contextUpdates }
+            assertThat(client.context).isEqualTo(proContext)
+        }
+
+    @Test
+    fun `keeps the previous context until the values of an update that timed out arrive`() = runBlocking<Unit> {
+        val client = client(timeoutMillis = 200)
+        client.initialize(freeContext)
+        server.responseDelayMillis = 500
+        val contextUpdates = client.recordContextUpdates()
+
+        client.updateContext(proContext)
+
+        assertThat(client.context).isEqualTo(freeContext)
+        waitFor("the context event") { ClientEvent.ContextUpdated(proContext) in contextUpdates }
+        assertThat(client.context).isEqualTo(proContext)
+    }
+
+    @Test
+    fun `never takes the context of an attempt that a later one replaced`() = runBlocking<Unit> {
+        server.responseDelayMillis = 500
+        val client = client(timeoutMillis = 300)
+        val contextUpdates = client.recordContextUpdates()
+        val initializing = launch(Dispatchers.Default) { client.initialize(proContext) }
+        waitFor("the initialize request") { server.requestCount == 1 }
+        server.responseDelayMillis = 0
+
+        client.updateContext(freeContext)
+        initializing.join()
+
+        assertThat(contextUpdates).containsExactly(ClientEvent.ContextUpdated(freeContext))
+        assertThat(client.context).isEqualTo(freeContext)
     }
 
     @Test

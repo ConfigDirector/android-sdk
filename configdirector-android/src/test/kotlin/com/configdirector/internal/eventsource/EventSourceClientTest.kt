@@ -1,9 +1,12 @@
 package com.configdirector.internal.eventsource
 
 import com.google.common.truth.Truth.assertThat
+import java.net.SocketTimeoutException
 import java.util.concurrent.CopyOnWriteArrayList
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.flow.transformWhile
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.cancelAndJoin
@@ -46,6 +49,7 @@ class EventSourceClientTest {
         body: okhttp3.RequestBody? = null,
         headers: Map<String, String> = emptyMap(),
         shouldReconnect: (EventSourceReconnection) -> Boolean = { false },
+        stallTimeoutMillis: Long = DEFAULT_STALL_TIMEOUT_MILLIS,
     ) = EventSourceClient(
         httpClient,
         EventSourceClient.Configuration(
@@ -58,8 +62,15 @@ class EventSourceClientTest {
                 attempts += reconnection.attempt
                 0
             },
+            stallTimeoutMillis = stallTimeoutMillis,
         ),
     )
+
+    private fun Flow<EventSourceEvent>.throughTheFirstMessage() =
+        transformWhile { event ->
+            emit(event)
+            event !is EventSourceEvent.Message
+        }
 
     @Test
     fun `publishes every message the server sends`() = runTest {
@@ -132,6 +143,55 @@ class EventSourceClientTest {
 
         // None of them opened, so the attempts keep climbing and the caller's backoff grows.
         assertThat(attempts).containsExactly(1, 2).inOrder()
+    }
+
+    @Test
+    fun `reconnects when the response does not arrive within the stall timeout`() = runTest {
+        server.enqueue(eventStream("data: late\n\n").setHeadersDelay(2, TimeUnit.SECONDS))
+        server.enqueue(eventStream("data: on time\n\n"))
+
+        val events = client(shouldReconnect = { true }, stallTimeoutMillis = 300).events()
+            .throughTheFirstMessage()
+            .toList()
+
+        assertThat(server.requestCount).isEqualTo(2)
+        val failure = events.filterIsInstance<EventSourceEvent.Failure>().single()
+        assertThat(failure.statusCode).isNull()
+        assertThat(failure.cause).isInstanceOf(SocketTimeoutException::class.java)
+        assertThat(events.filterIsInstance<EventSourceEvent.Message>().map { it.message.data })
+            .containsExactly("on time")
+    }
+
+    @Test
+    fun `reconnects when an open stream sends nothing for the stall timeout`() = runTest {
+        server.enqueue(eventStream("data: late\n\n").setBodyDelay(2, TimeUnit.SECONDS))
+        server.enqueue(eventStream("data: on time\n\n"))
+
+        val events = client(shouldReconnect = { true }, stallTimeoutMillis = 300).events()
+            .throughTheFirstMessage()
+            .toList()
+
+        assertThat(server.requestCount).isEqualTo(2)
+        assertThat(events.filterIsInstance<EventSourceEvent.Open>()).hasSize(2)
+        assertThat(events.filterIsInstance<EventSourceEvent.Failure>().single().cause)
+            .isInstanceOf(SocketTimeoutException::class.java)
+        assertThat(events.filterIsInstance<EventSourceEvent.Message>().map { it.message.data })
+            .containsExactly("on time")
+    }
+
+    @Test
+    fun `keeps a stream open while keepalive comments arrive within the stall timeout`() = runTest {
+        val keepalive = ": keepalive\n\n"
+        server.enqueue(
+            eventStream(keepalive.repeat(8) + "data: after the keepalives\n\n")
+                .throttleBody(keepalive.length.toLong(), 100, TimeUnit.MILLISECONDS),
+        )
+
+        val events = client(stallTimeoutMillis = 500).events().toList()
+
+        assertThat(server.requestCount).isEqualTo(1)
+        assertThat(events.filterIsInstance<EventSourceEvent.Message>().map { it.message.data })
+            .containsExactly("after the keepalives")
     }
 
     @Test

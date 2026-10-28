@@ -229,7 +229,8 @@ public class ConfigDirectorClient internal constructor(
      * kind.
      *
      * This does not change the moment [updateContext] is called: configs are evaluated against the
-     * previous context until the underlying connection succeeds or times out.
+     * previous context until the connection for the new one succeeds or, if it times out, until the
+     * values for the new one arrive.
      */
     public val context: ConfigDirectorContext?
         get() = store.context
@@ -592,7 +593,10 @@ public class ConfigDirectorClient internal constructor(
             return
         }
 
-        store.beginConnect(reason, context)
+        val attempt = store.beginConnect(reason, context) {
+            hasConnected.set(true)
+            adoptContext(context)
+        }
         val startedAt = System.nanoTime()
 
         try {
@@ -605,8 +609,7 @@ public class ConfigDirectorClient internal constructor(
             return
         }
 
-        hasConnected.set(true)
-        adoptContext(context)
+        attempt.markConnected()
 
         val remaining = timeoutMillis - (System.nanoTime() - startedAt) / NANOS_PER_MILLISECOND
         if (remaining > 0) {

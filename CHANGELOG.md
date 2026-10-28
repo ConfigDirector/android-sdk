@@ -15,6 +15,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `SharedPreferences` or a `CachingProvider` of your own, no longer include the client SDK key, only
   its SHA-256 digest. Values kept by an earlier version are removed without a warning on the first
   start after the upgrade, so that start serves in-code default values until live values arrive.
+- Streaming (`android-sdk`): a streaming connection the server accepted but never answered, or that
+  went quiet, for example after the phone changed networks, is now dropped after 45 seconds and
+  reopened with the usual backoff. Before, the client waited on it until the app updated the
+  context, resumed the network or came back to the foreground.
+- Context after a timeout (`android-sdk`): when `initialize` or `updateContext` returned on a
+  timeout and the values arrive afterwards, the client now takes the context it was given: `context`
+  changes and `ContextUpdated` is published after `Ready` and `ConfigsUpdated`. Before, it kept the
+  previous context, and telemetry reported evaluations under it, until the next context update. A
+  client that recovered this way after `initialize` also pauses its connection while the app is in
+  the background, as `pausesWhileBackgrounded` describes; before, it kept the connection open.
 
 ## [1.9.1] - 2026-10-25
 

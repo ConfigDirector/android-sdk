@@ -7,6 +7,7 @@ import com.configdirector.RecordingLogger
 import com.configdirector.internal.ClientSession
 import com.configdirector.internal.ConfigSet
 import com.configdirector.internal.ConfigType
+import com.configdirector.internal.eventsource.DEFAULT_STALL_TIMEOUT_MILLIS
 import com.google.common.truth.Truth.assertThat
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
@@ -15,6 +16,7 @@ import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
+import okhttp3.mockwebserver.SocketPolicy
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertThrows
@@ -42,6 +44,7 @@ class StreamingTransportTest {
     private fun streaming(
         retryDelayMillis: Long = 20,
         clientSession: ClientSession = ClientSession("instance-1", ephemeral = false),
+        stallTimeoutMillis: Long = DEFAULT_STALL_TIMEOUT_MILLIS,
     ): StreamingTransport = StreamingTransport(
         TransportOptions(
             clientSdkKey = "client-sdk-key",
@@ -58,6 +61,7 @@ class StreamingTransportTest {
             pollingIntervalMillis = 60_000,
             httpClient = OkHttpClient(),
             retryDelayMillis = { retryDelayMillis },
+            stallTimeoutMillis = stallTimeoutMillis,
         ),
     ) { received += it }.also { transport = it }
 
@@ -245,6 +249,17 @@ class StreamingTransportTest {
         val failure = connectFailure(streaming(), timeoutMillis = 200)
 
         assertThat(failure).hasMessageThat().contains("timed out after 200ms")
+    }
+
+    @Test
+    fun `reconnects on its own after a connection that timed out and stayed silent`() = runBlocking {
+        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
+        server.enqueue(eventStream(configSetEvent))
+
+        connectFailure(streaming(stallTimeoutMillis = 300), timeoutMillis = 200)
+        waitFor("the config set from the second connection") { received.size == 1 }
+
+        assertThat(server.requestCount).isEqualTo(2)
     }
 
     @Test

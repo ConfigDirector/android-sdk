@@ -17,6 +17,12 @@ import okhttp3.sse.EventSource
 import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
 
+private const val SDK_SERVER_KEEPALIVE_INTERVAL_MILLIS = 15_000L
+private const val SILENT_KEEPALIVE_INTERVALS_UNTIL_STALLED = 3
+
+internal const val DEFAULT_STALL_TIMEOUT_MILLIS =
+    SILENT_KEEPALIVE_INTERVALS_UNTIL_STALLED * SDK_SERVER_KEEPALIVE_INTERVAL_MILLIS
+
 /**
  * A server-sent events client: connects, publishes what the server sends, and reconnects when the
  * connection ends for a reason the caller says is worth retrying.
@@ -35,15 +41,15 @@ internal class EventSourceClient(
         val lastEventId: String? = null,
         val shouldReconnect: (EventSourceReconnection) -> Boolean = { true },
         val reconnectDelayMillis: (EventSourceReconnection) -> Long = { DEFAULT_RECONNECT_MILLIS },
+        val stallTimeoutMillis: Long = DEFAULT_STALL_TIMEOUT_MILLIS,
     )
 
     private class Outcome(val statusCode: Int?, val cause: Throwable?, val didOpen: Boolean)
 
-    // A server-sent events stream is idle by nature, so a read timeout would drop a healthy
-    // connection that simply has nothing to say. The rest of the caller's client is kept, including
-    // its connection pool.
     private val eventSourceFactory = EventSources.createFactory(
-        httpClient.newBuilder().readTimeout(0, TimeUnit.MILLISECONDS).build(),
+        httpClient.newBuilder()
+            .readTimeout(configuration.stallTimeoutMillis, TimeUnit.MILLISECONDS)
+            .build(),
     )
 
     private val lastEventId = AtomicReference(configuration.lastEventId)

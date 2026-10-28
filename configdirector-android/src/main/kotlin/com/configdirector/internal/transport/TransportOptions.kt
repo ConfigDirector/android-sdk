@@ -6,6 +6,7 @@ import com.configdirector.ConfigDirectorWrapperApi
 import com.configdirector.Metadata
 import com.configdirector.SdkIdentity
 import com.configdirector.internal.ClientSession
+import com.configdirector.internal.eventsource.DEFAULT_STALL_TIMEOUT_MILLIS
 import com.configdirector.internal.toJson
 import org.json.JSONObject
 import okhttp3.HttpUrl
@@ -54,6 +55,7 @@ internal class TransportOptions(
     val httpClient: OkHttpClient,
     /** How long to wait before the reconnection attempt numbered [attempt], counting from 1. */
     val retryDelayMillis: (attempt: Int) -> Long = ::exponentialRetryDelayMillis,
+    val stallTimeoutMillis: Long = DEFAULT_STALL_TIMEOUT_MILLIS,
 ) {
     fun endpoint(path: String): HttpUrl =
         baseUrl.trimEnd('/').plus("/").plus(path).toHttpUrl()

@@ -38,6 +38,16 @@ internal enum class ConfigSetSource(val matchedReason: EvaluationReason) {
     LIVE_PAYLOAD(EvaluationReason.FOUND_MATCH),
 }
 
+internal class ConnectAttempt(private val onConnected: () -> Unit) {
+    private val connected = AtomicBoolean(false)
+
+    fun markConnected() {
+        if (connected.getAndSet(true)) return
+
+        onConnected()
+    }
+}
+
 private class HeldConfigs(
     val configs: Map<String, ConfigState>,
     val source: ConfigSetSource,
@@ -64,6 +74,7 @@ internal class ConfigStore(
     private val contextHolder = AtomicReference<ConfigDirectorContext?>(null)
     private val submittedContext = AtomicReference<ConfigDirectorContext?>(null)
     private val pendingReason = AtomicReference(ConnectReason.INITIALIZATION)
+    private val currentConnectAttempt = AtomicReference<ConnectAttempt?>(null)
     private val cachedValuesAdoptionStarted = AtomicBoolean(false)
     private val ready = MutableStateFlow(false)
     private val closedState = MutableStateFlow(false)
@@ -87,10 +98,15 @@ internal class ConfigStore(
 
     val closed: StateFlow<Boolean> get() = closedState
 
-    fun beginConnect(reason: ConnectReason, context: ConfigDirectorContext?) {
+    fun beginConnect(
+        reason: ConnectReason,
+        context: ConfigDirectorContext?,
+        onConnected: () -> Unit,
+    ): ConnectAttempt {
         pendingReason.set(reason)
         submittedContext.set(context)
         ready.value = false
+        return ConnectAttempt(onConnected).also { currentConnectAttempt.set(it) }
     }
 
     fun adoptCachedValuesOnce(launchContext: ConfigDirectorContext?) {
@@ -143,6 +159,8 @@ internal class ConfigStore(
         keepOnDevice(live)
 
         logger.debug { "Config state received from the server: $keys, removed: $removedKeys" }
+
+        currentConnectAttempt.get()?.markConnected()
     }
 
     /** Waits until config state arrives, at most [timeoutMillis], or until the client closes. */

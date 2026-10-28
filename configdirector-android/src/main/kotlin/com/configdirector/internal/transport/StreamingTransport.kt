@@ -84,6 +84,7 @@ internal class StreamingTransport(
         body = options.payload(context).toRequestBody(JSON),
         shouldReconnect = { shouldReconnect(it, connected) },
         reconnectDelayMillis = ::reconnectDelayMillis,
+        stallTimeoutMillis = options.stallTimeoutMillis,
     )
 
     private fun handle(event: EventSourceEvent, connected: CompletableDeferred<Unit>) {

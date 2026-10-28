@@ -47,7 +47,10 @@ class ClientLifecycleTest {
         Dispatchers.resetMain()
     }
 
-    private fun client(pausesWhileBackgrounded: Boolean = true): ConfigDirectorClient =
+    private fun client(
+        pausesWhileBackgrounded: Boolean = true,
+        timeoutMillis: Long = 3_000,
+    ): ConfigDirectorClient =
         ConfigDirectorClient(
             RuntimeEnvironment.getApplication(),
             "client-sdk-key",
@@ -56,6 +59,7 @@ class ClientLifecycleTest {
                 connection {
                     baseUrl(server.baseUrl)
                     pausesWhileBackgrounded(pausesWhileBackgrounded)
+                    timeoutMillis(timeoutMillis)
                 }
             },
         ).also { client = it }
@@ -78,6 +82,22 @@ class ClientLifecycleTest {
         val screen = foreground()
         client.initialize()
         assertThat(client.isReady).isTrue()
+
+        screen.pause().stop()
+
+        waitFor("the client to stop being ready") { !client.isReady }
+    }
+
+    @Test
+    fun `pauses a connection whose values arrived after initialize timed out`() = runBlocking {
+        server.responseDelayMillis = 500
+        val client = client(timeoutMillis = 200)
+        val events = CopyOnWriteArrayList<ClientEvent>()
+        client.addEventListener { event -> events += event }
+        val screen = foreground()
+        client.initialize()
+        assertThat(client.isReady).isFalse()
+        waitFor("the context of the values that arrived late") { ClientEvent.ContextUpdated(null) in events }
 
         screen.pause().stop()
 

@@ -25,6 +25,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   previous context, and telemetry reported evaluations under it, until the next context update. A
   client that recovered this way after `initialize` also pauses its connection while the app is in
   the background, as `pausesWhileBackgrounded` describes; before, it kept the connection open.
+- `isInitializing` while the client keeps trying (`android-sdk`): when `initialize` times out, or
+  when polling fails on a network error or on a server error it retries, `isInitializing` now stays
+  true while the client keeps trying, as documented, and turns false once the values arrive or the
+  client closes. Before, it turned false at that point. For example, an app that starts without a
+  network now sees `isInitializing` true until the network is back and the values arrive. An
+  unrecoverable error that makes `initialize` return, such as an invalid SDK key, still turns it
+  false.
+- A test client (`android-sdk-testing`) whose held `initialize` times out, or is ended by
+  `pauseNetwork`, now leaves `isInitializing` true, as production does.
 
 ## [1.9.1] - 2026-10-25
 

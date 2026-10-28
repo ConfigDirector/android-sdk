@@ -71,6 +71,19 @@ class ConfigDirectorClientTest {
         }
     }
 
+    private val unexpectedlyFailingTransportFactory: TransportFactory = { mode, options, onConfigSet ->
+        val transport = transportFor(mode, options, onConfigSet)
+        object : Transport by transport {
+            override suspend fun connect(
+                context: ConfigDirectorContext,
+                timeoutMillis: Long,
+                reason: ConnectReason,
+            ) {
+                throw IllegalStateException("The transport broke.")
+            }
+        }
+    }
+
     private fun TransportOptions.pollingEvery(pollingIntervalMillis: Long) = TransportOptions(
         clientSdkKey = clientSdkKey,
         baseUrl = baseUrl,
@@ -824,6 +837,35 @@ class ConfigDirectorClientTest {
     }
 
     @Test
+    fun `stays initializing until values arrive after the timeout`() = runBlocking {
+        server.responseDelayMillis = 500
+        val client = client(timeoutMillis = 200)
+
+        client.initialize()
+
+        assertThat(client.isInitializing).isTrue()
+        waitFor("the values") { client.isReady }
+        assertThat(client.isInitializing).isFalse()
+    }
+
+    @Test
+    fun `stays initializing until a poll after the timeout brings values`() = runBlocking {
+        server.responseDelayMillis = 500
+        val client = client(
+            mode = ConnectionMode.POLLING,
+            timeoutMillis = 200,
+            transportFactory = fastPollingTransportFactory,
+        )
+
+        client.initialize()
+        server.responseDelayMillis = 0
+
+        assertThat(client.isInitializing).isTrue()
+        waitFor("the values") { client.isReady }
+        assertThat(client.isInitializing).isFalse()
+    }
+
+    @Test
     fun `stops initializing when the server rejects the request`() = runBlocking {
         server.status = 401
         val client = client()
@@ -833,6 +875,27 @@ class ConfigDirectorClientTest {
         assertThat(client.isReady).isFalse()
         assertThat(client.isInitializing).isFalse()
     }
+
+    @Test
+    fun `stops initializing when the server rejects the request when polling`() = runBlocking {
+        server.status = 401
+        val client = client(mode = ConnectionMode.POLLING)
+
+        client.initialize()
+
+        assertThat(client.isReady).isFalse()
+        assertThat(client.isInitializing).isFalse()
+    }
+
+    @Test
+    fun `stops initializing when the transport throws something other than a connection failure`() =
+        runBlocking {
+            val client = client(transportFactory = unexpectedlyFailingTransportFactory)
+
+            client.initialize()
+
+            assertThat(client.isInitializing).isFalse()
+        }
 
     @Test
     fun `is not initializing during a second initialize once config state has arrived`() = runBlocking {

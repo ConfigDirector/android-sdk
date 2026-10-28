@@ -53,7 +53,10 @@ internal class StreamingTransport(
         val job = scope.launch {
             client.events().collect { handle(it, connected) }
             connected.completeExceptionally(
-                ConnectionFailedException("The connection ended and will not be retried."),
+                ConnectionFailedException(
+                    "The connection ended and will not be retried.",
+                    isUnrecoverable = true,
+                ),
             )
         }
         streaming.getAndSet(job)?.cancel()
@@ -61,7 +64,10 @@ internal class StreamingTransport(
         try {
             withTimeout(timeoutMillis) { connected.await() }
         } catch (timeout: TimeoutCancellationException) {
-            throw ConnectionFailedException("Connection timed out after ${timeoutMillis}ms.")
+            throw ConnectionFailedException(
+                "Connection timed out after ${timeoutMillis}ms.",
+                isUnrecoverable = false,
+            )
         }
     }
 
@@ -122,7 +128,8 @@ internal class StreamingTransport(
         "Connection failed with status: $status." +
             cause?.let { " Error: $it." }.orEmpty() +
             " This is an unrecoverable error, will not attempt to reconnect.",
-        status,
+        isUnrecoverable = true,
+        statusCode = status,
     )
 
     private fun reconnectDelayMillis(reconnection: EventSourceReconnection): Long {

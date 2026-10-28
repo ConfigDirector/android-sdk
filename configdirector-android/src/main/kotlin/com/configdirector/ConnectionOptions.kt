@@ -27,8 +27,8 @@ public class ConnectionOptions internal constructor(
     /**
      * How long initialization and context updates wait for config state.
      *
-     * When streaming, the operation may still succeed after it elapses as long as nothing
-     * unrecoverable happened. When polling, a timed-out operation is not retried. Not used in
+     * The operation may still succeed after it elapses, as long as nothing unrecoverable happens:
+     * streaming keeps reconnecting, and polling tries again on [pollingIntervalMillis]. Not used in
      * [ConnectionMode.OFFLINE].
      */
     public val timeoutMillis: Long,

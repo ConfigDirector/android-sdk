@@ -15,6 +15,7 @@ import com.configdirector.internal.lifecycle.AppLifecyclePhase
 import com.configdirector.internal.lifecycle.NoLifecycleObserver
 import com.configdirector.internal.planCaching
 import com.configdirector.internal.planConnection
+import com.configdirector.internal.transport.ConnectionFailedException
 import com.configdirector.internal.transport.OfflineTransport
 import com.configdirector.internal.transport.PollingTransport
 import com.configdirector.internal.transport.StreamingTransport
@@ -604,7 +605,9 @@ public class ConfigDirectorClient internal constructor(
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (failure: Exception) {
-            initializing.set(false)
+            if (failure.endsInitializing()) {
+                initializing.set(false)
+            }
             logger.error(failure) { "An error occurred during ${reason.description}" }
             return
         }
@@ -622,6 +625,11 @@ public class ConfigDirectorClient internal constructor(
                     "return their default value until the connection succeeds."
             }
         }
+    }
+
+    private fun Exception.endsInitializing(): Boolean = when (this) {
+        is ConnectionFailedException -> isUnrecoverable
+        else -> true
     }
 
     private fun adoptContext(context: ConfigDirectorContext?) {

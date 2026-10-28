@@ -16,6 +16,7 @@ import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
+import okhttp3.mockwebserver.SocketPolicy
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertThrows
@@ -304,6 +305,61 @@ class PollingTransportTest {
         val failure = connectFailure(polling(), timeoutMillis = 200)
 
         assertThat(failure).hasMessageThat().contains("timed out after 200ms")
+    }
+
+    @Test
+    fun `reports that it keeps trying after a fetch that timed out`() = runBlocking {
+        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
+
+        val failure = connectFailure(polling(), timeoutMillis = 200)
+
+        assertThat(failure.isUnrecoverable).isFalse()
+    }
+
+    @Test
+    fun `reports that it keeps trying after a network error`() = runBlocking {
+        val transport = polling()
+        server.shutdown()
+
+        val failure = connectFailure(transport)
+
+        assertThat(failure.isUnrecoverable).isFalse()
+    }
+
+    @Test
+    fun `reports that it keeps trying after a network error while reading the response`() = runBlocking {
+        server.enqueue(configSetResponse().setSocketPolicy(SocketPolicy.DISCONNECT_DURING_RESPONSE_BODY))
+
+        val failure = connectFailure(polling())
+
+        assertThat(failure.isUnrecoverable).isFalse()
+    }
+
+    @Test
+    fun `reports that it keeps trying after a status worth retrying`() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(503))
+
+        val failure = connectFailure(polling())
+
+        assertThat(failure.isUnrecoverable).isFalse()
+    }
+
+    @Test
+    fun `reports that it keeps trying after a response it cannot parse`() = runBlocking {
+        server.enqueue(configSetResponse("this is not json"))
+
+        val failure = connectFailure(polling())
+
+        assertThat(failure.isUnrecoverable).isFalse()
+    }
+
+    @Test
+    fun `reports that it stops trying after an unrecoverable status`() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(401))
+
+        val failure = connectFailure(polling())
+
+        assertThat(failure.isUnrecoverable).isTrue()
     }
 
     private fun connectFailure(

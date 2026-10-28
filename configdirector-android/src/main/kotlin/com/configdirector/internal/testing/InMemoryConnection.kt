@@ -254,7 +254,10 @@ public class InMemoryConnection(
         val outcome = try {
             withTimeout(timeoutMillis) { held.await() }
         } catch (timeout: TimeoutCancellationException) {
-            throw ConnectionFailedException("Connection timed out after ${timeoutMillis}ms.")
+            throw ConnectionFailedException(
+                "Connection timed out after ${timeoutMillis}ms.",
+                isUnrecoverable = false,
+            )
         } finally {
             synchronized(lock) {
                 if (controls.held === held) controls.held = null
@@ -265,6 +268,7 @@ public class InMemoryConnection(
             AttemptOutcome.COMPLETED -> Unit
             AttemptOutcome.ENDED -> throw ConnectionFailedException(
                 "The connection was closed before it was established.",
+                isUnrecoverable = false,
             )
             AttemptOutcome.FAILED -> throw fatalFailure(reason)
         }
@@ -273,7 +277,8 @@ public class InMemoryConnection(
     private fun fatalFailure(reason: ConnectReason) = ConnectionFailedException(
         "Connection failed with status: $FATAL_STATUS. Error: the test client failed this " +
             "${reason.description}. This is an unrecoverable error, will not attempt to reconnect.",
-        FATAL_STATUS,
+        isUnrecoverable = true,
+        statusCode = FATAL_STATUS,
     )
 
     private fun deliverFirstUpdate() {

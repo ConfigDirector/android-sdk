@@ -5,6 +5,7 @@ import com.configdirector.ConfigDirectorException
 /** The connection to the ConfigDirector server failed, carrying the HTTP status when there was one. */
 internal class ConnectionFailedException(
     message: String,
+    val isUnrecoverable: Boolean,
     val statusCode: Int? = null,
     cause: Throwable? = null,
 ) : ConfigDirectorException(message, cause)

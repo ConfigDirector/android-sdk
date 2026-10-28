@@ -105,13 +105,20 @@ internal class PollingTransport(
         val response = try {
             withTimeout(timeoutMillis) { options.httpClient.newCall(request).await() }
         } catch (timeout: TimeoutCancellationException) {
-            throw ConnectionFailedException("Connection timed out after ${timeoutMillis}ms.")
+            throw ConnectionFailedException(
+                "Connection timed out after ${timeoutMillis}ms.",
+                isUnrecoverable = false,
+            )
         } catch (failure: IOException) {
-            throw ConnectionFailedException("Connection failed with error: $failure.", cause = failure)
+            throw networkFailure(failure)
         }
 
         response.use {
-            val body = it.body?.string().orEmpty()
+            val body = try {
+                it.body?.string().orEmpty()
+            } catch (failure: IOException) {
+                throw networkFailure(failure)
+            }
             throwOnErrorStatus(it.code, body)
 
             if (it.code != HTTP_OK) return
@@ -120,11 +127,21 @@ internal class PollingTransport(
         }
     }
 
+    private fun networkFailure(failure: IOException) = ConnectionFailedException(
+        "Connection failed with error: $failure.",
+        isUnrecoverable = false,
+        cause = failure,
+    )
+
     private fun throwOnErrorStatus(status: Int, body: String) {
         if (status in 200..299) return
 
         if (!status.isFatalHttpStatus()) {
-            throw ConnectionFailedException("Connection failed with status: $status", status)
+            throw ConnectionFailedException(
+                "Connection failed with status: $status",
+                isUnrecoverable = false,
+                statusCode = status,
+            )
         }
 
         hasFatalError.set(true)
@@ -135,7 +152,8 @@ internal class PollingTransport(
         throw ConnectionFailedException(
             "Connection failed with status: $status$detail. This is an unrecoverable error, retry " +
                 "attempts will be ignored.",
-            status,
+            isUnrecoverable = true,
+            statusCode = status,
         )
     }
 
@@ -145,6 +163,7 @@ internal class PollingTransport(
         } catch (malformed: JSONException) {
             throw ConnectionFailedException(
                 "Failed to parse the response from the server: $malformed",
+                isUnrecoverable = false,
                 cause = malformed,
             )
         }

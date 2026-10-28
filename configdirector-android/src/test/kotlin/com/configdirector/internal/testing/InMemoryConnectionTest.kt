@@ -384,7 +384,7 @@ class InMemoryConnectionTest {
         client.initialize()
         assertThat(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt)).isLessThan(1_000)
         assertThat(client.isReady).isFalse()
-        assertThat(client.isInitializing).isFalse()
+        assertThat(client.isInitializing).isTrue()
         assertThat(errorsLogged("An error occurred during initialization")).hasSize(1)
         assertThat(logger.errors.filterNotNull().single()).hasMessageThat().contains("timed out after 100ms")
         assertThat(connection.isHoldingAnAttempt).isFalse()
@@ -538,6 +538,22 @@ class InMemoryConnectionTest {
         assertThat(connection.isHoldingAnAttempt).isFalse()
         assertThat(errorsLogged("An error occurred during initialization")).hasSize(1)
         assertThat(logger.errors.filterNotNull().single()).hasMessageThat().contains("closed before it was established")
+    }
+
+    @Test
+    fun `a held initialize that pauseNetwork ends stays initializing`() = runBlocking<Unit> {
+        val connection = connection(mapOf("flag" to true), timeoutMillis = 3_000)
+        val client = connection.client
+        connection.holdInitialization()
+        val initialization = launch(Dispatchers.Default) { client.initialize() }
+        connection.awaitHeld()
+
+        client.pauseNetwork()
+        initialization.join()
+
+        assertThat(client.isReady).isFalse()
+        assertThat(client.isInitializing).isTrue()
+        assertThat(connection.isHoldingAnAttempt).isFalse()
     }
 
     @Test

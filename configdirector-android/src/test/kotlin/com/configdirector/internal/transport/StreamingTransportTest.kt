@@ -252,6 +252,33 @@ class StreamingTransportTest {
     }
 
     @Test
+    fun `reports that it keeps trying after a connection that timed out`() = runBlocking {
+        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
+
+        val failure = connectFailure(streaming(), timeoutMillis = 200)
+
+        assertThat(failure.isUnrecoverable).isFalse()
+    }
+
+    @Test
+    fun `reports that it stops trying after an unrecoverable status`() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(401))
+
+        val failure = connectFailure(streaming())
+
+        assertThat(failure.isUnrecoverable).isTrue()
+    }
+
+    @Test
+    fun `reports that it stops trying when the stream ends for good without ever opening`() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        val failure = connectFailure(streaming())
+
+        assertThat(failure.isUnrecoverable).isTrue()
+    }
+
+    @Test
     fun `reconnects on its own after a connection that timed out and stayed silent`() = runBlocking {
         server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
         server.enqueue(eventStream(configSetEvent))

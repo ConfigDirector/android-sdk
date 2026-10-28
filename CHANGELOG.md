@@ -9,6 +9,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.9.2] - 2026-10-28
+
 ### Fixed
 
 - Values kept on the device (`android-sdk`): the values the client keeps, in the app's

@@ -8,6 +8,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-28
+
 ### Added
 
 - A `ProviderError` event, with its message and the `PROVIDER_NOT_READY` error code, when
@@ -32,6 +34,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   resolve to their in-code default values. An object flag read with a `Value.Null` or
   `Value.Instant` in-code default value now throws `TypeMismatchError`, so error hooks run for it
   too, and its message calls it an in-code default value.
+- Depends on version 1.9.2 of the SDK. With it, a streaming connection that goes quiet is dropped
+  after 45 seconds and reopened; when initialization or a context update does not finish in time
+  and values arrive afterwards, the SDK takes the context it was given; and the values kept on the
+  device no longer include the client SDK key. Values kept by an earlier version are removed on the
+  first start after the upgrade, so that start emits no `ProviderStale` and serves in-code default
+  values until live values arrive.
 
 ## [1.5.1] - 2026-10-25
 

@@ -6,11 +6,13 @@ import com.configdirector.internal.ConfigSet
 import com.configdirector.internal.ConfigSetKind
 import com.configdirector.internal.ConfigState
 
-internal class OfflineTransport(
-    private val configs: Map<String, ConfigState>,
-    private val onConfigSet: (ConfigSet) -> Unit,
-) : Transport {
-    override suspend fun connect(context: ConfigDirectorContext, timeoutMillis: Long, reason: ConnectReason) {
+internal class OfflineTransport(private val configs: Map<String, ConfigState>) : Transport {
+    override suspend fun connect(
+        context: ConfigDirectorContext,
+        timeoutMillis: Long,
+        reason: ConnectReason,
+        onConfigSet: (ConfigSet) -> Unit,
+    ) {
         onConfigSet(ConfigSet(configs, ConfigSetKind.FULL))
     }
 

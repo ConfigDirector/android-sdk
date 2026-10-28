@@ -46,4 +46,15 @@ class ConnectAttemptTest {
 
         assertThat(connectedWhenTheSecondCallerReturned.get()).isTrue()
     }
+
+    @Test
+    fun `never connects once a later attempt replaced it`() {
+        val connections = AtomicInteger()
+        val attempt = ConnectAttempt { connections.incrementAndGet() }
+
+        attempt.markReplaced()
+        attempt.markConnected()
+
+        assertThat(connections.get()).isEqualTo(0)
+    }
 }

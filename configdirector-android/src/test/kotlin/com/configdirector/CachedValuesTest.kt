@@ -124,7 +124,7 @@ class CachedValuesTest {
                 baseUrl(server.baseUrl)
             }
         },
-    ) { _, options, onConfigSet -> PollingTransport(options.pollingEvery(50), onConfigSet) }.also { clients += it }
+    ) { _, options -> PollingTransport(options.pollingEvery(50)) }.also { clients += it }
 
     private fun TransportOptions.pollingEvery(pollingIntervalMillis: Long) = TransportOptions(
         clientSdkKey = clientSdkKey,

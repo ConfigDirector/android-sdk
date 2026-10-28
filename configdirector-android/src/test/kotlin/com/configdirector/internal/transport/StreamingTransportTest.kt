@@ -63,7 +63,7 @@ class StreamingTransportTest {
             retryDelayMillis = { retryDelayMillis },
             stallTimeoutMillis = stallTimeoutMillis,
         ),
-    ) { received += it }.also { transport = it }
+    ).also { transport = it }
 
 
     private fun request(): RecordedRequest =
@@ -96,7 +96,7 @@ class StreamingTransportTest {
     fun `posts the context, the metadata and the key`() = runBlocking {
         server.enqueue(eventStream(configSetEvent))
 
-        streaming().connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
+        streaming().connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION) { received += it }
 
         val request = request()
         assertThat(request.method).isEqualTo("POST")
@@ -124,7 +124,7 @@ class StreamingTransportTest {
             ConfigDirectorContext.build { id("42"); kind("device") },
             timeoutMillis = 3_000,
             reason = ConnectReason.INITIALIZATION,
-        )
+        ) { received += it }
 
         val given = JSONObject(request().body.readUtf8()).getJSONObject("givenContext")
         assertThat(given.getString("id")).isEqualTo("42")
@@ -136,7 +136,7 @@ class StreamingTransportTest {
         server.enqueue(eventStream(configSetEvent))
 
         streaming(clientSession = ClientSession("instance-1", ephemeral = true))
-            .connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
+            .connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION) { received += it }
 
         val body = JSONObject(request().body.readUtf8())
         assertThat(body.getString("instanceId")).isEqualTo("instance-1")
@@ -147,7 +147,7 @@ class StreamingTransportTest {
     fun `hands over every config set the server sends`() = runBlocking {
         server.enqueue(eventStream(configSetEvent, configSetEvent))
 
-        streaming().connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
+        streaming().connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION) { received += it }
         waitFor("two config sets") { received.size == 2 }
 
         val configSet = received.first()
@@ -162,7 +162,7 @@ class StreamingTransportTest {
     fun `keeps reading after a config set it cannot parse`() = runBlocking {
         server.enqueue(eventStream("this is not json", configSetEvent))
 
-        streaming().connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
+        streaming().connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION) { received += it }
         waitFor("the config set after the bad one") { received.size == 1 }
 
         assertThat(logger.messagesContaining("Error parsing")).hasSize(1)
@@ -173,7 +173,7 @@ class StreamingTransportTest {
         server.enqueue(MockResponse().setResponseCode(503))
         server.enqueue(eventStream(configSetEvent))
 
-        streaming().connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
+        streaming().connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION) { received += it }
         waitFor("the config set from the second connection") { received.size == 1 }
 
         assertThat(server.requestCount).isEqualTo(2)
@@ -186,7 +186,7 @@ class StreamingTransportTest {
         server.enqueue(MockResponse().setResponseCode(429))
         server.enqueue(eventStream(configSetEvent))
 
-        streaming().connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
+        streaming().connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION) { received += it }
         waitFor("the config set from the second connection") { received.size == 1 }
 
         assertThat(server.requestCount).isEqualTo(2)
@@ -197,7 +197,11 @@ class StreamingTransportTest {
         repeat(6) { server.enqueue(MockResponse().setResponseCode(503)) }
         server.enqueue(eventStream(configSetEvent))
 
-        streaming(retryDelayMillis = 5).connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
+        streaming(retryDelayMillis = 5).connect(
+            context,
+            timeoutMillis = 3_000,
+            reason = ConnectReason.INITIALIZATION,
+        ) { received += it }
 
         assertThat(logger.messagesContaining("Scheduling reconnect attempt #5").first())
             .startsWith("INFO")
@@ -224,7 +228,7 @@ class StreamingTransportTest {
         server.enqueue(eventStream(configSetEvent))
         server.enqueue(MockResponse().setResponseCode(403))
 
-        streaming().connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
+        streaming().connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION) { received += it }
         waitFor("the rejected reconnection") {
             logger.messagesContaining("Connection failed with status: 403").isNotEmpty()
         }
@@ -293,7 +297,7 @@ class StreamingTransportTest {
     fun `stops streaming once disconnected`() = runBlocking {
         server.enqueue(eventStream(configSetEvent))
         val transport = streaming(retryDelayMillis = 400)
-        transport.connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
+        transport.connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION) { received += it }
         assertThat(server.requestCount).isEqualTo(1)
 
         transport.disconnect()
@@ -308,7 +312,7 @@ class StreamingTransportTest {
         val transport = streaming()
         transport.close()
 
-        transport.connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
+        transport.connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION) { received += it }
 
         assertThat(server.requestCount).isEqualTo(0)
         assertThat(received).isEmpty()
@@ -318,6 +322,6 @@ class StreamingTransportTest {
         transport: StreamingTransport,
         timeoutMillis: Long = 3_000,
     ): ConnectionFailedException = assertThrows(ConnectionFailedException::class.java) {
-        runBlocking { transport.connect(context, timeoutMillis, ConnectReason.INITIALIZATION) }
+        runBlocking { transport.connect(context, timeoutMillis, ConnectReason.INITIALIZATION) { received += it } }
     }
 }

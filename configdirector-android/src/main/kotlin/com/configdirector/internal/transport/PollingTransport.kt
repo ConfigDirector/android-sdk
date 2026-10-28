@@ -27,10 +27,7 @@ import org.json.JSONException
 /**
  * A [Transport] that fetches config state on connect and then re-fetches it on a fixed interval.
  */
-internal class PollingTransport(
-    private val options: TransportOptions,
-    private val onConfigSet: (ConfigSet) -> Unit,
-) : Transport {
+internal class PollingTransport(private val options: TransportOptions) : Transport {
 
     private val url = options.endpoint(PATH)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -43,6 +40,7 @@ internal class PollingTransport(
         context: ConfigDirectorContext,
         timeoutMillis: Long,
         reason: ConnectReason,
+        onConfigSet: (ConfigSet) -> Unit,
     ) {
         if (closed.get()) return
 
@@ -56,12 +54,12 @@ internal class PollingTransport(
         disconnect()
 
         try {
-            fetch(context, timeoutMillis)
+            fetch(context, timeoutMillis, onConfigSet)
         } finally {
             // A transient failure on the first fetch must not leave the client without a
             // connection: polling starts regardless of how that fetch went.
             if (currentCoroutineContext().isActive) {
-                schedulePolling(context, timeoutMillis)
+                schedulePolling(context, timeoutMillis, onConfigSet)
             }
         }
     }
@@ -76,14 +74,18 @@ internal class PollingTransport(
         scope.cancel()
     }
 
-    private fun schedulePolling(context: ConfigDirectorContext, timeoutMillis: Long) {
+    private fun schedulePolling(
+        context: ConfigDirectorContext,
+        timeoutMillis: Long,
+        onConfigSet: (ConfigSet) -> Unit,
+    ) {
         if (hasFatalError.get() || closed.get()) return
 
         val job = scope.launch {
             while (isActive) {
                 delay(options.pollingIntervalMillis)
                 try {
-                    fetch(context, timeoutMillis)
+                    fetch(context, timeoutMillis, onConfigSet)
                 } catch (cancellation: CancellationException) {
                     throw cancellation
                 } catch (failure: Exception) {
@@ -94,7 +96,11 @@ internal class PollingTransport(
         polling.getAndSet(job)?.cancel()
     }
 
-    private suspend fun fetch(context: ConfigDirectorContext, timeoutMillis: Long) {
+    private suspend fun fetch(
+        context: ConfigDirectorContext,
+        timeoutMillis: Long,
+        onConfigSet: (ConfigSet) -> Unit,
+    ) {
         val request = Request.Builder()
             .url(url)
             // A cached config set would serve stale values after a change in the dashboard.
@@ -123,7 +129,7 @@ internal class PollingTransport(
 
             if (it.code != HTTP_OK) return
 
-            dispatch(body)
+            dispatch(body, onConfigSet)
         }
     }
 
@@ -157,7 +163,7 @@ internal class PollingTransport(
         )
     }
 
-    private fun dispatch(body: String) {
+    private fun dispatch(body: String, onConfigSet: (ConfigSet) -> Unit) {
         val configSet = try {
             parseConfigSet(body)
         } catch (malformed: JSONException) {

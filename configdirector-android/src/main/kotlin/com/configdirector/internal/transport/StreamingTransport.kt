@@ -29,10 +29,7 @@ import org.json.JSONException
  * A [Transport] that holds a server-sent events connection open, receiving config state as soon as
  * it changes on the server.
  */
-internal class StreamingTransport(
-    private val options: TransportOptions,
-    private val onConfigSet: (ConfigSet) -> Unit,
-) : Transport {
+internal class StreamingTransport(private val options: TransportOptions) : Transport {
 
     private val url = options.endpoint(PATH).toString()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -43,6 +40,7 @@ internal class StreamingTransport(
         context: ConfigDirectorContext,
         timeoutMillis: Long,
         reason: ConnectReason,
+        onConfigSet: (ConfigSet) -> Unit,
     ) {
         if (closed.get()) return
 
@@ -51,7 +49,7 @@ internal class StreamingTransport(
         val connected = CompletableDeferred<Unit>()
         val client = EventSourceClient(options.httpClient, configuration(context, connected))
         val job = scope.launch {
-            client.events().collect { handle(it, connected) }
+            client.events().collect { handle(it, connected, onConfigSet) }
             connected.completeExceptionally(
                 ConnectionFailedException(
                     "The connection ended and will not be retried.",
@@ -93,14 +91,18 @@ internal class StreamingTransport(
         stallTimeoutMillis = options.stallTimeoutMillis,
     )
 
-    private fun handle(event: EventSourceEvent, connected: CompletableDeferred<Unit>) {
+    private fun handle(
+        event: EventSourceEvent,
+        connected: CompletableDeferred<Unit>,
+        onConfigSet: (ConfigSet) -> Unit,
+    ) {
         when (event) {
             is EventSourceEvent.Open -> {
                 options.logger.debug { "[StreamingTransport] Connected" }
                 connected.complete(Unit)
             }
 
-            is EventSourceEvent.Message -> dispatch(event.message.data)
+            is EventSourceEvent.Message -> dispatch(event.message.data, onConfigSet)
 
             is EventSourceEvent.Failure -> options.logger.debug(event.cause) {
                 "[StreamingTransport] The connection ended"
@@ -147,7 +149,7 @@ internal class StreamingTransport(
         return delayMillis
     }
 
-    private fun dispatch(data: String) {
+    private fun dispatch(data: String, onConfigSet: (ConfigSet) -> Unit) {
         try {
             onConfigSet(parseConfigSet(data))
         } catch (malformed: JSONException) {

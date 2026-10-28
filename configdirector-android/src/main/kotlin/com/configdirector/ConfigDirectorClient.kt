@@ -4,7 +4,6 @@ import android.content.Context
 import com.configdirector.internal.AndroidClientPlatform
 import com.configdirector.internal.CachingPlan
 import com.configdirector.internal.ClientPlatform
-import com.configdirector.internal.ConfigSet
 import com.configdirector.internal.ConfigStore
 import com.configdirector.internal.ConnectionPlan
 import com.configdirector.internal.ContextAdmission
@@ -207,16 +206,14 @@ public class ConfigDirectorClient internal constructor(
                     logger = logger,
                 )
                 store = ConfigStore(logger, telemetry, caching)
-                transport = transportFactory(plan.mode, transportOptions) { configSet ->
-                    store.handleConfigSet(configSet)
-                }
+                transport = transportFactory(plan.mode, transportOptions)
                 lifecycle = platform.lifecycleObserver()
             }
 
             is ConnectionPlan.StayOffline -> {
                 telemetry = DiscardingTelemetryClient
                 store = ConfigStore(logger, telemetry, CachingPlan.KeepNothing)
-                transport = OfflineTransport(plan.configs) { configSet -> store.handleConfigSet(configSet) }
+                transport = OfflineTransport(plan.configs)
                 lifecycle = NoLifecycleObserver
             }
         }
@@ -601,7 +598,9 @@ public class ConfigDirectorClient internal constructor(
         val startedAt = System.nanoTime()
 
         try {
-            transport.connect(context ?: ConfigDirectorContext.empty(), timeoutMillis, reason)
+            transport.connect(context ?: ConfigDirectorContext.empty(), timeoutMillis, reason) { configSet ->
+                store.handleConfigSet(configSet, attempt)
+            }
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (failure: Exception) {
@@ -671,14 +670,9 @@ internal typealias TelemetryFactory = (options: TransportOptions) -> TelemetryCl
 internal fun telemetryFor(options: TransportOptions): TelemetryClient =
     TelemetryEventCollector(HttpEventReporter(options), options.logger)
 
-internal typealias TransportFactory =
-    (mode: LiveConnectionMode, options: TransportOptions, onConfigSet: (ConfigSet) -> Unit) -> Transport
+internal typealias TransportFactory = (mode: LiveConnectionMode, options: TransportOptions) -> Transport
 
-internal fun transportFor(
-    mode: LiveConnectionMode,
-    options: TransportOptions,
-    onConfigSet: (ConfigSet) -> Unit,
-): Transport = when (mode) {
-    LiveConnectionMode.STREAMING -> StreamingTransport(options, onConfigSet)
-    LiveConnectionMode.POLLING -> PollingTransport(options, onConfigSet)
+internal fun transportFor(mode: LiveConnectionMode, options: TransportOptions): Transport = when (mode) {
+    LiveConnectionMode.STREAMING -> StreamingTransport(options)
+    LiveConnectionMode.POLLING -> PollingTransport(options)
 }

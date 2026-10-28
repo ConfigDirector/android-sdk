@@ -56,10 +56,10 @@ public class InMemoryConnection(
     private val initialization = AttemptControls()
     private val contextUpdate = AttemptControls()
     private val recordedContexts = mutableListOf<ConfigDirectorContext>()
-    private val pendingDeliveries = ConcurrentLinkedQueue<ConfigSet>()
+    private val pendingDeliveries = ConcurrentLinkedQueue<PendingDelivery>()
     private val delivering = AtomicBoolean(false)
     private var connected = false
-    private lateinit var onConfigSet: (ConfigSet) -> Unit
+    private lateinit var connectionOnConfigSet: (ConfigSet) -> Unit
 
     /** The client under test. It starts uninitialized, like a production client. */
     public val client: ConfigDirectorClient = ConfigDirectorClient(
@@ -70,10 +70,7 @@ public class InMemoryConnection(
         },
         platform = InMemoryClientPlatform,
         telemetryFactory = { DiscardingTelemetryClient },
-        transportFactory = { _, _, handler ->
-            onConfigSet = handler
-            InMemoryTransport()
-        },
+        transportFactory = { _, _ -> InMemoryTransport() },
     )
 
     /**
@@ -185,7 +182,7 @@ public class InMemoryConnection(
             if (held != null) {
                 controls.held = null
                 connected = true
-                pendingDeliveries.add(fullUpdateLocked())
+                queueForTheConnectionLocked(fullUpdateLocked())
             } else if (controls.armed == Armed.HOLD) {
                 controls.armed = Armed.NOTHING
             }
@@ -214,6 +211,7 @@ public class InMemoryConnection(
         context: ConfigDirectorContext,
         timeoutMillis: Long,
         reason: ConnectReason,
+        onConfigSet: (ConfigSet) -> Unit,
     ) {
         val controls = when (reason) {
             ConnectReason.INITIALIZATION -> initialization
@@ -227,6 +225,7 @@ public class InMemoryConnection(
         synchronized(lock) {
             ended = takeHeldLocked()
             connected = false
+            connectionOnConfigSet = onConfigSet
             if (controls != null) {
                 recordedContexts += context
                 armed = controls.armed
@@ -284,7 +283,7 @@ public class InMemoryConnection(
     private fun deliverFirstUpdate() {
         synchronized(lock) {
             connected = true
-            pendingDeliveries.add(fullUpdateLocked())
+            queueForTheConnectionLocked(fullUpdateLocked())
         }
         drain()
     }
@@ -306,8 +305,12 @@ public class InMemoryConnection(
 
     private fun deliverIfConnectedLocked(configSet: ConfigSet) {
         if (connected) {
-            pendingDeliveries.add(configSet)
+            queueForTheConnectionLocked(configSet)
         }
+    }
+
+    private fun queueForTheConnectionLocked(configSet: ConfigSet) {
+        pendingDeliveries.add(PendingDelivery(configSet, connectionOnConfigSet))
     }
 
     private fun fullUpdateLocked(): ConfigSet = ConfigSet(LinkedHashMap(configs), ConfigSetKind.FULL)
@@ -317,7 +320,7 @@ public class InMemoryConnection(
             try {
                 while (true) {
                     val next = pendingDeliveries.poll() ?: break
-                    onConfigSet(next)
+                    next.onConfigSet(next.configSet)
                 }
             } finally {
                 delivering.set(false)
@@ -330,7 +333,8 @@ public class InMemoryConnection(
             context: ConfigDirectorContext,
             timeoutMillis: Long,
             reason: ConnectReason,
-        ) = this@InMemoryConnection.connect(context, timeoutMillis, reason)
+            onConfigSet: (ConfigSet) -> Unit,
+        ) = this@InMemoryConnection.connect(context, timeoutMillis, reason, onConfigSet)
 
         override fun disconnect() = endAttempts()
 
@@ -348,6 +352,8 @@ public class InMemoryConnection(
 private enum class Armed { NOTHING, HOLD, FAILURE }
 
 private enum class AttemptOutcome { COMPLETED, ENDED, FAILED }
+
+private class PendingDelivery(val configSet: ConfigSet, val onConfigSet: (ConfigSet) -> Unit)
 
 private class AttemptControls {
     var armed = Armed.NOTHING

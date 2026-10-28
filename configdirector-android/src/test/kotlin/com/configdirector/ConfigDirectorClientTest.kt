@@ -3,6 +3,10 @@ package com.configdirector
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.SharedPreferences
+import com.configdirector.internal.ConfigSet
+import com.configdirector.internal.ConfigSetKind
+import com.configdirector.internal.ConfigState
+import com.configdirector.internal.ConfigType
 import com.configdirector.internal.transport.PollingTransport
 import com.configdirector.internal.transport.StreamingTransport
 import com.configdirector.internal.transport.Transport
@@ -38,48 +42,83 @@ class ConfigDirectorClientTest {
     private var client: ConfigDirectorClient? = null
     private var transportOptions: TransportOptions? = null
 
-    private val capturingTransportFactory: TransportFactory = { mode, options, onConfigSet ->
+    private val capturingTransportFactory: TransportFactory = { mode, options ->
         transportOptions = options
-        transportFor(mode, options, onConfigSet)
+        transportFor(mode, options)
     }
 
-    private val fastPollingTransportFactory: TransportFactory = { _, options, onConfigSet ->
-        PollingTransport(options.pollingEvery(50), onConfigSet)
+    private val fastPollingTransportFactory: TransportFactory = { _, options ->
+        PollingTransport(options.pollingEvery(50))
     }
 
-    private val fastReconnectingTransportFactory: TransportFactory = { _, options, onConfigSet ->
-        StreamingTransport(options.reconnectingAfter(20), onConfigSet)
+    private val fastReconnectingTransportFactory: TransportFactory = { _, options ->
+        StreamingTransport(options.reconnectingAfter(20))
     }
 
-    private val shortStallTimeoutTransportFactory: TransportFactory = { _, options, onConfigSet ->
-        StreamingTransport(options.reconnectingAfter(20, stallTimeoutMillis = 700), onConfigSet)
+    private val shortStallTimeoutTransportFactory: TransportFactory = { _, options ->
+        StreamingTransport(options.reconnectingAfter(20, stallTimeoutMillis = 700))
     }
 
     private val connectReasons = CopyOnWriteArrayList<ConnectReason>()
 
-    private val reasonRecordingTransportFactory: TransportFactory = { mode, options, onConfigSet ->
-        val transport = transportFor(mode, options, onConfigSet)
+    private val reasonRecordingTransportFactory: TransportFactory = { mode, options ->
+        val transport = transportFor(mode, options)
         object : Transport by transport {
             override suspend fun connect(
                 context: ConfigDirectorContext,
                 timeoutMillis: Long,
                 reason: ConnectReason,
+                onConfigSet: (ConfigSet) -> Unit,
             ) {
                 connectReasons += reason
-                transport.connect(context, timeoutMillis, reason)
+                transport.connect(context, timeoutMillis, reason, onConfigSet)
             }
         }
     }
 
-    private val unexpectedlyFailingTransportFactory: TransportFactory = { mode, options, onConfigSet ->
-        val transport = transportFor(mode, options, onConfigSet)
+    private val unexpectedlyFailingTransportFactory: TransportFactory = { mode, options ->
+        val transport = transportFor(mode, options)
         object : Transport by transport {
             override suspend fun connect(
                 context: ConfigDirectorContext,
                 timeoutMillis: Long,
                 reason: ConnectReason,
+                onConfigSet: (ConfigSet) -> Unit,
             ) {
                 throw IllegalStateException("The transport broke.")
+            }
+        }
+    }
+
+    private val darkModeTurnedOff = ConfigSet(
+        mapOf(
+            "dark-mode" to ConfigState(
+                "dark-mode",
+                ConfigType.BOOLEAN,
+                "false",
+                id = "dark-mode-id",
+                valueId = "dark-mode-free",
+            ),
+        ),
+        ConfigSetKind.DELTA,
+    )
+
+    private val changeOnTheEarlierConnectionTransportFactory: TransportFactory = { mode, options ->
+        val transport = transportFor(mode, options)
+        var initializationOnConfigSet: ((ConfigSet) -> Unit)? = null
+        object : Transport by transport {
+            override suspend fun connect(
+                context: ConfigDirectorContext,
+                timeoutMillis: Long,
+                reason: ConnectReason,
+                onConfigSet: (ConfigSet) -> Unit,
+            ) {
+                when (reason) {
+                    ConnectReason.INITIALIZATION -> initializationOnConfigSet = onConfigSet
+                    ConnectReason.CONTEXT_UPDATE -> initializationOnConfigSet?.invoke(darkModeTurnedOff)
+                    ConnectReason.NETWORK_RESUME -> Unit
+                }
+                transport.connect(context, timeoutMillis, reason, onConfigSet)
             }
         }
     }
@@ -1273,6 +1312,34 @@ class ConfigDirectorClientTest {
         assertThat(contextUpdates).containsExactly(ClientEvent.ContextUpdated(freeContext))
         assertThat(client.context).isEqualTo(freeContext)
     }
+
+    @Test
+    fun `keeps the previous context when the earlier connection delivers a change while a failing update connects`() =
+        runBlocking<Unit> {
+            val client = client(transportFactory = changeOnTheEarlierConnectionTransportFactory)
+            client.initialize(proContext)
+            server.status = 401
+
+            client.updateContext(freeContext)
+
+            assertThat(client.getBoolean("dark-mode", true)).isFalse()
+            assertThat(client.context).isEqualTo(proContext)
+        }
+
+    @Test
+    fun `never takes the context of a timed-out initialize whose connection delivers a change once an update began`() =
+        runBlocking<Unit> {
+            server.responseDelayMillis = 500
+            val client = client(timeoutMillis = 200, transportFactory = changeOnTheEarlierConnectionTransportFactory)
+            client.initialize(proContext)
+            server.responseDelayMillis = 0
+            server.status = 401
+
+            client.updateContext(freeContext)
+
+            assertThat(client.getBoolean("dark-mode", true)).isFalse()
+            assertThat(client.context).isNull()
+        }
 
     @Test
     fun `reports the configs it evaluated to the server`() = runBlocking {

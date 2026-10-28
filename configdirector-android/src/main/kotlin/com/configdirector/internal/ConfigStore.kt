@@ -38,15 +38,27 @@ internal enum class ConfigSetSource(val matchedReason: EvaluationReason) {
     LIVE_PAYLOAD(EvaluationReason.FOUND_MATCH),
 }
 
+private enum class ConnectStage { CONNECTING, CONNECTED, REPLACED }
+
 internal class ConnectAttempt(private val onConnected: () -> Unit) {
-    private var connected = false
+    private var stage = ConnectStage.CONNECTING
 
     fun markConnected() {
         synchronized(this) {
-            if (connected) return
+            when (stage) {
+                ConnectStage.CONNECTING -> {
+                    stage = ConnectStage.CONNECTED
+                    onConnected()
+                }
 
-            connected = true
-            onConnected()
+                ConnectStage.CONNECTED, ConnectStage.REPLACED -> Unit
+            }
+        }
+    }
+
+    fun markReplaced() {
+        synchronized(this) {
+            stage = ConnectStage.REPLACED
         }
     }
 }
@@ -109,7 +121,9 @@ internal class ConfigStore(
         pendingReason.set(reason)
         submittedContext.set(context)
         ready.value = false
-        return ConnectAttempt(onConnected).also { currentConnectAttempt.set(it) }
+        val attempt = ConnectAttempt(onConnected)
+        currentConnectAttempt.getAndSet(attempt)?.markReplaced()
+        return attempt
     }
 
     fun adoptCachedValuesOnce(launchContext: ConfigDirectorContext?) {
@@ -138,7 +152,7 @@ internal class ConfigStore(
         emit(ClientEvent.ContextUpdated(context))
     }
 
-    fun handleConfigSet(configSet: ConfigSet) {
+    fun handleConfigSet(configSet: ConfigSet, attempt: ConnectAttempt) {
         val live: HeldConfigs
         val removedKeys: List<String>
         synchronized(heldLock) {
@@ -163,7 +177,7 @@ internal class ConfigStore(
 
         logger.debug { "Config state received from the server: $keys, removed: $removedKeys" }
 
-        currentConnectAttempt.get()?.markConnected()
+        attempt.markConnected()
     }
 
     /** Waits until config state arrives, at most [timeoutMillis], or until the client closes. */

@@ -11,6 +11,8 @@ import com.configdirector.internal.ConfigType
 import com.google.common.truth.Truth.assertThat
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
@@ -65,7 +67,7 @@ class PollingTransportTest {
     )
 
     private fun polling(pollingIntervalMillis: Long = 60_000): PollingTransport =
-        PollingTransport(options(pollingIntervalMillis)) { received += it }
+        PollingTransport(options(pollingIntervalMillis))
             .also { transport = it }
 
     private fun configSetResponse(
@@ -95,7 +97,7 @@ class PollingTransportTest {
     fun `posts the context, the metadata and the key`() = runBlocking {
         server.enqueue(configSetResponse())
 
-        polling().connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
+        polling().connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION) { received += it }
 
         val request = request()
         assertThat(request.method).isEqualTo("POST")
@@ -133,7 +135,7 @@ class PollingTransportTest {
             ConfigDirectorContext.build { id("42"); kind("device") },
             timeoutMillis = 3_000,
             reason = ConnectReason.INITIALIZATION,
-        )
+        ) { received += it }
 
         val given = JSONObject(request().body.readUtf8()).getJSONObject("givenContext")
         assertThat(given.getString("id")).isEqualTo("42")
@@ -144,9 +146,9 @@ class PollingTransportTest {
     fun `says that an instance ID which is not storage-backed is ephemeral`() = runBlocking {
         server.enqueue(configSetResponse())
 
-        PollingTransport(options(clientSession = ClientSession("instance-1", ephemeral = true))) { received += it }
+        PollingTransport(options(clientSession = ClientSession("instance-1", ephemeral = true)))
             .also { transport = it }
-            .connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
+            .connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION) { received += it }
 
         val body = JSONObject(request().body.readUtf8())
         assertThat(body.getString("instanceId")).isEqualTo("instance-1")
@@ -157,7 +159,7 @@ class PollingTransportTest {
     fun `hands over the config state the server sent`() = runBlocking {
         server.enqueue(configSetResponse())
 
-        polling().connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
+        polling().connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION) { received += it }
 
         val configSet = received.single()
         assertThat(configSet.kind).isEqualTo(ConfigSetKind.FULL)
@@ -180,7 +182,7 @@ class PollingTransportTest {
             ),
         )
 
-        polling().connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
+        polling().connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION) { received += it }
 
         assertThat(received.single().kind).isEqualTo(ConfigSetKind.DELTA)
     }
@@ -191,7 +193,7 @@ class PollingTransportTest {
             configSetResponse("""{"configs": {"odd": {"type": "quantum", "value": "1"}}}"""),
         )
 
-        polling().connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
+        polling().connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION) { received += it }
 
         assertThat(received.single().configs.getValue("odd").type).isEqualTo(ConfigType.CUSTOM)
     }
@@ -202,8 +204,8 @@ class PollingTransportTest {
         server.enqueue(configSetResponse())
         val transport = polling()
 
-        transport.connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
-        transport.connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
+        transport.connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION) { received += it }
+        transport.connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION) { received += it }
 
         request()
         val second = JSONObject(request().body.readUtf8())
@@ -214,7 +216,11 @@ class PollingTransportTest {
     fun `fetches again on the polling interval`() = runBlocking {
         repeat(3) { server.enqueue(configSetResponse()) }
 
-        polling(pollingIntervalMillis = 50).connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
+        polling(pollingIntervalMillis = 50).connect(
+            context,
+            timeoutMillis = 3_000,
+            reason = ConnectReason.INITIALIZATION,
+        ) { received += it }
 
         assertThat(server.takeRequest(2, TimeUnit.SECONDS)).isNotNull()
         assertThat(server.takeRequest(2, TimeUnit.SECONDS)).isNotNull()
@@ -225,7 +231,7 @@ class PollingTransportTest {
     fun `stops fetching once disconnected`() = runBlocking {
         repeat(4) { server.enqueue(configSetResponse()) }
         val transport = polling(pollingIntervalMillis = 50)
-        transport.connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
+        transport.connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION) { received += it }
         assertThat(server.takeRequest(2, TimeUnit.SECONDS)).isNotNull()
 
         transport.disconnect()
@@ -233,6 +239,29 @@ class PollingTransportTest {
         // Whatever poll was already in flight may still land, so this drains one before waiting.
         server.takeRequest(200, TimeUnit.MILLISECONDS)
         assertThat(server.takeRequest(500, TimeUnit.MILLISECONDS)).isNull()
+    }
+
+    @Test
+    fun `hands a fetch that lands after a later connect to the connect that sent it`() = runBlocking<Unit> {
+        server.enqueue(configSetResponse().setHeadersDelay(500, TimeUnit.MILLISECONDS))
+        server.enqueue(configSetResponse())
+        val transport = polling()
+        val firstConnect = CopyOnWriteArrayList<ConfigSet>()
+        val secondConnect = CopyOnWriteArrayList<ConfigSet>()
+        val first = launch(Dispatchers.Default) {
+            transport.connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION) {
+                firstConnect += it
+            }
+        }
+        request()
+
+        transport.connect(context, timeoutMillis = 3_000, reason = ConnectReason.CONTEXT_UPDATE) {
+            secondConnect += it
+        }
+        first.join()
+
+        assertThat(firstConnect).hasSize(1)
+        assertThat(secondConnect).hasSize(1)
     }
 
     @Test
@@ -246,7 +275,7 @@ class PollingTransportTest {
         assertThat(failure).hasMessageThat().contains("invalid client SDK key")
         assertThat(failure).hasMessageThat().contains("unrecoverable")
 
-        transport.connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
+        transport.connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION) { received += it }
 
         // The failed fetch is the only request the server ever sees, and polling never started.
         assertThat(server.requestCount).isEqualTo(1)
@@ -293,7 +322,7 @@ class PollingTransportTest {
     fun `hands over nothing when the server has no config state to send`() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(204))
 
-        polling().connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION)
+        polling().connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION) { received += it }
 
         assertThat(received).isEmpty()
     }
@@ -366,6 +395,6 @@ class PollingTransportTest {
         transport: PollingTransport,
         timeoutMillis: Long = 3_000,
     ): ConnectionFailedException = assertThrows(ConnectionFailedException::class.java) {
-        runBlocking { transport.connect(context, timeoutMillis, ConnectReason.INITIALIZATION) }
+        runBlocking { transport.connect(context, timeoutMillis, ConnectReason.INITIALIZATION) { received += it } }
     }
 }

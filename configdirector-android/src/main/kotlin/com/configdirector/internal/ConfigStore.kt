@@ -39,12 +39,15 @@ internal enum class ConfigSetSource(val matchedReason: EvaluationReason) {
 }
 
 internal class ConnectAttempt(private val onConnected: () -> Unit) {
-    private val connected = AtomicBoolean(false)
+    private var connected = false
 
     fun markConnected() {
-        if (connected.getAndSet(true)) return
+        synchronized(this) {
+            if (connected) return
 
-        onConnected()
+            connected = true
+            onConnected()
+        }
     }
 }
 

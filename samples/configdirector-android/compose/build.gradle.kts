@@ -75,7 +75,7 @@ dependencies {
         if (useLocalSdk) {
             project(":configdirector-android-compose")
         } else {
-            "com.configdirector:android-sdk-compose:1.9.1"
+            "com.configdirector:android-sdk-compose:1.9.2"
         },
     )
 
@@ -90,7 +90,7 @@ dependencies {
         if (useLocalSdk) {
             project(":configdirector-android-testing")
         } else {
-            "com.configdirector:android-sdk-testing:1.9.1"
+            "com.configdirector:android-sdk-testing:1.9.2"
         },
     )
     testImplementation(libs.junit)

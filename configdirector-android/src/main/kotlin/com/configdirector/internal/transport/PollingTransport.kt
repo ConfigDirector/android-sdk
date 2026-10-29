@@ -31,7 +31,9 @@ internal class PollingTransport(private val options: TransportOptions) : Transpo
 
     private val url = options.endpoint(PATH)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val polling = AtomicReference<Job?>(null)
+    private val connectionLock = Any()
+    private var connectionGeneration = 0L
+    private var polling: Job? = null
     private val lastUpdateTimestamp = AtomicReference<String?>(null)
     private val hasFatalError = AtomicBoolean(false)
     private val closed = AtomicBoolean(false)
@@ -51,21 +53,21 @@ internal class PollingTransport(private val options: TransportOptions) : Transpo
             return
         }
 
-        disconnect()
+        val generation = endCurrentConnection()
 
         try {
-            fetch(context, timeoutMillis, onConfigSet)
+            fetch(context, timeoutMillis, generation, onConfigSet)
         } finally {
             // A transient failure on the first fetch must not leave the client without a
             // connection: polling starts regardless of how that fetch went.
             if (currentCoroutineContext().isActive) {
-                schedulePolling(context, timeoutMillis, onConfigSet)
+                schedulePolling(context, timeoutMillis, generation, onConfigSet)
             }
         }
     }
 
     override fun disconnect() {
-        polling.getAndSet(null)?.cancel()
+        endCurrentConnection()
     }
 
     override fun close() {
@@ -74,9 +76,23 @@ internal class PollingTransport(private val options: TransportOptions) : Transpo
         scope.cancel()
     }
 
+    private fun endCurrentConnection(): Long {
+        val (generation, pollingToCancel) = synchronized(connectionLock) {
+            connectionGeneration += 1
+            val pollingToCancel = polling
+            polling = null
+            connectionGeneration to pollingToCancel
+        }
+        pollingToCancel?.cancel()
+        return generation
+    }
+
+    private fun isCurrentConnectionLocked(generation: Long): Boolean = connectionGeneration == generation
+
     private fun schedulePolling(
         context: ConfigDirectorContext,
         timeoutMillis: Long,
+        generation: Long,
         onConfigSet: (ConfigSet) -> Unit,
     ) {
         if (hasFatalError.get() || closed.get()) return
@@ -85,7 +101,7 @@ internal class PollingTransport(private val options: TransportOptions) : Transpo
             while (isActive) {
                 delay(options.pollingIntervalMillis)
                 try {
-                    fetch(context, timeoutMillis, onConfigSet)
+                    fetch(context, timeoutMillis, generation, onConfigSet)
                 } catch (cancellation: CancellationException) {
                     throw cancellation
                 } catch (failure: Exception) {
@@ -93,12 +109,22 @@ internal class PollingTransport(private val options: TransportOptions) : Transpo
                 }
             }
         }
-        polling.getAndSet(job)?.cancel()
+        val pollingToCancel = synchronized(connectionLock) {
+            if (isCurrentConnectionLocked(generation)) {
+                val previous = polling
+                polling = job
+                previous
+            } else {
+                job
+            }
+        }
+        pollingToCancel?.cancel()
     }
 
     private suspend fun fetch(
         context: ConfigDirectorContext,
         timeoutMillis: Long,
+        generation: Long,
         onConfigSet: (ConfigSet) -> Unit,
     ) {
         val request = Request.Builder()
@@ -129,7 +155,7 @@ internal class PollingTransport(private val options: TransportOptions) : Transpo
 
             if (it.code != HTTP_OK) return
 
-            dispatch(body, onConfigSet)
+            dispatch(body, generation, onConfigSet)
         }
     }
 
@@ -163,7 +189,7 @@ internal class PollingTransport(private val options: TransportOptions) : Transpo
         )
     }
 
-    private fun dispatch(body: String, onConfigSet: (ConfigSet) -> Unit) {
+    private fun dispatch(body: String, generation: Long, onConfigSet: (ConfigSet) -> Unit) {
         val configSet = try {
             parseConfigSet(body)
         } catch (malformed: JSONException) {
@@ -174,8 +200,12 @@ internal class PollingTransport(private val options: TransportOptions) : Transpo
             )
         }
 
-        lastUpdateTimestamp.set(configSet.timestamp)
-        onConfigSet(configSet)
+        synchronized(connectionLock) {
+            if (!isCurrentConnectionLocked(generation)) return
+
+            lastUpdateTimestamp.set(configSet.timestamp)
+            onConfigSet(configSet)
+        }
     }
 
     companion object {

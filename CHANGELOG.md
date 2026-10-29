@@ -9,6 +9,21 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Polling after a context update, a pause or `close()` (`android-sdk`): in polling mode, a response
+  to `initialize`, `updateContext` or `resumeNetwork` that arrives after the app updated the
+  context, paused the network or closed the client is now ignored, and polling always sends the
+  latest context. Before, after `updateContext`, for example when a user signed in during a slow
+  start, the late response replaced the new context's values, and the client kept polling with the
+  previous context until the next `updateContext` or `resumeNetwork`, such as the app coming back to
+  the foreground, while `context` already returned the new context. After a pause, by
+  `pauseNetwork` or by the app going to the background, the client became ready and kept polling
+  until `resumeNetwork`, or until the app came back to the foreground. Now it stays paused: the call
+  that was waiting for that response returns once its timeout runs out, with the usual timeout
+  warning, and the next `resumeNetwork` reconnects with the context that call was given. After
+  `close()`, a late response no longer changes the values the client serves.
+
 ## [1.9.2] - 2026-10-28
 
 ### Fixed

@@ -93,6 +93,13 @@ class PollingTransportTest {
         trait("regions", listOf("us-east", null))
     }
 
+    private val earlierContext = ConfigDirectorContext.build { id("user-a") }
+
+    private val laterContext = ConfigDirectorContext.build { id("user-b") }
+
+    private fun sentContextId(request: RecordedRequest): String =
+        JSONObject(request.body.readUtf8()).getJSONObject("givenContext").getString("id")
+
     @Test
     fun `posts the context, the metadata and the key`() = runBlocking {
         server.enqueue(configSetResponse())
@@ -242,26 +249,59 @@ class PollingTransportTest {
     }
 
     @Test
-    fun `hands a fetch that lands after a later connect to the connect that sent it`() = runBlocking<Unit> {
-        server.enqueue(configSetResponse().setHeadersDelay(500, TimeUnit.MILLISECONDS))
-        server.enqueue(configSetResponse())
-        val transport = polling()
-        val firstConnect = CopyOnWriteArrayList<ConfigSet>()
-        val secondConnect = CopyOnWriteArrayList<ConfigSet>()
-        val first = launch(Dispatchers.Default) {
-            transport.connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION) {
-                firstConnect += it
+    fun `polls with the later context and hands over nothing from an earlier first fetch that lands late`() =
+        runBlocking<Unit> {
+            server.enqueue(configSetResponse().setHeadersDelay(500, TimeUnit.MILLISECONDS))
+            repeat(6) { server.enqueue(configSetResponse()) }
+            val transport = polling(pollingIntervalMillis = 300)
+            val earlierConnect = CopyOnWriteArrayList<ConfigSet>()
+            val earlier = launch(Dispatchers.Default) {
+                transport.connect(earlierContext, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION) {
+                    earlierConnect += it
+                }
             }
+            request()
+
+            transport.connect(laterContext, timeoutMillis = 3_000, reason = ConnectReason.CONTEXT_UPDATE) {
+                received += it
+            }
+            request()
+            earlier.join()
+
+            assertThat(earlierConnect).isEmpty()
+            assertThat(List(3) { sentContextId(request()) }).containsExactly("user-b", "user-b", "user-b")
+        }
+
+    @Test
+    fun `hands over nothing and stops polling when disconnected during a first fetch`() = runBlocking<Unit> {
+        server.enqueue(configSetResponse().setHeadersDelay(500, TimeUnit.MILLISECONDS))
+        repeat(4) { server.enqueue(configSetResponse()) }
+        val transport = polling(pollingIntervalMillis = 50)
+        val connecting = launch(Dispatchers.Default) {
+            transport.connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION) { received += it }
         }
         request()
 
-        transport.connect(context, timeoutMillis = 3_000, reason = ConnectReason.CONTEXT_UPDATE) {
-            secondConnect += it
-        }
-        first.join()
+        transport.disconnect()
+        connecting.join()
 
-        assertThat(firstConnect).hasSize(1)
-        assertThat(secondConnect).hasSize(1)
+        assertThat(received).isEmpty()
+        assertThat(server.takeRequest(500, TimeUnit.MILLISECONDS)).isNull()
+    }
+
+    @Test
+    fun `hands over nothing when closed during a first fetch`() = runBlocking<Unit> {
+        server.enqueue(configSetResponse().setHeadersDelay(500, TimeUnit.MILLISECONDS))
+        val transport = polling()
+        val connecting = launch(Dispatchers.Default) {
+            transport.connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION) { received += it }
+        }
+        request()
+
+        transport.close()
+        connecting.join()
+
+        assertThat(received).isEmpty()
     }
 
     @Test

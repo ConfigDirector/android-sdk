@@ -247,6 +247,12 @@ class ConfigDirectorClientTest {
             .map { JSONObject(it.body).getJSONObject("givenContext").toString() }
             .toList()
 
+    private fun latestSentContextId(path: String): String? =
+        generateSequence { server.takeRequest(timeoutMillis = 0) }
+            .filter { it.path == path }
+            .lastOrNull()
+            ?.let { JSONObject(it.body).getJSONObject("givenContext").getString("id") }
+
     @Test
     fun `rejects a blank client SDK key`() {
         val failure = assertThrows(ConfigDirectorValidationException::class.java) {
@@ -1312,6 +1318,24 @@ class ConfigDirectorClientTest {
         assertThat(contextUpdates).containsExactly(ClientEvent.ContextUpdated(freeContext))
         assertThat(client.context).isEqualTo(freeContext)
     }
+
+    @Test
+    fun `keeps polling with the updated context when the initialize response lands after the update`() =
+        runBlocking<Unit> {
+            server.responseDelayMillis = 500
+            val client = fastPollingClient()
+            val initializing = launch(Dispatchers.Default) { client.initialize(proContext) }
+            waitFor("the initialize request") { server.requestCount == 1 }
+            server.responseDelayMillis = 0
+
+            client.updateContext(freeContext)
+            initializing.join()
+            settle()
+
+            assertThat(latestSentContextId("/client/polling/v1")).isEqualTo("user-456")
+            assertThat(client.context).isEqualTo(freeContext)
+            assertThat(client.getInt("max-items", 0)).isEqualTo(10)
+        }
 
     @Test
     fun `keeps the previous context when the earlier connection delivers a change while a failing update connects`() =

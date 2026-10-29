@@ -34,6 +34,9 @@ class FakeSdkServer : Closeable {
     @Volatile
     var sendsConfigState: Boolean = true
 
+    @Volatile
+    var answersTimestampedPollsWithNoChange: Boolean = false
+
     init {
         server.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse = respondTo(request)
@@ -109,7 +112,12 @@ class FakeSdkServer : Closeable {
             }
         }
 
-        val body = scripted.poll() ?: evaluate(payload)
+        val scriptedBody = scripted.poll()
+        if (scriptedBody == null && answersTimestampedPollsWithNoChange && payload.has("lastUpdateTimestamp")) {
+            return response.setResponseCode(NO_CONTENT)
+        }
+
+        val body = scriptedBody ?: evaluate(payload)
 
         return if (isStream) {
             response.setHeader("Content-Type", "text/event-stream").setBody("data: $body\n\n")

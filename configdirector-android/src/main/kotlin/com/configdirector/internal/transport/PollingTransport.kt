@@ -79,6 +79,7 @@ internal class PollingTransport(private val options: TransportOptions) : Transpo
     private fun endCurrentConnection(): Long {
         val (generation, pollingToCancel) = synchronized(connectionLock) {
             connectionGeneration += 1
+            lastUpdateTimestamp.set(null)
             val pollingToCancel = polling
             polling = null
             connectionGeneration to pollingToCancel

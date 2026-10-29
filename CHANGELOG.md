@@ -23,6 +23,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   that was waiting for that response returns once its timeout runs out, with the usual timeout
   warning, and the next `resumeNetwork` reconnects with the context that call was given. After
   `close()`, a late response no longer changes the values the client serves.
+- Context updates and resumes when polling (`android-sdk`): in polling mode, `updateContext` and
+  `resumeNetwork` now always get the values for their context. Before, when no config had changed
+  since the client last got values, `updateContext` kept serving the previous context's values
+  under the new context until a config changed, and returned at its timeout with a timeout warning.
+  After `resumeNetwork`, or the app coming back to the foreground, `isReady` stayed false, with a
+  timeout warning, until a config changed. Each `initialize`, `updateContext` and `resumeNetwork`
+  now downloads the full set of configs.
 
 ## [1.9.2] - 2026-10-28
 

@@ -1195,6 +1195,36 @@ class ConfigDirectorClientTest {
     }
 
     @Test
+    fun `re-evaluates against an updated context when polling and no config changed`() = runBlocking {
+        server.answersTimestampedPollsWithNoChange = true
+        val client = client(mode = ConnectionMode.POLLING)
+        client.initialize(freeContext)
+        assertThat(client.getInt("max-items", 0)).isEqualTo(10)
+
+        client.updateContext(proContext)
+
+        assertThat(client.context).isEqualTo(proContext)
+        assertThat(client.isReady).isTrue()
+        assertThat(client.getInt("max-items", 0)).isEqualTo(25)
+    }
+
+    @Test
+    fun `becomes ready again after a resume when polling and no config changed`() = runBlocking {
+        server.answersTimestampedPollsWithNoChange = true
+        val client = client(mode = ConnectionMode.POLLING)
+        client.initialize()
+        val events = CopyOnWriteArrayList<ClientEvent>()
+        client.addEventListener { events += it }
+        client.pauseNetwork()
+        assertThat(client.isReady).isFalse()
+
+        client.resumeNetwork()
+
+        assertThat(client.isReady).isTrue()
+        waitFor("the ready event") { ClientEvent.Ready(ConnectReason.NETWORK_RESUME) in events }
+    }
+
+    @Test
     fun `merges a config set that carries only what changed`() = runBlocking {
         val client = fastPollingClient()
         client.initialize()

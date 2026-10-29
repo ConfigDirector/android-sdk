@@ -100,6 +100,9 @@ class PollingTransportTest {
     private fun sentContextId(request: RecordedRequest): String =
         JSONObject(request.body.readUtf8()).getJSONObject("givenContext").getString("id")
 
+    private fun sentTimestamp(request: RecordedRequest): String? =
+        JSONObject(request.body.readUtf8()).opt("lastUpdateTimestamp") as String?
+
     @Test
     fun `posts the context, the metadata and the key`() = runBlocking {
         server.enqueue(configSetResponse())
@@ -206,17 +209,34 @@ class PollingTransportTest {
     }
 
     @Test
-    fun `echoes the last timestamp it was given on the next fetch`() = runBlocking {
+    fun `sends no timestamp on the first fetch of a later connect`() = runBlocking {
         server.enqueue(configSetResponse())
         server.enqueue(configSetResponse())
         val transport = polling()
 
         transport.connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION) { received += it }
-        transport.connect(context, timeoutMillis = 3_000, reason = ConnectReason.INITIALIZATION) { received += it }
+        transport.connect(context, timeoutMillis = 3_000, reason = ConnectReason.CONTEXT_UPDATE) { received += it }
 
         request()
-        val second = JSONObject(request().body.readUtf8())
-        assertThat(second.getString("lastUpdateTimestamp")).isEqualTo("2026-08-31T00:00:00Z")
+        assertThat(sentTimestamp(request())).isNull()
+    }
+
+    @Test
+    fun `sends the timestamp of its connection's latest values on each poll`() = runBlocking {
+        server.enqueue(configSetResponse("""{"kind": "full", "timestamp": "2026-08-31T00:00:00Z", "configs": {}}"""))
+        server.enqueue(configSetResponse("""{"kind": "delta", "timestamp": "2026-08-31T00:05:00Z", "configs": {}}"""))
+        server.enqueue(configSetResponse())
+
+        polling(pollingIntervalMillis = 50).connect(
+            context,
+            timeoutMillis = 3_000,
+            reason = ConnectReason.INITIALIZATION,
+        ) { received += it }
+
+        request()
+        assertThat(List(2) { sentTimestamp(request()) })
+            .containsExactly("2026-08-31T00:00:00Z", "2026-08-31T00:05:00Z")
+            .inOrder()
     }
 
     @Test

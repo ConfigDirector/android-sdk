@@ -87,7 +87,7 @@ internal class ConfigStore(
     private val held = AtomicReference(HeldConfigs(emptyMap(), ConfigSetSource.NONE))
     private val heldLock = Any()
     private val contextHolder = AtomicReference<ConfigDirectorContext?>(null)
-    private val submittedContext = AtomicReference<ConfigDirectorContext?>(null)
+    private val submittedContextHolder = AtomicReference<ConfigDirectorContext?>(null)
     private val pendingReason = AtomicReference(ConnectReason.INITIALIZATION)
     private val currentConnectAttempt = AtomicReference<ConnectAttempt?>(null)
     private val cachedValuesAdoptionStarted = AtomicBoolean(false)
@@ -111,6 +111,8 @@ internal class ConfigStore(
 
     val context: ConfigDirectorContext? get() = contextHolder.get()
 
+    val submittedContext: ConfigDirectorContext? get() = submittedContextHolder.get()
+
     val closed: StateFlow<Boolean> get() = closedState
 
     fun beginConnect(
@@ -119,7 +121,7 @@ internal class ConfigStore(
         onConnected: () -> Unit,
     ): ConnectAttempt {
         pendingReason.set(reason)
-        submittedContext.set(context)
+        submittedContextHolder.set(context)
         ready.value = false
         val attempt = ConnectAttempt(onConnected)
         currentConnectAttempt.getAndSet(attempt)?.markReplaced()
@@ -314,7 +316,7 @@ internal class ConfigStore(
 
         store.replace(
             CachedValues(
-                contextTag = store.contextTag(submittedContext.get()),
+                contextTag = store.contextTag(submittedContext),
                 environmentId = live.environmentId,
                 projectId = live.projectId,
                 configs = live.configs,

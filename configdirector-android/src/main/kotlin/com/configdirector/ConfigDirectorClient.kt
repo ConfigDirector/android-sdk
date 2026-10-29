@@ -500,22 +500,24 @@ public class ConfigDirectorClient internal constructor(
     }
 
     /**
-     * Reconnects a connection paused by [pauseNetwork], re-evaluating configs against the context
-     * the client already had. In [ConnectionMode.OFFLINE], which has no connection, it does
-     * nothing.
+     * Reconnects a connection paused by [pauseNetwork] with the context last given to [initialize]
+     * or [updateContext], or with none when that call ignored it for an invalid context kind, and
+     * re-evaluates configs against it. In [ConnectionMode.OFFLINE], which has no connection, it
+     * does nothing.
      */
     @JvmSynthetic
     public suspend fun resumeNetwork() {
         when (connectionPlan) {
-            is ConnectionPlan.Connect -> connect(store.context, ConnectReason.NETWORK_RESUME)
+            is ConnectionPlan.Connect -> connect(store.submittedContext, ConnectReason.NETWORK_RESUME)
             is ConnectionPlan.StayOffline -> Unit
         }
     }
 
     /**
-     * Reconnects a connection paused by [pauseNetwork], calling [callback] on the main thread once
-     * the client is ready again or the attempt times out. In [ConnectionMode.OFFLINE], which has no
-     * connection, it only calls [callback].
+     * Reconnects a connection paused by [pauseNetwork] with the context last given to [initialize]
+     * or [updateContext], calling [callback] on the main thread once the client is ready again or
+     * the attempt times out. In [ConnectionMode.OFFLINE], which has no connection, it only calls
+     * [callback].
      */
     public fun resumeNetwork(callback: CompletionCallback) {
         launchThenCallBack(callback) { resumeNetwork() }

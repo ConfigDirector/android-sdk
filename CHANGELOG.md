@@ -30,6 +30,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   After `resumeNetwork`, or the app coming back to the foreground, `isReady` stayed false, with a
   timeout warning, until a config changed. Each `initialize`, `updateContext` and `resumeNetwork`
   now downloads the full set of configs.
+- Resuming before a context update's values arrive (`android-sdk`): `resumeNetwork`, and the app
+  coming back to the foreground, now reconnect with the context of the latest `initialize` or
+  `updateContext`, in streaming and polling. Before, when the app went to the background and came
+  back, or called `pauseNetwork` and `resumeNetwork`, before an `updateContext` got its values, the
+  client reconnected with the previous context and kept serving that context's values, so the update
+  was lost until the next `updateContext`. A resume before the values of `initialize` arrived
+  reconnected without a context. A test client (`android-sdk-testing`) resumes the same way, so
+  after `failContextUpdate()` a resume takes the context of the update that failed.
 
 ## [1.9.2] - 2026-10-28
 

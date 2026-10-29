@@ -253,6 +253,14 @@ class ConfigDirectorClientTest {
             .lastOrNull()
             ?.let { JSONObject(it.body).getJSONObject("givenContext").getString("id") }
 
+    private fun waitForRequestCarrying(path: String, contextId: String) {
+        waitFor("a request on $path carrying $contextId") {
+            val request = server.takeRequest(timeoutMillis = 0)
+            request != null && request.path == path &&
+                JSONObject(request.body).getJSONObject("givenContext").optString("id") == contextId
+        }
+    }
+
     @Test
     fun `rejects a blank client SDK key`() {
         val failure = assertThrows(ConfigDirectorValidationException::class.java) {
@@ -1365,6 +1373,46 @@ class ConfigDirectorClientTest {
             assertThat(latestSentContextId("/client/polling/v1")).isEqualTo("user-456")
             assertThat(client.context).isEqualTo(freeContext)
             assertThat(client.getInt("max-items", 0)).isEqualTo(10)
+        }
+
+    @Test
+    fun `keeps polling with the updated context after a pause and a resume before its values arrive`() =
+        runBlocking<Unit> {
+            val client = fastPollingClient()
+            client.initialize(freeContext)
+            server.responseDelayMillis = 500
+            val updating = launch(Dispatchers.Default) { client.updateContext(proContext) }
+            waitForRequestCarrying("/client/polling/v1", contextId = "user-123")
+            server.responseDelayMillis = 0
+            client.pauseNetwork()
+
+            client.resumeNetwork()
+            updating.join()
+            settle()
+
+            assertThat(latestSentContextId("/client/polling/v1")).isEqualTo("user-123")
+            assertThat(client.context).isEqualTo(proContext)
+            assertThat(client.getInt("max-items", 0)).isEqualTo(25)
+        }
+
+    @Test
+    fun `reconnects with the updated context after a pause and a resume before its values arrive`() =
+        runBlocking<Unit> {
+            val client = client(timeoutMillis = 1_000)
+            client.initialize(freeContext)
+            server.responseDelayMillis = 500
+            val updating = launch(Dispatchers.Default) { client.updateContext(proContext) }
+            waitForRequestCarrying("/client/sse/v1", contextId = "user-123")
+            server.responseDelayMillis = 0
+            client.pauseNetwork()
+
+            client.resumeNetwork()
+            updating.join()
+
+            val (resume) = sentContexts("/client/sse/v1", count = 1)
+            assertThat(JSONObject(resume).getString("id")).isEqualTo("user-123")
+            assertThat(client.context).isEqualTo(proContext)
+            assertThat(client.getInt("max-items", 0)).isEqualTo(25)
         }
 
     @Test

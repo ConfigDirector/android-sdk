@@ -81,7 +81,7 @@ dependencies {
         if (useLocalSdk) {
             project(":configdirector-android")
         } else {
-            "com.configdirector:android-sdk:1.9.2"
+            "com.configdirector:android-sdk:1.9.3"
         },
     )
 
@@ -92,7 +92,7 @@ dependencies {
         if (useLocalSdk) {
             project(":configdirector-android-testing")
         } else {
-            "com.configdirector:android-sdk-testing:1.9.2"
+            "com.configdirector:android-sdk-testing:1.9.3"
         },
     )
     testImplementation(libs.junit)

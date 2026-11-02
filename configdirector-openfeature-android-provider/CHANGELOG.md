@@ -8,6 +8,19 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-11-01
+
+### Changed
+
+- Depends on version 1.9.3 of the SDK. With it, in polling mode, a new evaluation context always
+  gets its own flag values. Before, when no flag had changed since the provider last got values,
+  the context change ended in `ProviderError` and flags kept the previous context's values until a
+  flag changed. Also in polling mode, a response that arrives after a later context change no
+  longer replaces the newer context's values, and one that arrives after the app went to the
+  background no longer starts polling while the app is in the background. In streaming and polling,
+  when the app goes to the background and comes back before a new evaluation context gets its
+  values, the SDK now reconnects with that context instead of the previous one.
+
 ## [1.6.0] - 2026-10-28
 
 ### Added

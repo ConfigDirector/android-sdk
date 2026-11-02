@@ -9,6 +9,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.9.3] - 2026-11-01
+
 ### Fixed
 
 - Polling after a context update, a pause or `close()` (`android-sdk`): in polling mode, a response

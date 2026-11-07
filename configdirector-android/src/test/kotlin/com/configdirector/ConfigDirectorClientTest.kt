@@ -222,6 +222,21 @@ class ConfigDirectorClientTest {
 
     private val noContextJson = """{"anonymous":false}"""
 
+    private fun checkoutCtaPayload(entryFields: String): String =
+        """{"kind":"full","timestamp":"${FakeSdkServer.TIMESTAMP}","configs":{"checkout-cta":""" +
+            """{"id":"checkout-cta-id","key":"checkout-cta","type":"string","value":"Try it free",""" +
+            """"valueId":"checkout-cta-value",$entryFields}}}"""
+
+    private fun reportedEvaluations(key: String): List<JSONObject> {
+        waitFor("the telemetry report") { server.telemetryReports.isNotEmpty() }
+        return server.telemetryReports.flatMap { report ->
+            val evaluations = report.getJSONObject("aggregatedEvents").getJSONArray("evaluatedConfig")
+            (0 until evaluations.length()).map { evaluations.getJSONObject(it).getJSONObject("event") }
+        }.filter { it.getString("key") == key }
+    }
+
+    private fun reportedEvaluation(key: String): JSONObject = reportedEvaluations(key).single()
+
     private fun errorsLogged(text: String) = logger.messagesContaining("ERROR: ").filter { text in it }
 
     private fun ConfigDirectorClient.recordContextUpdates(): List<ClientEvent.ContextUpdated> =
@@ -796,6 +811,143 @@ class ConfigDirectorClientTest {
         val event = events.getJSONObject(0).getJSONObject("event")
         assertThat(event.getString("key")).isEqualTo("dark-mode")
         assertThat(event.getString("evaluationReason")).isEqualTo("found-match")
+    }
+
+    @Test
+    fun `returns the variation of a payload entry that has one`() = runBlocking<Unit> {
+        server.script(checkoutCtaPayload(""""variation":{"id":"variation-1","name":"treatment-a"}"""))
+        val client = client(mode = ConnectionMode.POLLING)
+
+        client.initialize(proContext)
+
+        assertThat(client.evaluateString("checkout-cta", "fallback").variation)
+            .isEqualTo(Variation("variation-1", "treatment-a"))
+    }
+
+    @Test
+    fun `returns no variation for a flag, whose payload entry has none`() = runBlocking<Unit> {
+        val client = client()
+
+        client.initialize(proContext)
+
+        val evaluation = client.evaluateBoolean("dark-mode", false)
+        assertThat(evaluation.value).isEqualTo(true)
+        assertThat(evaluation.variation).isNull()
+    }
+
+    @Test
+    fun `returns no variation with the in-code default value when the value cannot be read as the requested type`() =
+        runBlocking<Unit> {
+            server.script(checkoutCtaPayload(""""variation":{"id":"variation-1","name":"treatment-a"}"""))
+            val client = client(mode = ConnectionMode.POLLING)
+
+            client.initialize(proContext)
+
+            val evaluation = client.evaluateInt("checkout-cta", 7)
+            assertThat(evaluation.value).isEqualTo(7)
+            assertThat(evaluation.reason).isEqualTo(EvaluationReason.INVALID_NUMBER)
+            assertThat(evaluation.variation).isNull()
+        }
+
+    @Test
+    fun `reports the rule, share and variation a payload entry carries`() = runBlocking<Unit> {
+        server.script(checkoutCtaPayload(ROLLOUT_ENTRY_FIELDS))
+        val client = client(mode = ConnectionMode.POLLING)
+        client.initialize(proContext)
+        client.getString("checkout-cta", "fallback")
+
+        client.close()
+
+        val event = reportedEvaluation("checkout-cta")
+        assertThat(event.getString("ruleId")).isEqualTo("rule-1")
+        assertThat(event.getString("shareId")).isEqualTo("share-1")
+        assertThat(event.getString("variationId")).isEqualTo("variation-1")
+    }
+
+    @Test
+    fun `reports the variation and no rule or share for a payload entry that carries only a variation`() =
+        runBlocking<Unit> {
+            server.script(checkoutCtaPayload(""""variation":{"id":"variation-1","name":"treatment-a"}"""))
+            val client = client(mode = ConnectionMode.POLLING)
+            client.initialize(proContext)
+            client.getString("checkout-cta", "fallback")
+
+            client.close()
+
+            val event = reportedEvaluation("checkout-cta")
+            assertThat(event.has("ruleId")).isFalse()
+            assertThat(event.has("shareId")).isFalse()
+            assertThat(event.getString("variationId")).isEqualTo("variation-1")
+        }
+
+    @Test
+    fun `reports no rule, share or variation for a flag`() = runBlocking<Unit> {
+        val client = client()
+        client.initialize(proContext)
+        client.getBoolean("dark-mode", false)
+
+        client.close()
+
+        val event = reportedEvaluation("dark-mode")
+        assertThat(event.has("ruleId")).isFalse()
+        assertThat(event.has("shareId")).isFalse()
+        assertThat(event.has("variationId")).isFalse()
+    }
+
+    @Test
+    fun `reports no rule, share or variation when the in-code default value is returned`() = runBlocking<Unit> {
+        server.script(checkoutCtaPayload(ROLLOUT_ENTRY_FIELDS))
+        val client = client(mode = ConnectionMode.POLLING)
+        client.initialize(proContext)
+        client.getInt("checkout-cta", 7)
+
+        client.close()
+
+        val event = reportedEvaluation("checkout-cta")
+        assertThat(event.getBoolean("usedDefault")).isTrue()
+        assertThat(event.has("ruleId")).isFalse()
+        assertThat(event.has("shareId")).isFalse()
+        assertThat(event.has("variationId")).isFalse()
+    }
+
+    @Test
+    fun `reports the previous context's rule, share and variation under that context until a polling update gets its values`() =
+        runBlocking<Unit> {
+            server.script(checkoutCtaPayload(ROLLOUT_ENTRY_FIELDS))
+            val client = client(mode = ConnectionMode.POLLING, timeoutMillis = 200)
+            client.initialize(freeContext)
+            server.responseDelayMillis = 500
+
+            client.updateContext(proContext)
+            client.getString("checkout-cta", "fallback")
+            client.close()
+
+            val event = reportedEvaluation("checkout-cta")
+            assertThat(event.getString("contextId")).isEqualTo("user-456")
+            assertThat(event.getString("ruleId")).isEqualTo("rule-1")
+            assertThat(event.getString("shareId")).isEqualTo("share-1")
+            assertThat(event.getString("variationId")).isEqualTo("variation-1")
+        }
+
+    @Test
+    fun `reports no rule or share once a delta replaces the entry with one that has none`() = runBlocking<Unit> {
+        server.answersTimestampedPollsWithNoChange = true
+        server.script(checkoutCtaPayload(ROLLOUT_ENTRY_FIELDS))
+        val client = fastPollingClient()
+        client.initialize(proContext)
+        server.script(
+            """{"kind":"delta","timestamp":"${FakeSdkServer.TIMESTAMP}","configs":{"checkout-cta":""" +
+                """{"id":"checkout-cta-id","key":"checkout-cta","type":"string","value":"Get started",""" +
+                """"valueId":"checkout-cta-control","variation":{"id":"variation-2","name":"control"}}}}""",
+        )
+
+        waitFor("the delta to arrive") { client.getString("checkout-cta", "fallback") == "Get started" }
+        client.close()
+
+        val event = reportedEvaluations("checkout-cta").single { it.getString("evaluatedValueId") == "checkout-cta-control" }
+        assertThat(event.has("ruleId")).isFalse()
+        assertThat(event.has("shareId")).isFalse()
+        assertThat(event.getString("variationId")).isEqualTo("variation-2")
     }
 
     @Test
@@ -1550,4 +1702,6 @@ private class CountingMap(
         }
 }
 
+private const val ROLLOUT_ENTRY_FIELDS =
+    """"variation":{"id":"variation-1","name":"treatment-a"},"ruleId":"rule-1","shareId":"share-1""""
 private const val STORED_INSTANCE_ID = "11111111-1111-4111-8111-111111111111"

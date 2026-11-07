@@ -9,6 +9,23 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- The variation on an evaluation (`android-sdk`): the `evaluate` methods, the evaluation listeners
+  and the `evaluations` flow now carry `variation`, the `id` and `name` of the variation that was
+  served. It is null when the config has no variations or the in-code default value is returned, and
+  an unnamed variation has a null `name`. The new `Variation` class is public.
+
+### Changed
+
+- The evaluation counts the SDK sends to ConfigDirector (`android-sdk`) now say which variation was
+  served, and which percentage rollout and share served it, so ConfigDirector can count the contexts
+  each variation of an experiment reached. This holds for values kept on the device as well; values
+  kept by an earlier version carry none of this until live values arrive.
+- `EvaluationReason` (`android-sdk`) gains `ROLLOUT_SKIPPED_NO_IDENTIFIER`. Only server SDKs report
+  it and this SDK never returns it, but a Kotlin `when` that lists every reason needs a branch for
+  it.
+
 ## [1.9.3] - 2026-11-01
 
 ### Fixed

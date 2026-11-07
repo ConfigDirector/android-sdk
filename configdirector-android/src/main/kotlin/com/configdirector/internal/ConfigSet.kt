@@ -1,5 +1,7 @@
 package com.configdirector.internal
 
+import com.configdirector.Variation
+
 /** The type a config was declared with in the ConfigDirector dashboard. */
 internal enum class ConfigType(val wireName: String) {
     CUSTOM("custom"),
@@ -27,6 +29,9 @@ internal data class ConfigState(
     val id: String = "",
     /** An opaque identifier of the evaluated value, used for telemetry. */
     val valueId: String? = null,
+    val variation: Variation? = null,
+    val ruleId: String? = null,
+    val shareId: String? = null,
 ) {
     /**
      * The value read as a JSON document, parsed on the first read that asks for it.

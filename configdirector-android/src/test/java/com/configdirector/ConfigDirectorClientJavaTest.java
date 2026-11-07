@@ -102,6 +102,37 @@ public class ConfigDirectorClientJavaTest {
   }
 
   @Test
+  public void readsTheVariationOfAnEvaluation() throws InterruptedException {
+    server.script(
+        "{\"kind\":\"full\",\"timestamp\":\"2026-08-31T00:00:00Z\",\"configs\":{\"checkout-cta\":"
+            + "{\"id\":\"checkout-cta-id\",\"key\":\"checkout-cta\",\"type\":\"string\","
+            + "\"value\":\"Try it free\",\"valueId\":\"checkout-cta-value\","
+            + "\"variation\":{\"id\":\"variation-1\",\"name\":\"treatment-a\"}}}}");
+    ConfigDirectorClient client = client();
+    CountDownLatch initialized = new CountDownLatch(1);
+    client.initialize(null, initialized::countDown);
+    assertThat(initialized.await(5, TimeUnit.SECONDS)).isTrue();
+
+    Variation variation = client.evaluateString("checkout-cta", "fallback").getVariation();
+
+    assertThat(variation.getId()).isEqualTo("variation-1");
+    assertThat(variation.getName()).isEqualTo("treatment-a");
+    assertThat(variation).isEqualTo(new Variation("variation-1", "treatment-a"));
+    client.close();
+  }
+
+  @Test
+  public void buildsAVariationWithoutAName() {
+    assertThat(new Variation("variation-1").getName()).isNull();
+  }
+
+  @Test
+  public void namesTheReasonForASkippedRollout() {
+    assertThat(EvaluationReason.ROLLOUT_SKIPPED_NO_IDENTIFIER.getWireName())
+        .isEqualTo("rollout-skipped-no-identifier");
+  }
+
+  @Test
   public void pausesAndResumesTheConnection() throws InterruptedException {
     ConfigDirectorClient client = client();
     CountDownLatch initialized = new CountDownLatch(1);

@@ -348,6 +348,9 @@ internal class ConfigStore(
                 evaluatedValueId = result.valueId,
                 usedDefault = result.usedDefault,
                 evaluationReason = result.reason,
+                ruleId = result.ruleId,
+                shareId = result.shareId,
+                variationId = result.variation?.id,
             ),
         )
 
@@ -367,6 +370,7 @@ internal class ConfigStore(
         key = key,
         value = checkNotNull(value),
         valueId = valueId,
+        variation = variation,
         isDefaultValue = usedDefault,
         reason = reason,
         context = context,

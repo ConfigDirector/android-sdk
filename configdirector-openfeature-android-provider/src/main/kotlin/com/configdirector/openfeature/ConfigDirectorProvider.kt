@@ -81,8 +81,9 @@ import kotlinx.coroutines.withTimeoutOrNull
  *
  * ## Resolution details
  *
- * A flag ConfigDirector served resolves with the reason `TARGETING_MATCH` and the served value's
- * id as its variant; one served from the values kept on the device, before live values arrive,
+ * A flag ConfigDirector served resolves with the reason `TARGETING_MATCH` and, as its variant, the
+ * name of the variation served, or the served value's id for a config without variations or an
+ * unnamed variation; one served from the values kept on the device, before live values arrive,
  * resolves the same way with the reason `CACHED`. One the config has no value for resolves to its
  * in-code default value with the reason `DEFAULT`.
  *

@@ -82,6 +82,9 @@ internal data class EvaluatedConfigEvent(
     val evaluatedValueId: String?,
     val usedDefault: Boolean,
     val evaluationReason: EvaluationReason,
+    val ruleId: String?,
+    val shareId: String?,
+    val variationId: String?,
 ) {
     fun compacted(): EvaluatedConfigEvent =
         copy(defaultValue = defaultValue.compacted(), evaluatedValue = evaluatedValue.compacted())
@@ -96,6 +99,9 @@ internal data class EvaluatedConfigEvent(
         evaluatedValueId?.let { put("evaluatedValueId", it) }
         put("usedDefault", usedDefault)
         put("evaluationReason", evaluationReason.wireName)
+        ruleId?.let { put("ruleId", it) }
+        shareId?.let { put("shareId", it) }
+        variationId?.let { put("variationId", it) }
     }
 }
 

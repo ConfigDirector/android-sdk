@@ -217,6 +217,43 @@ class CachedValuesTest {
     }
 
     @Test
+    fun `serves a value kept on the device with its variation`() = runBlocking<Unit> {
+        server.script(EXPERIMENT_PAYLOAD)
+        earlierLaunch(proContext)
+        val client = client(baseUrl = unreachableBaseUrl)
+
+        client.initialize(proContext)
+
+        val evaluation = client.evaluateString("checkout-cta", "fallback")
+        assertThat(evaluation.value).isEqualTo("Try it free")
+        assertThat(evaluation.reason).isEqualTo(EvaluationReason.CACHED)
+        assertThat(evaluation.variation).isEqualTo(Variation("variation-1", "treatment-a"))
+    }
+
+    @Test
+    fun `reports the rule, share and variation kept on the device with a value`() = runBlocking<Unit> {
+        server.script(EXPERIMENT_PAYLOAD)
+        earlierLaunch(proContext)
+        server.sendsConfigState = false
+        val client = client()
+        client.initialize(proContext)
+        waitFor("the kept values") {
+            client.evaluateString("checkout-cta", "fallback").reason == EvaluationReason.CACHED
+        }
+
+        client.close()
+
+        waitFor("the telemetry report") { server.telemetryReports.isNotEmpty() }
+        val evaluations = server.telemetryReports.first().getJSONObject("aggregatedEvents").getJSONArray("evaluatedConfig")
+        val cachedEvaluation = (0 until evaluations.length())
+            .map { evaluations.getJSONObject(it).getJSONObject("event") }
+            .single { it.getString("evaluationReason") == "cached" }
+        assertThat(cachedEvaluation.getString("ruleId")).isEqualTo("rule-1")
+        assertThat(cachedEvaluation.getString("shareId")).isEqualTo("share-1")
+        assertThat(cachedEvaluation.getString("variationId")).isEqualTo("variation-1")
+    }
+
+    @Test
     fun `reports a key the kept values do not carry as client not ready`() = runBlocking<Unit> {
         earlierLaunch(proContext)
         val client = client(baseUrl = unreachableBaseUrl)
@@ -622,4 +659,9 @@ private const val FIRST_FORMAT_ENTRY =
     """{"formatVersion":1,"clientSdkKey":"client-sdk-key","contextTag":{"contextKind":"user","contextId":"user-123"},""" +
         """"environmentId":"env-1","projectId":"project-1","configs":{"dark-mode":{"id":"dark-mode-id","key":"dark-mode",""" +
         """"type":"boolean","value":"true","valueId":"dark-mode-pro"}},"receivedAt":1761000000000}"""
+private const val EXPERIMENT_PAYLOAD =
+    """{"environmentId":"env-1","projectId":"project-1","kind":"full","timestamp":"${FakeSdkServer.TIMESTAMP}",""" +
+        """"configs":{"checkout-cta":{"id":"checkout-cta-id","key":"checkout-cta","type":"string","value":"Try it free",""" +
+        """"valueId":"checkout-cta-value","variation":{"id":"variation-1","name":"treatment-a"},""" +
+        """"ruleId":"rule-1","shareId":"share-1"}}}"""
 private const val CACHED_VALUES_KEY = "cached-values:$CLIENT_SDK_KEY_DIGEST"

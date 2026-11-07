@@ -6,11 +6,22 @@ import dev.openfeature.kotlin.sdk.ProviderEvaluation
 import dev.openfeature.kotlin.sdk.Reason
 import dev.openfeature.kotlin.sdk.exceptions.OpenFeatureError
 
-internal fun <T> ConfigEvaluation.toProviderEvaluation(value: T): ProviderEvaluation<T> = when (reason) {
-    EvaluationReason.FOUND_MATCH ->
-        ProviderEvaluation(value, variant = valueId, reason = Reason.TARGETING_MATCH.name)
+internal fun <T> ConfigEvaluation.toProviderEvaluation(value: T): ProviderEvaluation<T> =
+    providerEvaluationFor(key, reason, variation?.name ?: valueId, value)
 
-    EvaluationReason.CACHED -> ProviderEvaluation(value, variant = valueId, reason = Reason.CACHED.name)
+internal fun <T> providerEvaluationFor(
+    key: String,
+    reason: EvaluationReason,
+    variant: String?,
+    value: T,
+): ProviderEvaluation<T> = when (reason) {
+    EvaluationReason.FOUND_MATCH ->
+        ProviderEvaluation(value, variant = variant, reason = Reason.TARGETING_MATCH.name)
+
+    EvaluationReason.ROLLOUT_SKIPPED_NO_IDENTIFIER ->
+        ProviderEvaluation(value, variant = variant, reason = Reason.DEFAULT.name)
+
+    EvaluationReason.CACHED -> ProviderEvaluation(value, variant = variant, reason = Reason.CACHED.name)
 
     EvaluationReason.VALUE_MISSING -> ProviderEvaluation(value, reason = Reason.DEFAULT.name)
 

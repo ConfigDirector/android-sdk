@@ -72,6 +72,17 @@ class TestClientProviderTest {
     private val freeContext = ImmutableContext(targetingKey = "user-456")
 
     @Test
+    fun `resolves a value of the test client with its value id as the variant`() = runBlocking<Unit> {
+        val testClient = testClient(mapOf("welcome-message" to "Hello, Ada"))
+        val provider = ConfigDirectorProvider(testClient.client)
+
+        provider.initialize(proContext)
+
+        assertThat(provider.getStringEvaluation("welcome-message", "fallback", null).variant)
+            .isEqualTo("3p5AqSKttaVpRHqgl9liXU")
+    }
+
+    @Test
     fun `resolves the values of the test client`() = runBlocking<Unit> {
         val testClient = testClient(
             mapOf(

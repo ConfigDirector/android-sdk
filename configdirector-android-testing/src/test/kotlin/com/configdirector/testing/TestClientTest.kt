@@ -84,6 +84,17 @@ class TestClientTest {
     }
 
     @Test
+    fun `serves a value without a variation`() = runBlocking<Unit> {
+        val client = testClient(values = mapOf("flag" to true)).client
+
+        client.initialize()
+
+        val evaluation = client.evaluateBoolean("flag", false)
+        assertThat(evaluation.value).isEqualTo(true)
+        assertThat(evaluation.variation).isNull()
+    }
+
+    @Test
     fun `S1 reads every seeded value with a matching accessor`() = runBlocking<Unit> {
         val client = testClient(
             values = mapOf(

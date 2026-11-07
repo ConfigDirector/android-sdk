@@ -239,5 +239,8 @@ class TelemetryEventCollectorTest {
         evaluatedValueId = null,
         usedDefault = false,
         evaluationReason = EvaluationReason.FOUND_MATCH,
+        ruleId = null,
+        shareId = null,
+        variationId = null,
     )
 }

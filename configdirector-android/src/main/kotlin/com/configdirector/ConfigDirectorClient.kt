@@ -254,7 +254,7 @@ public class ConfigDirectorClient internal constructor(
 
     /**
      * Connects to ConfigDirector to retrieve config evaluations. Until initialization succeeds,
-     * every config returns the default value passed to the accessor.
+     * every config returns the in-code default value passed to the accessor.
      *
      * A context whose [ConfigDirectorContext.kind] is invalid is ignored as a whole: the client logs
      * an error and connects as if no context was given.
@@ -327,7 +327,7 @@ public class ConfigDirectorClient internal constructor(
      * initialization completes, or when the served value cannot be read as a boolean.
      *
      * There is a method per type a config can be read as, matching the watches. Kotlin callers have
-     * `client.value(key, default)`, which takes the type from the default value.
+     * `client.value(key, default)`, which takes the type from the in-code default value.
      *
      * ```kotlin
      * val darkMode = client.getBoolean("dark-mode", false)
@@ -379,17 +379,18 @@ public class ConfigDirectorClient internal constructor(
     ): List<Any?> = store.getJsonArray(key, defaultValue)
 
     /**
-     * Evaluates [key] the way [getBoolean] does, and says why it evaluated the way it did.
+     * Evaluates [key] the way [getBoolean] does, and says why it evaluated the way it did and which
+     * variation was served.
      *
      * The returned [ConfigEvaluation.value] is what [getBoolean] would have returned, so it is
      * [defaultValue] whenever the config could not be served as a boolean, and
-     * [ConfigEvaluation.reason] says why. Use this where the reason matters at the point of the
-     * read, such as when reporting an evaluation to another system; [getBoolean] is enough
-     * everywhere else. Like every read, it is published to the evaluation listeners and counted
-     * in telemetry.
+     * [ConfigEvaluation.reason] says why. Use this where the reason or the
+     * [ConfigEvaluation.variation] matters at the point of the read, such as when reporting an
+     * evaluation to another system; [getBoolean] is enough everywhere else. Like every read, it is
+     * published to the evaluation listeners and counted in telemetry.
      *
      * There is a method per type a config can be read as, matching the getters. Kotlin callers have
-     * `client.evaluate(key, default)`, which takes the type from the default value.
+     * `client.evaluate(key, default)`, which takes the type from the in-code default value.
      *
      * ```kotlin
      * val evaluation = client.evaluateBoolean("dark-mode", false)

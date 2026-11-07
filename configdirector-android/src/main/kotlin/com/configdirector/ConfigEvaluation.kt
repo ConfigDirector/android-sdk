@@ -6,19 +6,25 @@ public class ConfigEvaluation internal constructor(
     public val key: String,
 
     /**
-     * The value the config evaluated to, which is the default value supplied by the caller when
-     * [isDefaultValue] is true. It is a `Boolean`, `String`, `Integer`, `Double`, `Map` or `List`,
-     * matching the accessor the config was read with.
+     * The value the config evaluated to, which is the in-code default value supplied by the caller
+     * when [isDefaultValue] is true. It is a `Boolean`, `String`, `Integer`, `Double`, `Map` or
+     * `List`, matching the accessor the config was read with.
      */
     public val value: Any,
 
     /**
      * Identifies the specific config value that was served, for telemetry. It is null when the
-     * default value was returned.
+     * in-code default value was returned.
      */
     public val valueId: String?,
 
-    /** Whether the default value provided by the caller was returned. */
+    /**
+     * The variation that was served. It is null when the config has no variations or the in-code
+     * default value was returned.
+     */
+    public val variation: Variation?,
+
+    /** Whether the in-code default value provided by the caller was returned. */
     public val isDefaultValue: Boolean,
 
     /** Why the config evaluated to [value]. */
@@ -34,6 +40,7 @@ public class ConfigEvaluation internal constructor(
                     key == other.key &&
                     value == other.value &&
                     valueId == other.valueId &&
+                    variation == other.variation &&
                     isDefaultValue == other.isDefaultValue &&
                     reason == other.reason &&
                     context == other.context
@@ -43,6 +50,7 @@ public class ConfigEvaluation internal constructor(
         var result = key.hashCode()
         result = 31 * result + value.hashCode()
         result = 31 * result + valueId.hashCode()
+        result = 31 * result + variation.hashCode()
         result = 31 * result + isDefaultValue.hashCode()
         result = 31 * result + reason.hashCode()
         result = 31 * result + context.hashCode()
@@ -50,6 +58,6 @@ public class ConfigEvaluation internal constructor(
     }
 
     override fun toString(): String =
-        "ConfigEvaluation(key=$key, value=$value, valueId=$valueId, " +
+        "ConfigEvaluation(key=$key, value=$value, valueId=$valueId, variation=$variation, " +
             "isDefaultValue=$isDefaultValue, reason=$reason, context=$context)"
 }

@@ -197,6 +197,7 @@ public final class com/configdirector/ConfigEvaluation {
 	public final fun getReason ()Lcom/configdirector/EvaluationReason;
 	public final fun getValue ()Ljava/lang/Object;
 	public final fun getValueId ()Ljava/lang/String;
+	public final fun getVariation ()Lcom/configdirector/Variation;
 	public fun hashCode ()I
 	public final fun isDefaultValue ()Z
 	public fun toString ()Ljava/lang/String;
@@ -268,6 +269,7 @@ public final class com/configdirector/EvaluationReason : java/lang/Enum {
 	public static final field INVALID_BOOLEAN Lcom/configdirector/EvaluationReason;
 	public static final field INVALID_JSON Lcom/configdirector/EvaluationReason;
 	public static final field INVALID_NUMBER Lcom/configdirector/EvaluationReason;
+	public static final field ROLLOUT_SKIPPED_NO_IDENTIFIER Lcom/configdirector/EvaluationReason;
 	public static final field TYPE_MISMATCH Lcom/configdirector/EvaluationReason;
 	public static final field VALUE_MISSING Lcom/configdirector/EvaluationReason;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
@@ -343,6 +345,17 @@ public final class com/configdirector/SdkIdentity$Companion {
 
 public abstract interface class com/configdirector/Subscription : java/io/Closeable {
 	public abstract fun close ()V
+}
+
+public final class com/configdirector/Variation {
+	public fun <init> (Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getId ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class com/configdirector/internal/testing/InMemoryConnection {

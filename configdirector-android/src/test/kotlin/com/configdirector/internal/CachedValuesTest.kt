@@ -1,6 +1,7 @@
 package com.configdirector.internal
 
 import com.configdirector.ConfigDirectorContext
+import com.configdirector.Variation
 import com.google.common.truth.Truth.assertThat
 import org.json.JSONObject
 import org.junit.Test
@@ -69,6 +70,69 @@ class CachedValuesTest {
         assertThat(darkMode.getString("valueId")).isEqualTo("dark-mode-pro")
         assertThat(entry.getJSONObject("configs").getJSONObject("beta-banner").isNull("value")).isTrue()
         assertThat(parseCachedValuesEntry(serialized, CLIENT_SDK_KEY_DIGEST)).isEqualTo(CachedValuesRead.Stored(cachedValues))
+    }
+
+    @Test
+    fun `keeps the variation, rule and share of a config in an entry`() {
+        val experiment = ConfigState(
+            "checkout-cta",
+            ConfigType.STRING,
+            "Try it free",
+            id = "checkout-cta-id",
+            valueId = "checkout-cta-value",
+            variation = Variation("variation-1", "treatment-a"),
+            ruleId = "rule-1",
+            shareId = "share-1",
+        )
+        val experimentValues = cachedValues.copy(configs = mapOf("checkout-cta" to experiment))
+
+        val serialized = serializeCachedValuesEntry(CLIENT_SDK_KEY_DIGEST, experimentValues)
+
+        val config = JSONObject(serialized).getJSONObject("configs").getJSONObject("checkout-cta")
+        assertThat(config.getJSONObject("variation").getString("id")).isEqualTo("variation-1")
+        assertThat(config.getJSONObject("variation").getString("name")).isEqualTo("treatment-a")
+        assertThat(config.getString("ruleId")).isEqualTo("rule-1")
+        assertThat(config.getString("shareId")).isEqualTo("share-1")
+        assertThat(parseCachedValuesEntry(serialized, CLIENT_SDK_KEY_DIGEST)).isEqualTo(CachedValuesRead.Stored(experimentValues))
+    }
+
+    @Test
+    fun `leaves the variation, rule and share out of the entry of a flag`() {
+        val serialized = serializeCachedValuesEntry(CLIENT_SDK_KEY_DIGEST, cachedValues)
+
+        val flag = JSONObject(serialized).getJSONObject("configs").getJSONObject("dark-mode")
+        assertThat(flag.has("variation")).isFalse()
+        assertThat(flag.has("ruleId")).isFalse()
+        assertThat(flag.has("shareId")).isFalse()
+    }
+
+    @Test
+    fun `keeps an unnamed variation in an entry with its id and no name`() {
+        val experiment = ConfigState(
+            "checkout-cta",
+            ConfigType.STRING,
+            "Try it free",
+            id = "checkout-cta-id",
+            valueId = "checkout-cta-value",
+            variation = Variation("variation-1"),
+        )
+        val experimentValues = cachedValues.copy(configs = mapOf("checkout-cta" to experiment))
+
+        val serialized = serializeCachedValuesEntry(CLIENT_SDK_KEY_DIGEST, experimentValues)
+
+        assertThat(parseCachedValuesEntry(serialized, CLIENT_SDK_KEY_DIGEST)).isEqualTo(CachedValuesRead.Stored(experimentValues))
+    }
+
+    @Test
+    fun `reads an entry stored before entries carried a variation, rule or share`() {
+        val read = parseCachedValuesEntry(ENTRY_WITHOUT_VARIATIONS, CLIENT_SDK_KEY_DIGEST)
+
+        val config = (read as CachedValuesRead.Stored).cachedValues.configs.getValue("checkout-cta")
+        assertThat(config.value).isEqualTo("Try it free")
+        assertThat(config.valueId).isEqualTo("checkout-cta-value")
+        assertThat(config.variation).isNull()
+        assertThat(config.ruleId).isNull()
+        assertThat(config.shareId).isNull()
     }
 
     @Test
@@ -182,4 +246,8 @@ private const val FIRST_FORMAT_ENTRY =
     """{"formatVersion":1,"clientSdkKey":"client-sdk-key","contextTag":{"contextKind":"user","contextId":"user-123"},""" +
         """"environmentId":"env-1","projectId":"project-1","configs":{"dark-mode":{"id":"dark-mode-id","key":"dark-mode",""" +
         """"type":"boolean","value":"true","valueId":"dark-mode-pro"}},"receivedAt":1761000000000}"""
+private const val ENTRY_WITHOUT_VARIATIONS =
+    """{"formatVersion":2,"clientSdkKeyDigest":"$CLIENT_SDK_KEY_DIGEST","contextTag":{"contextKind":"user","contextId":"user-123"},""" +
+        """"environmentId":"env-1","projectId":"project-1","configs":{"checkout-cta":{"id":"checkout-cta-id","key":"checkout-cta",""" +
+        """"type":"string","value":"Try it free","valueId":"checkout-cta-value"}},"receivedAt":1761000000000}"""
 private const val INSTANCE_ID = "11111111-1111-4111-8111-111111111111"

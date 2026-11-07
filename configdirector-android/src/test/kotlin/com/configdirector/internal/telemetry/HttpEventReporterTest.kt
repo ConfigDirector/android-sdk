@@ -283,10 +283,116 @@ class HttpEventReporterTest {
         assertThat(logger.messagesContaining("Timed out after 200ms")).hasSize(1)
     }
 
+    @Test
+    fun `reports the rule, share and variation of an evaluation`() = runBlocking<Unit> {
+        server.enqueue(MockResponse())
+
+        reporter().report(
+            report(listOf(evaluation("checkout-cta", ruleId = "rule-1", shareId = "share-1", variationId = "variation-1"))),
+        )
+
+        val event = sentEvaluations().single().getJSONObject("event")
+        assertThat(event.getString("ruleId")).isEqualTo("rule-1")
+        assertThat(event.getString("shareId")).isEqualTo("share-1")
+        assertThat(event.getString("variationId")).isEqualTo("variation-1")
+    }
+
+    @Test
+    fun `leaves the rule and share out of an evaluation served without a rollout`() = runBlocking<Unit> {
+        server.enqueue(MockResponse())
+
+        reporter().report(report(listOf(evaluation("checkout-cta", variationId = "variation-1"))))
+
+        val event = sentEvaluations().single().getJSONObject("event")
+        assertThat(event.has("ruleId")).isFalse()
+        assertThat(event.has("shareId")).isFalse()
+        assertThat(event.getString("variationId")).isEqualTo("variation-1")
+    }
+
+    @Test
+    fun `leaves the rule, share and variation out of an evaluation of a flag`() = runBlocking<Unit> {
+        server.enqueue(MockResponse())
+
+        reporter().report(report(listOf(evaluation("dark-mode"))))
+
+        val event = sentEvaluations().single().getJSONObject("event")
+        assertThat(event.has("ruleId")).isFalse()
+        assertThat(event.has("shareId")).isFalse()
+        assertThat(event.has("variationId")).isFalse()
+    }
+
+    @Test
+    fun `counts evaluations served by the same rule, share and variation together`() = runBlocking<Unit> {
+        server.enqueue(MockResponse())
+        val rolloutEvaluation = evaluation("checkout-cta", ruleId = "rule-1", shareId = "share-1", variationId = "variation-1")
+
+        reporter().report(report(listOf(rolloutEvaluation, rolloutEvaluation)))
+
+        assertThat(sentEvaluations().single().getInt("count")).isEqualTo(2)
+    }
+
+    @Test
+    fun `counts evaluations of one value served by two rules apart`() = runBlocking<Unit> {
+        server.enqueue(MockResponse())
+
+        reporter().report(
+            report(
+                listOf(
+                    evaluation("checkout-cta", ruleId = "rule-1", shareId = "share-1", variationId = "variation-1"),
+                    evaluation("checkout-cta", ruleId = "rule-2", shareId = "share-1", variationId = "variation-1"),
+                ),
+            ),
+        )
+
+        assertThat(sentEvaluations().map { it.getInt("count") }).containsExactly(1, 1)
+    }
+
+    @Test
+    fun `counts evaluations of one value served by two shares apart`() = runBlocking<Unit> {
+        server.enqueue(MockResponse())
+
+        reporter().report(
+            report(
+                listOf(
+                    evaluation("checkout-cta", ruleId = "rule-1", shareId = "share-1", variationId = "variation-1"),
+                    evaluation("checkout-cta", ruleId = "rule-1", shareId = "share-2", variationId = "variation-1"),
+                ),
+            ),
+        )
+
+        assertThat(sentEvaluations().map { it.getInt("count") }).containsExactly(1, 1)
+    }
+
+    @Test
+    fun `counts evaluations of one value served as two variations apart`() = runBlocking<Unit> {
+        server.enqueue(MockResponse())
+
+        reporter().report(
+            report(
+                listOf(
+                    evaluation("checkout-cta", ruleId = "rule-1", shareId = "share-1", variationId = "variation-1"),
+                    evaluation("checkout-cta", ruleId = "rule-1", shareId = "share-1", variationId = "variation-2"),
+                ),
+            ),
+        )
+
+        assertThat(sentEvaluations().map { it.getInt("count") }).containsExactly(1, 1)
+    }
+
+    private fun sentEvaluations(): List<JSONObject> {
+        val evaluations = JSONObject(request().body.readUtf8())
+            .getJSONObject("aggregatedEvents")
+            .getJSONArray("evaluatedConfig")
+        return (0 until evaluations.length()).map { evaluations.getJSONObject(it) }
+    }
+
     private fun evaluation(
         key: String,
         evaluatedValue: String = "true",
         valueId: String? = "v1",
+        ruleId: String? = null,
+        shareId: String? = null,
+        variationId: String? = null,
     ) = EvaluatedConfigEvent(
         contextId = "user-123",
         key = key,
@@ -297,5 +403,8 @@ class HttpEventReporterTest {
         evaluatedValueId = valueId,
         usedDefault = false,
         evaluationReason = EvaluationReason.FOUND_MATCH,
+        ruleId = ruleId,
+        shareId = shareId,
+        variationId = variationId,
     )
 }

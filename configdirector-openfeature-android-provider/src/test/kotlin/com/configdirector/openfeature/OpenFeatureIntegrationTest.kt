@@ -163,6 +163,21 @@ class OpenFeatureIntegrationTest {
         }
 
     @Test
+    fun `exposes the variation name as the variant through an OpenFeature client`() = runBlocking<Unit> {
+        server.script(
+            """{"kind":"full","timestamp":"${FakeSdkServer.TIMESTAMP}","configs":{"checkout-cta":""" +
+                """{"id":"checkout-cta-id","key":"checkout-cta","type":"string","value":"Try it free",""" +
+                """"valueId":"checkout-cta-value","variation":{"id":"variation-1","name":"treatment-a"}}}}""",
+        )
+        OpenFeatureAPI.setProviderAndWait(provider(), proContext)
+
+        val details = OpenFeatureAPI.getClient().getStringDetails("checkout-cta", "fallback")
+
+        assertThat(details.value).isEqualTo("Try it free")
+        assertThat(details.variant).isEqualTo("treatment-a")
+    }
+
+    @Test
     fun `runs an after hook with the reason and the variant of a served value`() = runBlocking<Unit> {
         val served = mutableListOf<FlagEvaluationDetails<Boolean>>()
         OpenFeatureAPI.addHooks(

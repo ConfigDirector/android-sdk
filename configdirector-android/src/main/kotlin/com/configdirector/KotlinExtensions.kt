@@ -15,8 +15,8 @@ import kotlinx.coroutines.launch
  * val theme = client.value("theme", emptyMap())
  * ```
  *
- * There is one overload per type a config can be read as, so a default of any other type is a
- * compile error rather than a failure at runtime.
+ * There is one overload per type a config can be read as, so an in-code default value of any
+ * other type is a compile error rather than a failure at runtime.
  */
 @JvmSynthetic
 public fun ConfigDirectorClient.value(key: String, defaultValue: Boolean): Boolean =
@@ -50,7 +50,7 @@ public fun ConfigDirectorClient.value(key: String, defaultValue: List<Any?>): Li
 
 /**
  * Evaluates [key] against the current context, reading the value as a boolean, and says why it
- * evaluated the way it did.
+ * evaluated the way it did and which variation was served.
  *
  * ```kotlin
  * val evaluation = client.evaluate("dark-mode", false)
@@ -58,8 +58,8 @@ public fun ConfigDirectorClient.value(key: String, defaultValue: List<Any?>): Li
  * ```
  *
  * The value inside is what [value] would have returned. There is one overload per type a config
- * can be read as, so a default of any other type is a compile error rather than a failure at
- * runtime.
+ * can be read as, so an in-code default value of any other type is a compile error rather than a
+ * failure at runtime.
  */
 @JvmSynthetic
 public fun ConfigDirectorClient.evaluate(key: String, defaultValue: Boolean): ConfigEvaluation =
@@ -103,8 +103,8 @@ public fun ConfigDirectorClient.evaluate(key: String, defaultValue: List<Any?>):
  * client.values("dark-mode", false).collect { darkMode -> this.darkMode = darkMode }
  * ```
  *
- * There is one overload per type a config can be read as, so a default of any other type is a
- * compile error rather than a failure at runtime.
+ * There is one overload per type a config can be read as, so an in-code default value of any
+ * other type is a compile error rather than a failure at runtime.
  */
 @JvmSynthetic
 public fun ConfigDirectorClient.values(key: String, defaultValue: Boolean): Flow<Boolean> =

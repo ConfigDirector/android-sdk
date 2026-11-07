@@ -112,6 +112,15 @@ class OfflineModeTest {
     }
 
     @Test
+    fun `serves a value without a variation`() = runBlocking<Unit> {
+        val client = offlineClient(values = mapOf("new-checkout" to true))
+
+        client.initialize()
+
+        assertThat(client.evaluateBoolean("new-checkout", false).variation).isNull()
+    }
+
+    @Test
     fun `explains a value it serves with the reason found-match`() = runBlocking<Unit> {
         val client = offlineClient(values = mapOf("new-checkout" to true))
 

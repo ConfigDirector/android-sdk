@@ -1,21 +1,39 @@
 package com.configdirector.internal
 
 import com.configdirector.EvaluationReason
+import com.configdirector.Variation
 import kotlin.math.ceil
 import kotlin.math.floor
 
 internal data class EvaluationResult<T>(
     val value: T,
     val valueId: String?,
+    val variation: Variation?,
+    val ruleId: String?,
+    val shareId: String?,
     val usedDefault: Boolean,
     val reason: EvaluationReason,
 ) {
     companion object {
-        fun <T> matched(value: T, valueId: String?): EvaluationResult<T> =
-            EvaluationResult(value, valueId, usedDefault = false, reason = EvaluationReason.FOUND_MATCH)
+        fun <T> matched(value: T, configState: ConfigState): EvaluationResult<T> = EvaluationResult(
+            value,
+            valueId = configState.valueId,
+            variation = configState.variation,
+            ruleId = configState.ruleId,
+            shareId = configState.shareId,
+            usedDefault = false,
+            reason = EvaluationReason.FOUND_MATCH,
+        )
 
-        fun <T> usedDefault(value: T, reason: EvaluationReason): EvaluationResult<T> =
-            EvaluationResult(value, valueId = null, usedDefault = true, reason = reason)
+        fun <T> usedDefault(value: T, reason: EvaluationReason): EvaluationResult<T> = EvaluationResult(
+            value,
+            valueId = null,
+            variation = null,
+            ruleId = null,
+            shareId = null,
+            usedDefault = true,
+            reason = reason,
+        )
     }
 }
 
@@ -101,17 +119,17 @@ private fun <T> ConfigState.read(
         return EvaluationResult.usedDefault(defaultValue, EvaluationReason.TYPE_MISMATCH)
     }
 
-    val parsed = readValue(value)
+    val parsedValue = readValue(value)
         ?: return EvaluationResult.usedDefault(defaultValue, kind.unreadableValueReason)
 
-    return EvaluationResult.matched(parsed, valueId)
+    return EvaluationResult.matched(parsedValue, this)
 }
 
 private fun String.truncatedToIntOrNull(): Int? {
-    val parsed = toDoubleOrNull()?.takeIf { it.isFinite() } ?: return null
-    val truncated = if (parsed < 0) ceil(parsed) else floor(parsed)
-    return if (truncated in Int.MIN_VALUE.toDouble()..Int.MAX_VALUE.toDouble()) {
-        truncated.toInt()
+    val parsedValue = toDoubleOrNull()?.takeIf { it.isFinite() } ?: return null
+    val truncatedValue = if (parsedValue < 0) ceil(parsedValue) else floor(parsedValue)
+    return if (truncatedValue in Int.MIN_VALUE.toDouble()..Int.MAX_VALUE.toDouble()) {
+        truncatedValue.toInt()
     } else {
         null
     }

@@ -1,5 +1,6 @@
 package com.configdirector.internal.transport
 
+import com.configdirector.Variation
 import com.configdirector.internal.ConfigSet
 import com.configdirector.internal.ConfigSetKind
 import com.configdirector.internal.ConfigState
@@ -37,7 +38,13 @@ internal fun JSONObject.toConfigState(key: String): ConfigState = ConfigState(
     value = optStringOrNull("value"),
     id = optString("id"),
     valueId = optStringOrNull("valueId"),
+    variation = optJSONObject("variation")?.toVariation(),
+    ruleId = optStringOrNull("ruleId"),
+    shareId = optStringOrNull("shareId"),
 )
+
+private fun JSONObject.toVariation(): Variation? =
+    optStringOrNull("id")?.let { id -> Variation(id, optStringOrNull("name")) }
 
 // optString hands back "" for a missing field and for an explicit JSON null alike, and a config with
 // no value is meaningfully different from one holding an empty string.

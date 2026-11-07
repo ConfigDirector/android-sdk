@@ -49,6 +49,7 @@ public class JavaSurfaceTest {
     Subscription.class,
     Metadata.class,
     SdkIdentity.class,
+    Variation.class,
     InMemoryConnection.class,
   };
 

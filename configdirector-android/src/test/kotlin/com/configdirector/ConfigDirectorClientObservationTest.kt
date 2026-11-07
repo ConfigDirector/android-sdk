@@ -276,6 +276,23 @@ class ConfigDirectorClientObservationTest {
     }
 
     @Test
+    fun `tells a listener the variation a payload entry carries`() = runBlocking<Unit> {
+        server.script(
+            """{"kind":"full","timestamp":"${FakeSdkServer.TIMESTAMP}","configs":{"checkout-cta":""" +
+                """{"id":"checkout-cta-id","key":"checkout-cta","type":"string","value":"Try it free",""" +
+                """"valueId":"checkout-cta-value","variation":{"id":"variation-1","name":"treatment-a"}}}}""",
+        )
+        client.initialize(proContext)
+        val evaluations = CopyOnWriteArrayList<ConfigEvaluation>()
+        client.addEvaluationListener { evaluations += it }
+
+        client.getString("checkout-cta", "fallback")
+
+        waitFor("the evaluation") { evaluations.isNotEmpty() }
+        assertThat(evaluations.single().variation).isEqualTo(Variation("variation-1", "treatment-a"))
+    }
+
+    @Test
     fun `tells a listener about a config it explained`() = runBlocking<Unit> {
         client.initialize(proContext)
         val evaluations = CopyOnWriteArrayList<ConfigEvaluation>()

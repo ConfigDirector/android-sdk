@@ -122,5 +122,8 @@ class TelemetryEventsTest {
         evaluatedValueId = "v1",
         usedDefault = false,
         evaluationReason = com.configdirector.EvaluationReason.FOUND_MATCH,
+        ruleId = null,
+        shareId = null,
+        variationId = null,
     )
 }

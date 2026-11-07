@@ -101,6 +101,11 @@ class ConfigDirectorProviderTest {
         return events
     }
 
+    private fun experimentPayload(entryFields: String): String =
+        """{"kind":"full","timestamp":"${FakeSdkServer.TIMESTAMP}","configs":{"checkout-cta":""" +
+            """{"id":"checkout-cta-id","key":"checkout-cta","type":"string","value":"Try it free",""" +
+            """"valueId":"checkout-cta-value",$entryFields}}}"""
+
     private val proContext = ImmutableContext(
         targetingKey = "user-123",
         attributes = mapOf(
@@ -199,6 +204,46 @@ class ConfigDirectorProviderTest {
         val list = provider.getObjectEvaluation("feature-list", Value.List(emptyList()), null)
         assertThat(list.value).isEqualTo(Value.List(listOf(Value.String("alpha"), Value.String("beta"))))
         assertThat(list.variant).isEqualTo("feature-list-only")
+    }
+
+    @Test
+    fun `resolves a named variation with its name as the variant`() = runBlocking<Unit> {
+        server.script(experimentPayload(""""variation":{"id":"variation-1","name":"treatment-a"}"""))
+        val provider = provider()
+        provider.initialize(proContext)
+
+        val evaluation = provider.getStringEvaluation("checkout-cta", "fallback", null)
+
+        assertThat(evaluation.value).isEqualTo("Try it free")
+        assertThat(evaluation.variant).isEqualTo("treatment-a")
+        assertThat(evaluation.reason).isEqualTo("TARGETING_MATCH")
+    }
+
+    @Test
+    fun `resolves an unnamed variation with the value id as the variant`() = runBlocking<Unit> {
+        server.script(experimentPayload(""""variation":{"id":"variation-1","name":null}"""))
+        val provider = provider()
+        provider.initialize(proContext)
+
+        val evaluation = provider.getStringEvaluation("checkout-cta", "fallback", null)
+
+        assertThat(evaluation.variant).isEqualTo("checkout-cta-value")
+        assertThat(evaluation.reason).isEqualTo("TARGETING_MATCH")
+    }
+
+    @Test
+    fun `resolves a named variation kept on the device with its name as the variant`() = runBlocking<Unit> {
+        server.script(experimentPayload(""""variation":{"id":"variation-1","name":"treatment-a"}"""))
+        earlierLaunch()
+        val provider = provider(timeoutMillis = 300, baseUrl = unreachableBaseUrl)
+
+        assertThrows(OpenFeatureError.ProviderNotReadyError::class.java) {
+            runBlocking { provider.initialize(proContext) }
+        }
+
+        val evaluation = provider.getStringEvaluation("checkout-cta", "fallback", null)
+        assertThat(evaluation.variant).isEqualTo("treatment-a")
+        assertThat(evaluation.reason).isEqualTo("CACHED")
     }
 
     @Test

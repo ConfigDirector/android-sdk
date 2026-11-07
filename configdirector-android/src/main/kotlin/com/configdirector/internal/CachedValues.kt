@@ -1,6 +1,7 @@
 package com.configdirector.internal
 
 import com.configdirector.ConfigDirectorContext
+import com.configdirector.Variation
 import com.configdirector.internal.transport.optStringOrNull
 import com.configdirector.internal.transport.toConfigState
 import org.json.JSONException
@@ -109,3 +110,12 @@ private fun ConfigState.toJson(): JSONObject = JSONObject()
     .put("type", type.wireName)
     .put("value", value ?: JSONObject.NULL)
     .put("valueId", valueId ?: JSONObject.NULL)
+    .apply {
+        variation?.let { put("variation", it.toJson()) }
+        ruleId?.let { put("ruleId", it) }
+        shareId?.let { put("shareId", it) }
+    }
+
+private fun Variation.toJson(): JSONObject = JSONObject()
+    .put("id", id)
+    .apply { name?.let { put("name", it) } }

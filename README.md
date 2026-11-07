@@ -58,13 +58,13 @@ Then add the dependencies to your app module:
 
 ```kotlin
 dependencies {
-    implementation("com.configdirector:android-sdk:1.9.3")
+    implementation("com.configdirector:android-sdk:1.10.0")
 
     // Optional, for Jetpack Compose applications
-    implementation("com.configdirector:android-sdk-compose:1.9.3")
+    implementation("com.configdirector:android-sdk-compose:1.10.0")
 
     // For your tests
-    testImplementation("com.configdirector:android-sdk-testing:1.9.3")
+    testImplementation("com.configdirector:android-sdk-testing:1.10.0")
 }
 ```
 

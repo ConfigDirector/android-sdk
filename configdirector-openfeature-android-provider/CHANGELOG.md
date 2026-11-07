@@ -8,6 +8,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-11-06
+
 ### Added
 
 - The provider now implements OpenFeature's tracking. `client.track(name, details)` reports to
@@ -28,6 +30,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Depends on version 1.10.0 of the SDK, which adds the variation to evaluations and `track`.
 - The `variant` in evaluation details is now the variation's name when the config has variations
   and the variation served has a name, such as `treatment-a`. Before, it was always the value id. It
   stays the value id for a config without variations and for an unnamed variation. If you send

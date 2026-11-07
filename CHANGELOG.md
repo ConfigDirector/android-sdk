@@ -9,6 +9,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-11-06
+
 ### Added
 
 - The variation on an evaluation (`android-sdk`): the `evaluate` methods, the evaluation listeners

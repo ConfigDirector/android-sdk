@@ -36,9 +36,10 @@ adb logcat -s ConfigDirector:V
 ## What it shows
 
 Each flag is read with its details, so the row shows the value, the reason, and the variant or the
-error code. A flag ConfigDirector served reads `TARGETING_MATCH` with the served value's id; before
-the provider is ready every flag is its default with `PROVIDER_NOT_READY`, and a key the project
-does not have is its default with `FLAG_NOT_FOUND`.
+error code. A flag ConfigDirector served reads `TARGETING_MATCH` with the name of the variation
+served as its variant, or otherwise the served value's id; before the provider is ready every flag
+is its default with `PROVIDER_NOT_READY`, and a key the project does not have is its default with
+`FLAG_NOT_FOUND`.
 
 `json-value-config` appears twice: read with a string default it serves the raw document, and read
 with a `Value.Structure` default it serves the parsed one. `integer-config` appears twice for the
@@ -85,8 +86,8 @@ Run them with
 ## Which artifact it builds against
 
 ```kotlin
-implementation("com.configdirector:openfeature-android-provider:1.6.1")
-testImplementation("com.configdirector:android-sdk-testing:1.9.3")
+implementation("com.configdirector:openfeature-android-provider:1.7.0")
+testImplementation("com.configdirector:android-sdk-testing:1.10.0")
 ```
 
 The provider depends on the OpenFeature Kotlin SDK and the ConfigDirector SDK and re-exposes both,

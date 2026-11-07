@@ -20,7 +20,6 @@ import com.configdirector.internal.encodeNativeValue
 import com.configdirector.internal.encodeNativeValues
 import com.configdirector.internal.lifecycle.AppLifecycleObserver
 import com.configdirector.internal.lifecycle.NoLifecycleObserver
-import com.configdirector.internal.telemetry.DiscardingTelemetryClient
 import com.configdirector.internal.transport.ConnectionFailedException
 import com.configdirector.internal.transport.SdkMetaContext
 import com.configdirector.internal.transport.Transport
@@ -39,7 +38,7 @@ private const val FATAL_STATUS = 401
  * The SDK's real [ConfigDirectorClient] over an in-memory connection that a test controls: it
  * serves the values it is given, delivers every change through the client's own update handling,
  * and holds or fails connection attempts on request. Nothing reaches the network, no telemetry is
- * collected, and no Android `Context` is needed.
+ * sent, tracked events go to the given recorder, and no Android `Context` is needed.
  *
  * This is the entry point of the `com.configdirector:android-sdk-testing` artifact, which wraps it
  * in the test client API; tests use that artifact rather than this class.
@@ -49,6 +48,7 @@ public class InMemoryConnection(
     values: Map<String, @JvmSuppressWildcards Any>,
     timeoutMillis: Long,
     logger: ConfigDirectorLogger,
+    trackedEventRecorder: TrackedEventRecorder,
 ) {
 
     private val lock = Any()
@@ -69,7 +69,7 @@ public class InMemoryConnection(
             connection { timeoutMillis(timeoutMillis) }
         },
         platform = InMemoryClientPlatform,
-        telemetryFactory = { DiscardingTelemetryClient },
+        telemetryFactory = { RecordingTelemetryClient(logger, trackedEventRecorder) },
         transportFactory = { _, _ -> InMemoryTransport() },
     )
 

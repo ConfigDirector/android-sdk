@@ -5,7 +5,9 @@ import com.configdirector.ClientOptions
 import com.configdirector.openfeature.internal.Constants
 import com.google.common.truth.Truth.assertThat
 import dev.openfeature.kotlin.sdk.ImmutableContext
+import dev.openfeature.kotlin.sdk.ImmutableStructure
 import dev.openfeature.kotlin.sdk.Reason
+import dev.openfeature.kotlin.sdk.TrackingEventDetails
 import dev.openfeature.kotlin.sdk.Value
 import dev.openfeature.kotlin.sdk.events.OpenFeatureProviderEvents
 import dev.openfeature.kotlin.sdk.exceptions.ErrorCode
@@ -141,6 +143,35 @@ class ConfigDirectorProviderTest {
         assertThat(meta.getString("sdkVersion")).isEqualTo(Constants.PROVIDER_VERSION)
         assertThat(meta.getString("appName")).isEqualTo("Checkout")
         assertThat(meta.getString("appVersion")).isEqualTo("4.2.0")
+    }
+
+    @Test
+    fun `reports a tracking event in telemetry that names the provider`() = runBlocking<Unit> {
+        val provider = provider()
+        provider.initialize(ImmutableContext(targetingKey = "user-123"))
+
+        provider.track(
+            "checkout-completed",
+            null,
+            TrackingEventDetails(49.9, ImmutableStructure("plan" to Value.String("pro"))),
+        )
+        provider.shutdown()
+
+        waitFor("the report holding the tracked event") {
+            server.telemetryReports.any { report ->
+                report.getJSONObject("discreteEvents").getJSONArray("trackedEvents").length() > 0
+            }
+        }
+        val report = server.telemetryReports.first { candidate ->
+            candidate.getJSONObject("discreteEvents").getJSONArray("trackedEvents").length() > 0
+        }
+        assertThat(report.getJSONObject("metaContext").getString("sdkName"))
+            .isEqualTo("android-openfeature-client-provider")
+        val entry = report.getJSONObject("discreteEvents").getJSONArray("trackedEvents").getJSONObject(0)
+        assertThat(entry.getString("name")).isEqualTo("checkout-completed")
+        assertThat(entry.getString("contextIdentifier")).isEqualTo("user-123")
+        assertThat(entry.getDouble("value")).isEqualTo(49.9)
+        assertThat(entry.getJSONObject("details").getString("plan")).isEqualTo("pro")
     }
 
     @Test

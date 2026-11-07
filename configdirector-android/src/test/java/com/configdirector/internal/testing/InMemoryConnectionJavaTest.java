@@ -43,7 +43,7 @@ public class InMemoryConnectionJavaTest {
   }
 
   private InMemoryConnection connection(Map<String, Object> values) {
-    connection = new InMemoryConnection(values, 3_000L, logger);
+    connection = new InMemoryConnection(values, 3_000L, logger, (name, context, value, details) -> {});
     return connection;
   }
 

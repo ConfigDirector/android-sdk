@@ -18,9 +18,11 @@ class TelemetryEventCollectorTest {
         val reports = CopyOnWriteArrayList<EventReport>()
         val outcome = AtomicReference(ReportOutcome.SUCCEEDED)
         val closed = AtomicReference(false)
+        var whileReporting: () -> Unit = {}
 
         override suspend fun report(report: EventReport): ReportOutcome {
             reports += report
+            whileReporting()
             return outcome.get()
         }
 
@@ -228,6 +230,128 @@ class TelemetryEventCollectorTest {
 
         assertThat(reporter.reports).hasSize(1)
     }
+
+    @Test
+    fun `reports tracked events when nothing was evaluated`() = runBlocking<Unit> {
+        val collector = collector(initialFlushDelayMillis = 5_000)
+        collector.trackedEvent(admittedEvent("checkout-completed"))
+
+        collector.flush()
+
+        assertThat(reporter.reports.single().trackedEvents.map { it.name }).containsExactly("checkout-completed")
+    }
+
+    @Test
+    fun `reports each tracked event once`() = runBlocking<Unit> {
+        val collector = collector(initialFlushDelayMillis = 5_000)
+        collector.trackedEvent(admittedEvent("checkout-completed"))
+
+        collector.flush()
+        collector.flush()
+
+        assertThat(reporter.reports).hasSize(1)
+    }
+
+    @Test
+    fun `reports the tracked events left when it closes`() {
+        val collector = collector(initialFlushDelayMillis = 5_000)
+        collector.trackedEvent(admittedEvent("checkout-completed"))
+
+        collector.close()
+
+        waitFor("the final report") { reporter.reports.isNotEmpty() }
+        assertThat(reporter.reports.single().trackedEvents.map { it.name }).containsExactly("checkout-completed")
+    }
+
+    @Test
+    fun `reports the tracked events of the previous context when the context changes`() {
+        val collector = collector(initialFlushDelayMillis = 5_000)
+        collector.trackedEvent(admittedEvent("checkout-completed"))
+
+        collector.updateContext(ConfigDirectorContext.build { id("user-b") })
+
+        waitFor("the report") { reporter.reports.isNotEmpty() }
+        assertThat(reporter.reports.single().trackedEvents.map { it.name }).containsExactly("checkout-completed")
+    }
+
+    @Test
+    fun `logs one warning per cause until a report is sent`() = runBlocking<Unit> {
+        val collector = collector(initialFlushDelayMillis = 5_000)
+        val leftOutValue = admittedEvent("checkout-completed", TrackedEventWarning.VALUE_NOT_A_FINITE_NUMBER)
+
+        collector.trackedEvent(leftOutValue)
+        collector.trackedEvent(leftOutValue)
+
+        assertThat(logger.messagesContaining("not a finite number")).hasSize(1)
+
+        collector.flush()
+        collector.trackedEvent(leftOutValue)
+
+        assertThat(logger.messagesContaining("not a finite number")).hasSize(2)
+    }
+
+    @Test
+    fun `logs a warning for a dropped event at warning level`() {
+        val collector = collector(initialFlushDelayMillis = 5_000)
+
+        collector.trackedEvent(
+            TrackedEventAdmission.Dropped(listOf(TrackedEventWarning.NAME_OUTSIDE_THE_CHARACTER_LIMIT)),
+        )
+
+        assertThat(logger.messagesContaining("WARN: ")).hasSize(1)
+    }
+
+    @Test
+    fun `collects no tracked events once closed, and logs nothing for them`() {
+        val collector = collector(initialFlushDelayMillis = 5_000)
+        collector.close()
+
+        collector.trackedEvent(admittedEvent("checkout-completed", TrackedEventWarning.VALUE_NOT_A_FINITE_NUMBER))
+
+        settle()
+        assertThat(reporter.reports).isEmpty()
+        assertThat(logger.messagesContaining("not a finite number")).isEmpty()
+    }
+
+    @Test
+    fun `collects no tracked events after a failure retrying cannot fix`() = runBlocking<Unit> {
+        val collector = collector(initialFlushDelayMillis = 5_000)
+        reporter.outcome.set(ReportOutcome.FAILED_FATALLY)
+        collector.trackedEvent(admittedEvent("first"))
+        collector.flush()
+
+        collector.trackedEvent(admittedEvent("second"))
+        collector.flush()
+
+        assertThat(reporter.reports).hasSize(1)
+    }
+
+    @Test
+    fun `discards tracked events collected while a report that fails for good is in flight`() = runBlocking<Unit> {
+        val collector = collector(initialFlushDelayMillis = 5_000)
+        reporter.outcome.set(ReportOutcome.FAILED_FATALLY)
+        reporter.whileReporting = { collector.trackedEvent(admittedEvent("while-reporting")) }
+        collector.trackedEvent(admittedEvent("first"))
+
+        collector.flush()
+        reporter.whileReporting = {}
+        collector.flush()
+
+        assertThat(reporter.reports).hasSize(1)
+    }
+
+    private fun admittedEvent(name: String, vararg warnings: TrackedEventWarning) = TrackedEventAdmission.Admitted(
+        TrackedEventEntry(
+            name = name,
+            contextKind = null,
+            contextIdentifier = null,
+            value = null,
+            details = null,
+            happenedAtMillis = 0,
+        ),
+        context = null,
+        warnings.toList(),
+    )
 
     private fun evaluation(key: String) = EvaluatedConfigEvent(
         contextId = null,

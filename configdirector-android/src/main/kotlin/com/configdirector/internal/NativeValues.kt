@@ -95,7 +95,7 @@ private fun orderedEntries(key: String, map: Map<*, *>): List<Pair<String, Any?>
     return if (map is LinkedHashMap<*, *> || map is SortedMap<*, *>) entries else entries.sortedBy { it.first }
 }
 
-private fun StringBuilder.writeJsonString(text: String) {
+internal fun StringBuilder.writeJsonString(text: String) {
     append('"')
     for (character in text) {
         when (character) {

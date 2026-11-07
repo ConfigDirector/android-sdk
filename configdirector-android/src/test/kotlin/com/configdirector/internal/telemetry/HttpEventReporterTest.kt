@@ -60,10 +60,12 @@ class HttpEventReporterTest {
         events: List<EvaluatedConfigEvent>,
         droppedCount: Int = 0,
         invalidContextSubmissionSummaries: List<InvalidContextSubmissionSummary> = emptyList(),
+        trackedEvents: List<TrackedEventEntry> = emptyList(),
         context: ConfigDirectorContext? = this.context,
     ) = EventReport(
         EventQueueSnapshot(1788134400123L, 1788134401123L, events, droppedCount),
         invalidContextSubmissionSummaries,
+        trackedEvents,
         context,
     )
 
@@ -225,6 +227,46 @@ class HttpEventReporterTest {
     }
 
     @Test
+    fun `posts the tracked events it was given, in the order they were tracked`() = runBlocking<Unit> {
+        server.enqueue(MockResponse())
+
+        reporter().report(
+            report(
+                events = listOf(evaluation("dark-mode")),
+                trackedEvents = listOf(trackedEvent("first"), trackedEvent("second")),
+            ),
+        )
+
+        assertThat(request().body.readUtf8()).contains(
+            """"discreteEvents":{"trackedEvents":[""" +
+                """{"name":"first","happenedAt":"2026-12-01T00:00:00.000Z"},""" +
+                """{"name":"second","happenedAt":"2026-12-01T00:00:00.000Z"}]}""",
+        )
+    }
+
+    @Test
+    fun `posts tracked events when nothing was evaluated`() = runBlocking<Unit> {
+        server.enqueue(MockResponse())
+
+        val outcome = reporter().report(report(events = emptyList(), trackedEvents = listOf(trackedEvent("first"))))
+
+        assertThat(outcome).isEqualTo(ReportOutcome.SUCCEEDED)
+        val payload = JSONObject(request().body.readUtf8())
+        assertThat(payload.getJSONObject("discreteEvents").getJSONArray("trackedEvents").length()).isEqualTo(1)
+        assertThat(payload.getJSONObject("aggregatedEvents").getJSONArray("evaluatedConfig").length()).isEqualTo(0)
+    }
+
+    @Test
+    fun `posts an empty list of tracked events when none were tracked`() = runBlocking<Unit> {
+        server.enqueue(MockResponse())
+
+        reporter().report(report(listOf(evaluation("dark-mode"))))
+
+        val payload = JSONObject(request().body.readUtf8())
+        assertThat(payload.getJSONObject("discreteEvents").getJSONArray("trackedEvents").length()).isEqualTo(0)
+    }
+
+    @Test
     fun `leaves the context off when there is none`() = runBlocking<Unit> {
         server.enqueue(MockResponse())
 
@@ -258,6 +300,31 @@ class HttpEventReporterTest {
 
         assertThat(first).isEqualTo(ReportOutcome.FAILED)
         assertThat(second).isEqualTo(ReportOutcome.SUCCEEDED)
+    }
+
+    @Test
+    fun `discards a report too large to send and still sends the next one`() = runBlocking<Unit> {
+        server.enqueue(MockResponse().setResponseCode(413))
+        server.enqueue(MockResponse())
+        val reporter = reporter()
+
+        val first = reporter.report(report(listOf(evaluation("dark-mode"))))
+        val second = reporter.report(report(listOf(evaluation("dark-mode"))))
+
+        assertThat(first).isEqualTo(ReportOutcome.FAILED)
+        assertThat(second).isEqualTo(ReportOutcome.SUCCEEDED)
+        assertThat(server.requestCount).isEqualTo(2)
+    }
+
+    @Test
+    fun `warns that a report too large to send was discarded`() = runBlocking<Unit> {
+        server.enqueue(MockResponse().setResponseCode(413))
+
+        reporter().report(report(listOf(evaluation("dark-mode"))))
+
+        assertThat(logger.messagesContaining("WARN: [EventReporter]")).hasSize(1)
+        assertThat(logger.messagesContaining("status 413")).hasSize(1)
+        assertThat(logger.messagesContaining("No more telemetry data will be sent")).isEmpty()
     }
 
     @Test
@@ -385,6 +452,15 @@ class HttpEventReporterTest {
             .getJSONArray("evaluatedConfig")
         return (0 until evaluations.length()).map { evaluations.getJSONObject(it) }
     }
+
+    private fun trackedEvent(name: String) = TrackedEventEntry(
+        name = name,
+        contextKind = null,
+        contextIdentifier = null,
+        value = null,
+        details = null,
+        happenedAtMillis = 1_796_083_200_000L,
+    )
 
     private fun evaluation(
         key: String,

@@ -51,7 +51,8 @@ class InMemoryConnectionTest {
     private fun connection(
         values: Map<String, Any> = emptyMap(),
         timeoutMillis: Long = 3_000,
-    ): InMemoryConnection = InMemoryConnection(values, timeoutMillis, logger).also { connections += it }
+    ): InMemoryConnection =
+        InMemoryConnection(values, timeoutMillis, logger) { _, _, _, _ -> }.also { connections += it }
 
     private fun InMemoryConnection.recordEvents(): List<ClientEvent> =
         CopyOnWriteArrayList<ClientEvent>().also { events -> client.addEventListener { events += it } }
@@ -242,7 +243,7 @@ class InMemoryConnectionTest {
             connection.replaceValues(mapOf("flag" to false, "ratio" to Double.NaN))
         }
         assertThrows(ConfigDirectorValidationException::class.java) {
-            InMemoryConnection(mapOf("k" to mapOf(1 to 2)), 3_000, logger)
+            InMemoryConnection(mapOf("k" to mapOf(1 to 2)), 3_000, logger) { _, _, _, _ -> }
         }
 
         assertThat(connection.client.getBoolean("flag", false)).isTrue()

@@ -19,9 +19,11 @@ import org.json.JSONObject
 internal data class EventReport(
     val snapshot: EventQueueSnapshot,
     val invalidContextSubmissionSummaries: List<InvalidContextSubmissionSummary>,
+    val trackedEvents: List<TrackedEventEntry>,
     val context: ConfigDirectorContext?,
 ) {
-    val isEmpty: Boolean get() = snapshot.isEmpty && invalidContextSubmissionSummaries.isEmpty()
+    val isEmpty: Boolean
+        get() = snapshot.isEmpty && invalidContextSubmissionSummaries.isEmpty() && trackedEvents.isEmpty()
 }
 
 internal enum class ReportOutcome {
@@ -80,12 +82,11 @@ internal class HttpEventReporter(
         val invalidContextSubmissions =
             JSONArray().apply { report.invalidContextSubmissionSummaries.forEach { put(it.toJson()) } }
 
-        return JSONObject()
+        val payloadWithoutDiscreteEvents = JSONObject()
             .put("clientSdkKey", options.clientSdkKey)
             .put("instanceId", options.clientSession.instanceId)
             .put("metaContext", options.metaContext.toJson())
             .apply { report.context?.let { put("context", it.toJson()) } }
-            .put("discreteEvents", JSONObject())
             .put(
                 "aggregatedEvents",
                 JSONObject()
@@ -97,7 +98,12 @@ internal class HttpEventReporter(
                 JSONObject().put("evaluatedConfig", report.snapshot.droppedCount),
             )
             .toString()
+
+        return "${payloadWithoutDiscreteEvents.dropLast(1)},\"discreteEvents\":${discreteEventsJsonText(report)}}"
     }
+
+    private fun discreteEventsJsonText(report: EventReport): String =
+        report.trackedEvents.joinToString(",", "{\"trackedEvents\":[", "]}") { it.toJsonText() }
 
     private suspend fun send(body: String): ReportOutcome {
         val request = Request.Builder()
@@ -119,20 +125,30 @@ internal class HttpEventReporter(
 
         val status = response.use { it.code }
 
-        if (status.isFatalHttpStatus()) {
-            options.logger.warn {
-                "[EventReporter] Received a fatal status response ($status) from the telemetry " +
-                    "endpoint. No more telemetry data will be sent."
+        return when {
+            status in 200..299 -> ReportOutcome.SUCCEEDED
+            status == REPORT_TOO_LARGE_STATUS -> {
+                options.logger.warn {
+                    "[EventReporter] The telemetry endpoint responded with status $status. The events " +
+                        "in this report were discarded."
+                }
+                ReportOutcome.FAILED
             }
-            return ReportOutcome.FAILED_FATALLY
+            status.isFatalHttpStatus() -> {
+                options.logger.warn {
+                    "[EventReporter] Received a fatal status response ($status) from the telemetry " +
+                        "endpoint. No more telemetry data will be sent."
+                }
+                ReportOutcome.FAILED_FATALLY
+            }
+            else -> ReportOutcome.FAILED
         }
-
-        return if (status in 200..299) ReportOutcome.SUCCEEDED else ReportOutcome.FAILED
     }
 
     private companion object {
         private const val PATH = "client/telemetry/v1"
         private const val DEFAULT_TIMEOUT_MILLIS = 5_000L
+        private const val REPORT_TOO_LARGE_STATUS = 413
         private val JSON = "application/json".toMediaType()
     }
 }

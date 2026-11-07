@@ -7,6 +7,8 @@ internal object DiscardingTelemetryClient : TelemetryClient {
 
     override fun recordInvalidContextSubmission(contextKindSample: String) = Unit
 
+    override fun trackedEvent(admission: TrackedEventAdmission) = Unit
+
     override fun updateContext(context: ConfigDirectorContext?) = Unit
 
     override suspend fun flush() = Unit

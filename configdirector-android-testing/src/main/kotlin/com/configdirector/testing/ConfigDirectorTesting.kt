@@ -7,6 +7,7 @@ import com.configdirector.ConfigDirectorTestingApi
 import com.configdirector.ConnectionOptions
 import com.configdirector.internal.testing.InMemoryConnection
 import com.configdirector.testing.internal.Constants
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * Creates a test client: the SDK's real [com.configdirector.ConfigDirectorClient] connected to an
@@ -36,7 +37,9 @@ import com.configdirector.testing.internal.Constants
  * @param timeoutMillis the client's connection timeout, which bounds how long a held attempt
  *   waits; the SDK's production default when not given
  * @param logger where the client logs; [StandardErrorLogger] when not given, because the SDK's
- *   own default writes to logcat, which a plain JVM test does not have
+ *   own default writes to logcat, which a plain JVM test does not have. Since the test client sends
+ *   no telemetry, it logs a warning every time an event, its value or its details are not recorded,
+ *   rather than once per telemetry batch
  * @throws com.configdirector.ConfigDirectorValidationException if a value cannot be encoded
  * @throws IllegalStateException if this artifact's version differs from the SDK's, which can
  *   only work by accident because it relies on the SDK's internals
@@ -65,5 +68,9 @@ internal fun createTestClient(
             "the classpath. The testing artifact relies on the SDK's internals, so both must be " +
             "the same version."
     }
-    return TestClient(InMemoryConnection(values, timeoutMillis, logger))
+    val trackedEvents = CopyOnWriteArrayList<TrackedEvent>()
+    val connection = InMemoryConnection(values, timeoutMillis, logger) { name, context, value, details ->
+        trackedEvents += TrackedEvent(name, context, value, details)
+    }
+    return TestClient(connection, trackedEvents)
 }

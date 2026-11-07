@@ -6,11 +6,13 @@ import com.configdirector.ConfigDirectorTestingApi
 import com.configdirector.ConfigDirectorValidationException
 import com.configdirector.ConnectReason
 import com.configdirector.EvaluationReason
+import com.configdirector.TrackOptions
 import com.configdirector.internal.testing.InMemoryConnection
 import com.configdirector.testing.internal.Constants
 import com.google.common.truth.Truth.assertThat
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
+import java.time.Instant
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
@@ -423,6 +425,154 @@ class TestClientTest {
         assertThat(seen).hasSize(before)
         assertThat(client.isReady).isFalse()
         assertThat(logger.errors.filterNotNull()).isEmpty()
+    }
+
+    @Test
+    fun `records an event with the current context, its value and its details`() = runBlocking<Unit> {
+        val testClient = testClient()
+        testClient.client.initialize(USER_A)
+
+        testClient.client.track("checkout-completed", TrackOptions(value = 49.9, details = mapOf("plan" to "pro")))
+
+        assertThat(testClient.trackedEvents)
+            .containsExactly(TrackedEvent("checkout-completed", USER_A, 49.9, mapOf("plan" to "pro")))
+    }
+
+    @Test
+    fun `records events in call order with the context each had`() = runBlocking<Unit> {
+        val testClient = testClient()
+        testClient.client.initialize(USER_A)
+
+        testClient.client.track("first")
+        testClient.client.updateContext(USER_B)
+        testClient.client.track("second")
+
+        assertThat(testClient.trackedEvents)
+            .containsExactly(TrackedEvent("first", USER_A), TrackedEvent("second", USER_B))
+            .inOrder()
+    }
+
+    @Test
+    fun `records no context for an event tracked before the client has one`() {
+        val testClient = testClient()
+
+        testClient.client.track("app-opened")
+
+        assertThat(testClient.trackedEvents).containsExactly(TrackedEvent("app-opened"))
+    }
+
+    @Test
+    fun `records no context after a context with an invalid kind was ignored`() = runBlocking<Unit> {
+        val testClient = testClient()
+        testClient.client.initialize(ConfigDirectorContext.build { id("user-a"); kind("Not Valid") })
+
+        testClient.client.track("checkout-completed")
+
+        assertThat(testClient.trackedEvents).containsExactly(TrackedEvent("checkout-completed"))
+    }
+
+    @Test
+    fun `does not record an event whose name would not be reported, and logs a warning`() {
+        val testClient = testClient()
+
+        testClient.client.track("")
+
+        assertThat(testClient.trackedEvents).isEmpty()
+        assertThat(logger.messagesContaining("WARN: [ConfigDirectorClient] A tracked event was not reported")).hasSize(1)
+    }
+
+    @Test
+    fun `records an event without details the SDK would leave out, and logs a warning`() {
+        val testClient = testClient()
+
+        testClient.client.track("checkout-completed", TrackOptions(details = mapOf("k" to "a".repeat(1_017))))
+
+        assertThat(testClient.trackedEvents).containsExactly(TrackedEvent("checkout-completed"))
+        assertThat(logger.messagesContaining("WARN: [ConfigDirectorClient] A tracked event was reported without its details"))
+            .hasSize(1)
+    }
+
+    @Test
+    fun `records an event without a value the SDK would leave out, and logs a warning`() {
+        val testClient = testClient()
+
+        testClient.client.track("checkout-completed", TrackOptions(value = Double.NaN))
+
+        assertThat(testClient.trackedEvents).containsExactly(TrackedEvent("checkout-completed"))
+        assertThat(logger.messagesContaining("WARN: [ConfigDirectorClient] A tracked event was reported without its value"))
+            .hasSize(1)
+    }
+
+    @Test
+    fun `logs a warning every time, since no telemetry batch is ever sent`() {
+        val testClient = testClient()
+
+        testClient.client.track("first", TrackOptions(value = Double.NaN))
+        testClient.client.track("second", TrackOptions(value = Double.NaN))
+
+        assertThat(logger.messagesContaining("WARN: [ConfigDirectorClient] A tracked event was reported without its value"))
+            .hasSize(2)
+    }
+
+    @Test
+    fun `records every event, since no telemetry batch fills up`() {
+        val testClient = testClient()
+
+        repeat(1_001) { testClient.client.track("event-$it") }
+
+        assertThat(testClient.trackedEvents).hasSize(1_001)
+    }
+
+    @Test
+    fun `records a date inside details as the text the SDK sends`() {
+        val testClient = testClient()
+
+        testClient.client.track("renewed", TrackOptions(details = mapOf("at" to Instant.parse("2026-12-01T00:00:00Z"))))
+
+        assertThat(testClient.trackedEvents.single().details).containsExactly("at", "2026-12-01T00:00:00.000Z")
+    }
+
+    @Test
+    fun `records a Float value as the Double with the same digits`() {
+        val testClient = testClient()
+
+        testClient.client.track("rated", TrackOptions(value = 0.1f))
+
+        assertThat(testClient.trackedEvents.single().value).isEqualTo(0.1)
+    }
+
+    @Test
+    fun `replaceValues leaves the record alone`() {
+        val testClient = testClient()
+        testClient.client.track("first")
+
+        testClient.replaceValues(mapOf("flag" to true))
+
+        assertThat(testClient.trackedEvents).containsExactly(TrackedEvent("first"))
+    }
+
+    @Test
+    fun `a shared test client clears the record, which stays the same list`() {
+        val testClient = testClient()
+        val record = testClient.trackedEvents
+        testClient.client.track("first")
+
+        record.clear()
+        testClient.client.track("second")
+
+        assertThat(testClient.trackedEvents).containsExactly(TrackedEvent("second"))
+        assertThat(record).containsExactly(TrackedEvent("second"))
+    }
+
+    @Test
+    fun `records nothing once the client is closed, as it would report nothing`() {
+        val testClient = testClient()
+        testClient.client.close()
+
+        testClient.client.track("too-late", TrackOptions(value = Double.NaN))
+
+        assertThat(testClient.trackedEvents).isEmpty()
+        assertThat(logger.messagesContaining("tracked event")).isEmpty()
     }
 
     @Test

@@ -17,7 +17,7 @@ import org.junit.Test;
 public class JavaSurfaceTest {
 
   private static final Class<?>[] PUBLIC_API = {
-    ConfigDirectorTesting.class, TestClient.class, StandardErrorLogger.class,
+    ConfigDirectorTesting.class, TestClient.class, TrackedEvent.class, StandardErrorLogger.class,
   };
 
   @Test

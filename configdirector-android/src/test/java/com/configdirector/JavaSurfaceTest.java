@@ -3,6 +3,7 @@ package com.configdirector;
 import static com.google.common.truth.Truth.assertThat;
 
 import com.configdirector.internal.testing.InMemoryConnection;
+import com.configdirector.internal.testing.TrackedEventRecorder;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
@@ -49,8 +50,10 @@ public class JavaSurfaceTest {
     Subscription.class,
     Metadata.class,
     SdkIdentity.class,
+    TrackOptions.class,
     Variation.class,
     InMemoryConnection.class,
+    TrackedEventRecorder.class,
   };
 
   // An internal Kotlin member is public bytecode under a mangled name, so it shows up in Java

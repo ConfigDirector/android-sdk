@@ -15,6 +15,7 @@ import com.configdirector.openfeature.internal.Constants
 import com.configdirector.openfeature.internal.toAny
 import com.configdirector.openfeature.internal.toConfigDirectorContext
 import com.configdirector.openfeature.internal.toProviderEvaluation
+import com.configdirector.openfeature.internal.toTrackOptions
 import com.configdirector.openfeature.internal.toValue
 import dev.openfeature.kotlin.sdk.EvaluationContext
 import dev.openfeature.kotlin.sdk.FeatureProvider
@@ -23,6 +24,7 @@ import dev.openfeature.kotlin.sdk.OpenFeatureAPI
 import dev.openfeature.kotlin.sdk.OpenFeatureStatus
 import dev.openfeature.kotlin.sdk.ProviderEvaluation
 import dev.openfeature.kotlin.sdk.ProviderMetadata
+import dev.openfeature.kotlin.sdk.TrackingEventDetails
 import dev.openfeature.kotlin.sdk.Value
 import dev.openfeature.kotlin.sdk.events.OpenFeatureProviderEvents
 import dev.openfeature.kotlin.sdk.exceptions.ErrorCode
@@ -97,6 +99,33 @@ import kotlinx.coroutines.withTimeoutOrNull
  * config as a structure, a `Value.List` reads one as a list, and a string, integer, double or
  * boolean reads the config as that type. A `Value.Null` or `Value.Instant` in-code default value
  * names no type to read, so the read throws `TypeMismatchError`.
+ *
+ * ## Tracking
+ *
+ * A `track` call on an OpenFeature client reports to ConfigDirector that something happened, such as
+ * a completed checkout, with the next telemetry batch:
+ *
+ * ```kotlin
+ * client.track(
+ *     "checkout-completed",
+ *     TrackingEventDetails(49.9, ImmutableStructure("plan" to Value.String("pro"))),
+ * )
+ * ```
+ *
+ * The value of the tracking event details is sent as the event's value and their structure as the
+ * event's details, with a `Value.Instant` as ISO 8601 text in UTC. The event goes with the context
+ * the underlying client currently has, not the one handed to the call, as flag resolutions do.
+ *
+ * An event counts for an experiment only when that context has a targeting key or `id`, the one the
+ * experiment's flag was resolved for. Without one, the event is still reported. The identifier of a
+ * context marked `anonymous` is not sent.
+ *
+ * A telemetry batch holds at most 1,000 events; events beyond that are not reported. An event whose
+ * name has more than 150 characters is not reported. A structure with more than 20 top-level keys or
+ * larger than 1 KB as JSON, and a value that is not a finite number, are left out and the event is
+ * still reported. Each of these logs one warning per telemetry batch. In [ConnectionMode.OFFLINE] a
+ * `track` call does nothing. The OpenFeature client itself throws `IllegalArgumentException` for an
+ * empty name, before the provider sees the call.
  *
  * ## Provider status
  *
@@ -293,6 +322,10 @@ public class ConfigDirectorProvider private constructor(
         return evaluation.toProviderEvaluation(
             if (evaluation.isDefaultValue) defaultValue else evaluation.value.toValue(),
         )
+    }
+
+    override fun track(trackingEventName: String, context: EvaluationContext?, details: TrackingEventDetails?) {
+        client.track(trackingEventName, details?.toTrackOptions())
     }
 
     private suspend fun reportOutcome(call: LifecycleCall) {

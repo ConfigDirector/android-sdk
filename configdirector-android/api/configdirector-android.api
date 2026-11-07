@@ -132,6 +132,9 @@ public final class com/configdirector/ConfigDirectorClient : java/io/Closeable {
 	public final fun pauseNetwork ()V
 	public final fun resumeNetwork (Lcom/configdirector/CompletionCallback;)V
 	public final synthetic fun resumeNetwork (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun track (Ljava/lang/String;)V
+	public final fun track (Ljava/lang/String;Lcom/configdirector/TrackOptions;)V
+	public static synthetic fun track$default (Lcom/configdirector/ConfigDirectorClient;Ljava/lang/String;Lcom/configdirector/TrackOptions;ILjava/lang/Object;)V
 	public final fun updateContext (Lcom/configdirector/ConfigDirectorContext;Lcom/configdirector/CompletionCallback;)V
 	public final synthetic fun updateContext (Lcom/configdirector/ConfigDirectorContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun watchBoolean (Ljava/lang/String;ZLcom/configdirector/ConfigListener;)Lcom/configdirector/Subscription;
@@ -347,6 +350,15 @@ public abstract interface class com/configdirector/Subscription : java/io/Closea
 	public abstract fun close ()V
 }
 
+public final class com/configdirector/TrackOptions {
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/Number;)V
+	public fun <init> (Ljava/lang/Number;Ljava/util/Map;)V
+	public synthetic fun <init> (Ljava/lang/Number;Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getDetails ()Ljava/util/Map;
+	public final fun getValue ()Ljava/lang/Number;
+}
+
 public final class com/configdirector/Variation {
 	public fun <init> (Ljava/lang/String;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
@@ -360,7 +372,7 @@ public final class com/configdirector/Variation {
 
 public final class com/configdirector/internal/testing/InMemoryConnection {
 	public static final field Companion Lcom/configdirector/internal/testing/InMemoryConnection$Companion;
-	public fun <init> (Ljava/util/Map;JLcom/configdirector/ConfigDirectorLogger;)V
+	public fun <init> (Ljava/util/Map;JLcom/configdirector/ConfigDirectorLogger;Lcom/configdirector/internal/testing/TrackedEventRecorder;)V
 	public final fun completeContextUpdate ()V
 	public final fun completeInitialization ()V
 	public final fun failContextUpdate ()V
@@ -377,5 +389,9 @@ public final class com/configdirector/internal/testing/InMemoryConnection {
 
 public final class com/configdirector/internal/testing/InMemoryConnection$Companion {
 	public final fun getSdkVersion ()Ljava/lang/String;
+}
+
+public abstract interface class com/configdirector/internal/testing/TrackedEventRecorder {
+	public abstract fun record (Ljava/lang/String;Lcom/configdirector/ConfigDirectorContext;Ljava/lang/Number;Ljava/util/Map;)V
 }
 

@@ -13,7 +13,20 @@ import com.configdirector.internal.testing.InMemoryConnection
  * never held or failed. After `close`, every control is a silent no-op.
  */
 @OptIn(ConfigDirectorTestingApi::class)
-public class TestClient internal constructor(private val connection: InMemoryConnection) {
+public class TestClient internal constructor(
+    private val connection: InMemoryConnection,
+
+    /**
+     * Every event the code under test tracked through the client, in call order, with the context
+     * the client had at that moment, as the SDK would report it: an event whose name does not have 1
+     * to 150 characters is not recorded, and a value or details the SDK would leave out are missing
+     * from the record. The limit of 1,000 events per telemetry batch does not apply.
+     *
+     * This is one list for the life of the test client and [replaceValues] leaves it alone, so a
+     * test client shared across tests clears it with `trackedEvents.clear()`.
+     */
+    public val trackedEvents: MutableList<TrackedEvent>,
+) {
 
     /**
      * The client under test. It is a [ConfigDirectorClient] like any other, so it goes anywhere

@@ -21,10 +21,26 @@ public final class com/configdirector/testing/TestClient {
 	public final fun failInitialization ()V
 	public final fun getClient ()Lcom/configdirector/ConfigDirectorClient;
 	public final fun getContextUpdates ()Ljava/util/List;
+	public final fun getTrackedEvents ()Ljava/util/List;
 	public final fun holdContextUpdate ()V
 	public final fun holdInitialization ()V
 	public final fun removeValue (Ljava/lang/String;)V
 	public final fun replaceValues (Ljava/util/Map;)V
 	public final fun setValue (Ljava/lang/String;Ljava/lang/Object;)V
+}
+
+public final class com/configdirector/testing/TrackedEvent {
+	public fun <init> (Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Lcom/configdirector/ConfigDirectorContext;)V
+	public fun <init> (Ljava/lang/String;Lcom/configdirector/ConfigDirectorContext;Ljava/lang/Number;)V
+	public fun <init> (Ljava/lang/String;Lcom/configdirector/ConfigDirectorContext;Ljava/lang/Number;Ljava/util/Map;)V
+	public synthetic fun <init> (Ljava/lang/String;Lcom/configdirector/ConfigDirectorContext;Ljava/lang/Number;Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getContext ()Lcom/configdirector/ConfigDirectorContext;
+	public final fun getDetails ()Ljava/util/Map;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getValue ()Ljava/lang/Number;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 

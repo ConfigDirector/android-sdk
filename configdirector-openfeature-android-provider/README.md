@@ -142,6 +142,9 @@ class CheckoutTest {
 The provider never closes a client it was given, so the test closes it. Full details are in the
 [testing section of the official documentation](https://docs.configdirector.com/sdks/openfeature/android#test-your-code).
 
+An OpenFeature `track` call reaches the test client too: `testClient.trackedEvents` holds every
+event the code under test tracked, in call order, as `TrackedEvent(name, context, value, details)`.
+
 ## Documentation
 
 Refer to the [official documentation for the OpenFeature Android provider](https://docs.configdirector.com/sdks/openfeature/android).

@@ -2,10 +2,13 @@ package com.configdirector.openfeature
 
 import com.configdirector.ConfigDirectorContext
 import com.configdirector.testing.TestClient
+import com.configdirector.testing.TrackedEvent
 import com.configdirector.testing.createTestClient
 import com.google.common.truth.Truth.assertThat
 import dev.openfeature.kotlin.sdk.ImmutableContext
+import dev.openfeature.kotlin.sdk.ImmutableStructure
 import dev.openfeature.kotlin.sdk.Reason
+import dev.openfeature.kotlin.sdk.TrackingEventDetails
 import dev.openfeature.kotlin.sdk.Value
 import dev.openfeature.kotlin.sdk.events.OpenFeatureProviderEvents
 import dev.openfeature.kotlin.sdk.exceptions.OpenFeatureError
@@ -26,6 +29,8 @@ import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import kotlin.reflect.KClass
+import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
 
 /**
  * The provider over a test client from the testing tools, the way a consumer's test creates it.
@@ -321,5 +326,114 @@ class TestClientProviderTest {
         }
 
         assertThat(testClient.client.isReady).isFalse()
+    }
+
+    @Test
+    fun `forwards a tracking event with its value and its details to the client`() = runBlocking<Unit> {
+        val testClient = testClient(emptyMap())
+        val provider = ConfigDirectorProvider(testClient.client)
+        provider.initialize(ImmutableContext(targetingKey = "user-123"))
+
+        provider.track(
+            "checkout-completed",
+            ImmutableContext(targetingKey = "user-123"),
+            TrackingEventDetails(49.9, ImmutableStructure("plan" to Value.String("pro"))),
+        )
+
+        val event = testClient.trackedEvents.single()
+        assertThat(event.name).isEqualTo("checkout-completed")
+        assertThat(event.context?.id).isEqualTo("user-123")
+        assertThat(event.value).isEqualTo(49.9)
+        assertThat(event.details).containsExactly("plan", "pro")
+    }
+
+    @Test
+    fun `forwards a tracking event without details`() = runBlocking<Unit> {
+        val testClient = testClient(emptyMap())
+        val provider = ConfigDirectorProvider(testClient.client)
+
+        provider.track("app-opened", null, null)
+
+        assertThat(testClient.trackedEvents).containsExactly(TrackedEvent("app-opened"))
+    }
+
+    @Test
+    fun `sends no details for tracking event details holding only a value`() = runBlocking<Unit> {
+        val testClient = testClient(emptyMap())
+        val provider = ConfigDirectorProvider(testClient.client)
+
+        provider.track("items-added", null, TrackingEventDetails(3))
+
+        assertThat(testClient.trackedEvents).containsExactly(TrackedEvent("items-added", value = 3))
+    }
+
+    @Test
+    fun `sends a tracking event with the client's current context, not the one handed to the call`() =
+        runBlocking<Unit> {
+            val testClient = testClient(emptyMap())
+            val provider = ConfigDirectorProvider(testClient.client)
+            provider.initialize(ImmutableContext(targetingKey = "user-123"))
+
+            provider.track("checkout-completed", ImmutableContext(targetingKey = "someone-else"), null)
+
+            assertThat(testClient.trackedEvents.single().context?.id).isEqualTo("user-123")
+        }
+
+    @Test
+    fun `maps every kind of attribute to the details`() = runBlocking<Unit> {
+        val testClient = testClient(emptyMap())
+        val provider = ConfigDirectorProvider(testClient.client)
+
+        provider.track(
+            "checkout-completed",
+            null,
+            TrackingEventDetails(
+                null,
+                ImmutableStructure(
+                    "plan" to Value.String("pro"),
+                    "seats" to Value.Integer(3),
+                    "price" to Value.Double(49.9),
+                    "trial" to Value.Boolean(false),
+                    "coupon" to Value.Null,
+                    "items" to Value.List(listOf(Value.String("a"))),
+                    "billing" to Value.Structure(mapOf("country" to Value.String("AR"))),
+                ),
+            ),
+        )
+
+        assertThat(testClient.trackedEvents.single().details).containsExactly(
+            "plan", "pro",
+            "seats", 3,
+            "price", 49.9,
+            "trial", false,
+            "coupon", null,
+            "items", listOf("a"),
+            "billing", mapOf("country" to "AR"),
+        )
+    }
+
+    @OptIn(ExperimentalTime::class)
+    @Test
+    fun `sends an instant attribute as the ISO text the SDK sends for a date, at any depth`() = runBlocking<Unit> {
+        val testClient = testClient(emptyMap())
+        val provider = ConfigDirectorProvider(testClient.client)
+        val renewsAt = Value.Instant(Instant.parse("2026-12-01T00:00:00Z"))
+
+        provider.track(
+            "renewed",
+            null,
+            TrackingEventDetails(
+                null,
+                ImmutableStructure(
+                    "renews" to renewsAt,
+                    "periods" to Value.List(listOf(Value.Structure(mapOf("ends" to renewsAt)))),
+                ),
+            ),
+        )
+
+        assertThat(testClient.trackedEvents.single().details).containsExactly(
+            "renews", "2026-12-01T00:00:00.000Z",
+            "periods", listOf(mapOf("ends" to "2026-12-01T00:00:00.000Z")),
+        )
     }
 }

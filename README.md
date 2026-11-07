@@ -103,6 +103,27 @@ assertThat(settings.isDarkMode).isFalse()
 
 `testClient.client` is a `ConfigDirectorClient`, so it goes anywhere your code accepts one. From Java, `ConfigDirectorTesting.createTestClient(values)`. See [Test your code](https://docs.configdirector.com/sdks/mobile/android#test-your-code) in the documentation for holding and failing initialization, the Compose bindings under test, and what to expect.
 
+### Tracked events
+
+`testClient.trackedEvents` holds every event the code under test tracked, in call order, as `TrackedEvent(name, context, value, details)`, so a test can assert on them:
+
+```kotlin
+import com.configdirector.ConfigDirectorContext
+import com.configdirector.TrackOptions
+import com.configdirector.testing.TrackedEvent
+import com.configdirector.testing.createTestClient
+
+val context = ConfigDirectorContext.build { id("user-123") }
+val testClient = createTestClient()
+testClient.client.initialize(context)
+
+testClient.client.track("checkout-completed", TrackOptions(value = 49.9))
+
+assertThat(testClient.trackedEvents).containsExactly(TrackedEvent("checkout-completed", context, 49.9))
+```
+
+The record follows the rules of a real report: an event whose name does not have 1 to 150 characters is not recorded, and a value or details the SDK would leave out are missing from the record, with a warning logged each time. The limit of 1,000 events per telemetry batch does not apply. A test client shared across tests clears the record with `testClient.trackedEvents.clear()`.
+
 ## Documentation
 
 Refer to the [official documentation for the Android SDK](https://docs.configdirector.com/sdks/mobile/android).

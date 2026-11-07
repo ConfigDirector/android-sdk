@@ -15,6 +15,32 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and the `evaluations` flow now carry `variation`, the `id` and `name` of the variation that was
   served. It is null when the config has no variations or the in-code default value is returned, and
   an unnamed variation has a null `name`. The new `Variation` class is public.
+- `track(eventName, options)` on the client (`android-sdk`) reports to ConfigDirector that something
+  happened for the current context, such as a completed checkout, so ConfigDirector can show it on
+  the live feed and count it for each variation of a running experiment. `options` is a `TrackOptions`
+  with a `value`, a `Number` such as an amount of money, a count or a duration, and `details`, a map
+  whose values are strings, numbers, booleans, nested maps and collections, or null. The new
+  `TrackOptions` class is public.
+- An event counts for an experiment only when the client's context has an `id`, the one the
+  experiment's config was evaluated for. Before the client has a context, or for a context without an
+  `id`, the event is still reported. The `id` of a context marked anonymous is not sent.
+- Tracked events are sent with the next telemetry batch, at most 1,000 per batch; events beyond that
+  are not reported. An event whose name does not have 1 to 150 characters is not reported. Details
+  with more than 20 top-level keys, larger than 1 KB as JSON, or holding any other type of value, and
+  a `value` that is not a finite number, are left out and the event is still reported. Each of these
+  logs one warning per telemetry batch. A `Date`, `Instant`, `OffsetDateTime` or `ZonedDateTime` inside
+  details is sent as ISO 8601 text in UTC, and a number that is not finite as null. A `BigDecimal` or
+  `BigInteger` is sent with every digit. ConfigDirector stores an event without its value when the
+  value is written in more than 64 characters or has a decimal exponent beyond 400. `track` does
+  nothing in offline mode or after `close`, and it never throws, as long as a Java caller does not
+  pass a null name.
+- The test client (`android-sdk-testing`) records the events the code under test tracked in
+  `testClient.trackedEvents`, in call order, as `TrackedEvent(name, context, value, details)`. An
+  event whose name the SDK would not report is not recorded, and a value or details the SDK would
+  leave out are missing from the record. The limit of 1,000 events per telemetry batch does not apply
+  to the record. The list stays the same for the life of the test client and `replaceValues` leaves
+  it alone, so a shared test client clears it with `trackedEvents.clear()`. The new `TrackedEvent`
+  class is public.
 
 ### Changed
 
@@ -25,6 +51,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `EvaluationReason` (`android-sdk`) gains `ROLLOUT_SKIPPED_NO_IDENTIFIER`. Only server SDKs report
   it and this SDK never returns it, but a Kotlin `when` that lists every reason needs a branch for
   it.
+
+### Fixed
+
+- A telemetry report larger than ConfigDirector accepts (`android-sdk`) is now discarded with a
+  warning, and the next report is still sent. Before, the SDK stopped sending telemetry until the app
+  restarted.
 
 ## [1.9.3] - 2026-11-01
 

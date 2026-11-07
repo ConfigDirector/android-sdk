@@ -9,7 +9,7 @@ import org.json.JSONObject
 
 private const val ENTRY_FORMAT_VERSION = 2
 private const val FIRST_ENTRY_FORMAT_VERSION = 1
-private const val DEFAULT_CONTEXT_KIND = "user"
+internal const val DEFAULT_CONTEXT_KIND: String = "user"
 
 internal sealed class ContextTag {
     data class Identified(val contextKind: String, val contextId: String) : ContextTag()

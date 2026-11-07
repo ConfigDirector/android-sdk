@@ -34,6 +34,8 @@ internal interface TelemetryClient {
 
     fun recordInvalidContextSubmission(contextKindSample: String)
 
+    fun trackedEvent(admission: TrackedEventAdmission)
+
     /**
      * Reports the events collected so far against the previous context, and attributes the ones
      * collected from now on to [context].
@@ -62,6 +64,7 @@ internal class TelemetryEventCollector(
 
     private val queue = EventQueue(options.queueLimit)
     private val invalidContextSubmissions = InvalidContextSubmissions()
+    private val trackedEventQueue = TrackedEventQueue()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val flushes = Mutex()
     private val context = AtomicReference<ConfigDirectorContext?>(null)
@@ -86,6 +89,17 @@ internal class TelemetryEventCollector(
         if (!collecting.get()) return
 
         invalidContextSubmissions.record(contextKindSample)
+    }
+
+    override fun trackedEvent(admission: TrackedEventAdmission) {
+        if (!collecting.get()) return
+
+        trackedEventQueue.add(admission).forEach { warning ->
+            logger.warn {
+                "${warning.message} Further tracked events like it are not logged until the next " +
+                    "telemetry batch is sent."
+            }
+        }
     }
 
     override fun updateContext(context: ConfigDirectorContext?) {
@@ -117,13 +131,18 @@ internal class TelemetryEventCollector(
             reporter.close()
             queue.clear()
             invalidContextSubmissions.clear()
+            trackedEventQueue.clear()
             scope.cancel()
         }
     }
 
     private fun takeReport(): EventReport? =
-        EventReport(queue.takeSnapshot(), invalidContextSubmissions.takeSummaries(), context.get())
-            .takeUnless { it.isEmpty }
+        EventReport(
+            queue.takeSnapshot(),
+            invalidContextSubmissions.takeSummaries(),
+            trackedEventQueue.takeBatch(),
+            context.get(),
+        ).takeUnless { it.isEmpty }
 
     /** Sends after whatever is already in flight, so batches reach the server in the order they
      * were collected. */
@@ -141,6 +160,7 @@ internal class TelemetryEventCollector(
         timer.getAndSet(null)?.cancel()
         queue.clear()
         invalidContextSubmissions.clear()
+        trackedEventQueue.clear()
         reporter.close()
 
         logger.warn {

@@ -269,6 +269,19 @@ class OfflineModeTest {
     }
 
     @Test
+    fun `sends no tracked event and logs nothing about one`() = runBlocking<Unit> {
+        val client = offlineClient(values = mapOf("new-checkout" to true))
+        client.initialize(proContext)
+
+        client.track("checkout-completed")
+        client.track("", TrackOptions(value = Double.NaN))
+        client.close()
+
+        assertThat(server.takeRequest(timeoutMillis = 2_000)).isNull()
+        assertThat(logger.messagesContaining("tracked event")).isEmpty()
+    }
+
+    @Test
     fun `never reads the app's preferences, package or lifecycle`() = runBlocking<Unit> {
         val reads = CopyOnWriteArrayList<String>()
         val recordingContext = object : ContextWrapper(RuntimeEnvironment.getApplication()) {

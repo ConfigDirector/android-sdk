@@ -1,6 +1,9 @@
 package com.configdirector.openfeature.internal
 
+import com.configdirector.TrackOptions
+import dev.openfeature.kotlin.sdk.TrackingEventDetails
 import dev.openfeature.kotlin.sdk.Value
+import java.util.Date
 import kotlin.time.ExperimentalTime
 
 @OptIn(ExperimentalTime::class)
@@ -13,6 +16,21 @@ internal fun Value.toAny(): Any? = when (this) {
     is Value.Structure -> structure.mapValues { (_, entry) -> entry.toAny() }
     is Value.List -> list.map { entry -> entry.toAny() }
     Value.Null -> null
+}
+
+internal fun TrackingEventDetails.toTrackOptions(): TrackOptions = TrackOptions(
+    value = value,
+    details = structure.asMap()
+        .takeIf { it.isNotEmpty() }
+        ?.mapValues { (_, attribute) -> attribute.toTrackedEventDetailValue() },
+)
+
+@OptIn(ExperimentalTime::class)
+private fun Value.toTrackedEventDetailValue(): Any? = when (this) {
+    is Value.Instant -> Date(instant.toEpochMilliseconds())
+    is Value.Structure -> structure.mapValues { (_, entry) -> entry.toTrackedEventDetailValue() }
+    is Value.List -> list.map { entry -> entry.toTrackedEventDetailValue() }
+    else -> toAny()
 }
 
 internal fun Any?.toValue(): Value = when (this) {

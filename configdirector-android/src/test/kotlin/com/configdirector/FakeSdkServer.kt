@@ -21,6 +21,7 @@ class FakeSdkServer : Closeable {
     private val server = MockWebServer()
     private val scripted = ConcurrentLinkedQueue<String>()
     private val telemetry = CopyOnWriteArrayList<JSONObject>()
+    private val telemetryBodies = CopyOnWriteArrayList<String>()
 
     /** The status to answer with, so a test can see what the client does with a failure. */
     @Volatile
@@ -50,6 +51,8 @@ class FakeSdkServer : Closeable {
 
     /** Every telemetry report the client has sent, in the order the server received them. */
     val telemetryReports: List<JSONObject> get() = telemetry
+
+    val telemetryReportBodies: List<String> get() = telemetryBodies
 
     /** The next request the server received, or null if none arrived within [timeoutMillis]. An
      * unbounded wait would hang the whole suite when the client never connects. */
@@ -96,6 +99,7 @@ class FakeSdkServer : Closeable {
 
         if (request.path?.contains("telemetry") == true) {
             telemetry += payload
+            telemetryBodies += request.body.peek().readUtf8()
             return response
         }
 

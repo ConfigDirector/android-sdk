@@ -23,6 +23,7 @@ import com.configdirector.internal.telemetry.DiscardingTelemetryClient
 import com.configdirector.internal.telemetry.HttpEventReporter
 import com.configdirector.internal.telemetry.TelemetryClient
 import com.configdirector.internal.telemetry.TelemetryEventCollector
+import com.configdirector.internal.telemetry.admitTrackedEvent
 import com.configdirector.internal.transport.TransportOptions
 import com.configdirector.internal.transport.sdkHttpClient
 import java.io.Closeable
@@ -478,6 +479,39 @@ public class ConfigDirectorClient internal constructor(
         defaultValue: List<@JvmSuppressWildcards Any?>,
         listener: ConfigListener<List<@JvmSuppressWildcards Any?>>,
     ): Subscription = store.watch(key, listener) { store.getJsonArray(key, defaultValue) }
+
+    /**
+     * Reports to ConfigDirector that something happened for the current context, such as a completed
+     * checkout, so it can be counted. The event is sent with the next telemetry batch. It does nothing
+     * in [ConnectionMode.OFFLINE] or after [close], and it never throws, as long as a Java caller does
+     * not pass a null [eventName].
+     *
+     * An event counts for an experiment only when the current context has an id, the one the
+     * experiment's config was evaluated for. Before the client has a context, or for a context without
+     * an id, the event is still reported. The id of a context marked anonymous is not sent.
+     *
+     * A telemetry batch holds at most 1,000 events; events beyond that are not reported. When an event,
+     * its value or its details are not reported, the client logs a warning, once per cause in each
+     * telemetry batch.
+     *
+     * ```kotlin
+     * client.track("checkout-completed", TrackOptions(value = 49.9, details = mapOf("plan" to "pro")))
+     * ```
+     *
+     * ```java
+     * client.track("checkout-completed", new TrackOptions(49.9, Map.of("plan", "pro")));
+     * ```
+     *
+     * @param eventName the event's name, of 1 to 150 characters. An event with any other name is not
+     *   reported and a warning is logged
+     * @param options what the event carries besides its name
+     */
+    @JvmOverloads
+    public fun track(eventName: String, options: TrackOptions? = null) {
+        if (closed.get()) return
+
+        telemetry.trackedEvent(admitTrackedEvent(eventName, store.context, options, System.currentTimeMillis()))
+    }
 
     /**
      * Pauses the connection to the server without discarding config state, watches, or listeners.

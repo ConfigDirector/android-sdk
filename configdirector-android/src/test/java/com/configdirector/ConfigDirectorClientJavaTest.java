@@ -68,6 +68,85 @@ public class ConfigDirectorClientJavaTest {
   }
 
   @Test
+  public void tracksAnEventWithItsValueAndDetails() throws Exception {
+    ConfigDirectorClient client = client();
+    CountDownLatch initialized = new CountDownLatch(1);
+    client.initialize(ConfigDirectorContext.builder().id("user-123").build(), initialized::countDown);
+    assertThat(initialized.await(5, TimeUnit.SECONDS)).isTrue();
+    Map<String, Object> details = new LinkedHashMap<>();
+    details.put("plan", "pro");
+
+    client.track("checkout-completed", new TrackOptions(49.9, details));
+    client.close();
+
+    assertThat(trackedEventReportBody()).contains(
+        "{\"name\":\"checkout-completed\",\"contextKind\":\"user\",\"contextIdentifier\":\"user-123\","
+            + "\"value\":49.9,\"details\":{\"plan\":\"pro\"},\"happenedAt\":");
+  }
+
+  @Test
+  public void tracksAnEventWithoutOptions() throws Exception {
+    ConfigDirectorClient client = client();
+
+    client.track("app-opened");
+    client.close();
+
+    assertThat(trackedEventReportBody()).contains("{\"name\":\"app-opened\",\"happenedAt\":");
+  }
+
+  @Test
+  public void tracksAnEventWithAValueAlone() throws Exception {
+    ConfigDirectorClient client = client();
+
+    client.track("items-added", new TrackOptions(3));
+    client.close();
+
+    assertThat(trackedEventReportBody()).contains("{\"name\":\"items-added\",\"value\":3,\"happenedAt\":");
+  }
+
+  @Test
+  public void tracksAnEventWithEmptyOptions() throws Exception {
+    ConfigDirectorClient client = client();
+
+    client.track("app-opened", new TrackOptions());
+    client.close();
+
+    assertThat(trackedEventReportBody()).contains("{\"name\":\"app-opened\",\"happenedAt\":");
+  }
+
+  @Test
+  public void readsTheValueAndDetailsOfTrackOptions() {
+    Map<String, Object> details = Collections.singletonMap("plan", "pro");
+
+    TrackOptions options = new TrackOptions(49.9, details);
+
+    assertThat(options.getValue()).isEqualTo(49.9);
+    assertThat(options.getDetails()).isEqualTo(details);
+  }
+
+  @Test
+  public void refusesANullEventName() {
+    ConfigDirectorClient client = client();
+
+    assertThrows(NullPointerException.class, () -> client.track(null));
+
+    client.close();
+  }
+
+  private String trackedEventReportBody() throws InterruptedException {
+    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+    while (System.nanoTime() < deadline) {
+      for (String body : server.getTelemetryReportBodies()) {
+        if (body.contains("\"trackedEvents\":[{")) {
+          return body;
+        }
+      }
+      Thread.sleep(10);
+    }
+    throw new AssertionError("Timed out waiting for a report holding tracked events");
+  }
+
+  @Test
   public void readsAJsonConfigAsMapsAndLists() throws InterruptedException {
     ConfigDirectorClient client = client();
     CountDownLatch initialized = new CountDownLatch(1);

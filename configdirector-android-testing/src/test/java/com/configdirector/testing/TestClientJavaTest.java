@@ -8,6 +8,7 @@ import com.configdirector.ConfigDirectorContext;
 import com.configdirector.ConfigDirectorValidationException;
 import com.configdirector.EvaluationReason;
 import com.configdirector.LogLevel;
+import com.configdirector.TrackOptions;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -198,5 +199,65 @@ public class TestClientJavaTest {
       Thread.sleep(5);
     }
     throw new AssertionError("Timed out waiting for " + description);
+  }
+
+  @Test
+  public void recordsTheEventsTheCodeUnderTestTracked() throws InterruptedException {
+    testClient = ConfigDirectorTesting.createTestClient();
+    ConfigDirectorContext context = ConfigDirectorContext.builder().id("user-123").build();
+    initialize(testClient.getClient(), context);
+    Map<String, Object> details = Collections.singletonMap("plan", "pro");
+
+    testClient.getClient().track("checkout-completed", new TrackOptions(49.9, details));
+    testClient.getClient().track("app-opened");
+
+    assertThat(testClient.getTrackedEvents())
+        .containsExactly(
+            new TrackedEvent("checkout-completed", context, 49.9, details),
+            new TrackedEvent("app-opened", context))
+        .inOrder();
+  }
+
+  @Test
+  public void recordsAnEventWithoutAContext() {
+    testClient = ConfigDirectorTesting.createTestClient();
+
+    testClient.getClient().track("app-opened");
+
+    assertThat(testClient.getTrackedEvents()).containsExactly(new TrackedEvent("app-opened"));
+  }
+
+  @Test
+  public void recordsAnEventWithAValueAndNoDetails() throws InterruptedException {
+    testClient = ConfigDirectorTesting.createTestClient();
+    ConfigDirectorContext context = ConfigDirectorContext.builder().id("user-123").build();
+    initialize(testClient.getClient(), context);
+
+    testClient.getClient().track("items-added", new TrackOptions(3));
+
+    assertThat(testClient.getTrackedEvents()).containsExactly(new TrackedEvent("items-added", context, 3));
+  }
+
+  @Test
+  public void readsWhatARecordedEventHolds() {
+    testClient = ConfigDirectorTesting.createTestClient();
+
+    testClient.getClient().track("items-added", new TrackOptions(3));
+
+    TrackedEvent event = testClient.getTrackedEvents().get(0);
+    assertThat(event.getName()).isEqualTo("items-added");
+    assertThat(event.getContext()).isNull();
+    assertThat(event.getValue()).isEqualTo(3);
+    assertThat(event.getDetails()).isNull();
+  }
+
+  @Test
+  public void clearsTheRecordOfASharedTestClient() {
+    testClient = ConfigDirectorTesting.createTestClient();
+    testClient.getClient().track("first");
+
+    testClient.getTrackedEvents().clear();
+
+    assertThat(testClient.getTrackedEvents()).isEmpty();
   }
 }

@@ -225,7 +225,7 @@ public class ConfigDirectorClient internal constructor(
     /**
      * The context the client is currently evaluating configs against, or null when there is none,
      * including after [initialize] or [updateContext] ignored a context with an invalid context
-     * kind.
+     * kind or one over a size limit.
      *
      * This does not change the moment [updateContext] is called: configs are evaluated against the
      * previous context until the connection for the new one succeeds or, if it times out, until the
@@ -257,8 +257,9 @@ public class ConfigDirectorClient internal constructor(
      * Connects to ConfigDirector to retrieve config evaluations. Until initialization succeeds,
      * every config returns the in-code default value passed to the accessor.
      *
-     * A context whose [ConfigDirectorContext.kind] is invalid is ignored as a whole: the client logs
-     * an error and connects as if no context was given.
+     * A context whose [ConfigDirectorContext.kind] is invalid, or whose [ConfigDirectorContext.id],
+     * [ConfigDirectorContext.name] or [ConfigDirectorContext.traits] is over its size limit, is
+     * ignored as a whole: the client logs an error and connects as if no context was given.
      *
      * In [ConnectionMode.OFFLINE] it opens no connection: the client is ready with the offline
      * values when it returns.
@@ -277,8 +278,9 @@ public class ConfigDirectorClient internal constructor(
      * Connects to ConfigDirector to retrieve config evaluations, calling [callback] on the main
      * thread once the client is ready or the attempt times out.
      *
-     * A context whose [ConfigDirectorContext.kind] is invalid is ignored as a whole: the client logs
-     * an error and connects as if no context was given.
+     * A context whose [ConfigDirectorContext.kind] is invalid, or whose [ConfigDirectorContext.id],
+     * [ConfigDirectorContext.name] or [ConfigDirectorContext.traits] is over its size limit, is
+     * ignored as a whole: the client logs an error and connects as if no context was given.
      *
      * In [ConnectionMode.OFFLINE] it opens no connection: the client is ready with the offline
      * values when [callback] is called.
@@ -293,8 +295,10 @@ public class ConfigDirectorClient internal constructor(
     /**
      * Updates the user's context and re-evaluates every config against it.
      *
-     * A context whose [ConfigDirectorContext.kind] is invalid is ignored as a whole: the client logs
-     * an error, stops using the previous context, and re-evaluates as if no context was given.
+     * A context whose [ConfigDirectorContext.kind] is invalid, or whose [ConfigDirectorContext.id],
+     * [ConfigDirectorContext.name] or [ConfigDirectorContext.traits] is over its size limit, is
+     * ignored as a whole: the client logs an error, stops using the previous context, and
+     * re-evaluates as if no context was given.
      *
      * In [ConnectionMode.OFFLINE] the new context takes effect at once and no value changes.
      */
@@ -311,8 +315,10 @@ public class ConfigDirectorClient internal constructor(
      * Updates the user's context and re-evaluates every config against it, calling [callback] on
      * the main thread once the new context has taken effect or the attempt times out.
      *
-     * A context whose [ConfigDirectorContext.kind] is invalid is ignored as a whole: the client logs
-     * an error, stops using the previous context, and re-evaluates as if no context was given.
+     * A context whose [ConfigDirectorContext.kind] is invalid, or whose [ConfigDirectorContext.id],
+     * [ConfigDirectorContext.name] or [ConfigDirectorContext.traits] is over its size limit, is
+     * ignored as a whole: the client logs an error, stops using the previous context, and
+     * re-evaluates as if no context was given.
      *
      * In [ConnectionMode.OFFLINE] the new context takes effect at once and no value changes.
      */
@@ -536,9 +542,9 @@ public class ConfigDirectorClient internal constructor(
 
     /**
      * Reconnects a connection paused by [pauseNetwork] with the context last given to [initialize]
-     * or [updateContext], or with none when that call ignored it for an invalid context kind, and
-     * re-evaluates configs against it. In [ConnectionMode.OFFLINE], which has no connection, it
-     * does nothing.
+     * or [updateContext], or with none when that call ignored it for an invalid context kind or for
+     * being over a size limit, and re-evaluates configs against it. In [ConnectionMode.OFFLINE],
+     * which has no connection, it does nothing.
      */
     @JvmSynthetic
     public suspend fun resumeNetwork() {
@@ -617,7 +623,15 @@ public class ConfigDirectorClient internal constructor(
                     "context was supplied. A context kind has 1 to 64 characters: lowercase " +
                     "letters, digits, '-' and '_'."
             }
-            telemetry.recordInvalidContextSubmission(admission.contextKindSample)
+            telemetry.recordInvalidContextKind(admission.contextKindSample)
+            null
+        }
+        is ContextAdmission.IgnoredOverASizeLimit -> {
+            logger.error {
+                "[ConfigDirectorClient] Ignored the context supplied for ${reason.description} because " +
+                    "${admission.passedLimit.explanation}; continuing as if no context was supplied."
+            }
+            telemetry.recordContextOverSizeLimit(admission.passedLimit)
             null
         }
     }

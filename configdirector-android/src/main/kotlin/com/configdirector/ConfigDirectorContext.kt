@@ -22,6 +22,10 @@ public class ConfigDirectorContext private constructor(
      * an identifier from an ID the SDK stores for the app install, so it stays the same until the
      * app is uninstalled or its data is cleared. This value segments users in percentage rollouts,
      * so changing it can move a user into a different percentile.
+     *
+     * An id has at most 256 characters. A context with a longer one is ignored as a whole when it
+     * is passed to `initialize` or `updateContext`: the client logs an error and evaluates configs
+     * as if no context was given.
      */
     public val id: String?,
 
@@ -35,13 +39,23 @@ public class ConfigDirectorContext private constructor(
      */
     public val kind: String?,
 
-    /** The user's display name, shown in the ConfigDirector dashboard. */
+    /**
+     * The user's display name, shown in the ConfigDirector dashboard.
+     *
+     * A name has at most 256 characters. A context with a longer one is ignored as a whole when it
+     * is passed to `initialize` or `updateContext`: the client logs an error and evaluates configs
+     * as if no context was given.
+     */
     public val name: String?,
 
     /**
      * Arbitrary traits for the current user, shown in the ConfigDirector dashboard and available to
      * targeting rules. Values are JSON-shaped: `String`, `Number`, `Boolean`, `List`, `Map`, or
      * null.
+     *
+     * Traits take at most 64 KB once written as JSON (65,536 bytes in UTF-8). A context with larger
+     * traits is ignored as a whole when it is passed to `initialize` or `updateContext`: the client
+     * logs an error and evaluates configs as if no context was given.
      */
     public val traits: Map<String, Any?>?,
 
@@ -84,7 +98,13 @@ public class ConfigDirectorContext private constructor(
         private var traits: MutableMap<String, Any?>? = null
         private var anonymous: Boolean = false
 
-        /** The user's identifier, which decides their bucket in a percentage rollout. */
+        /**
+         * The user's identifier, which decides their bucket in a percentage rollout.
+         *
+         * An id has at most 256 characters. [build] accepts a longer one, but a context with it is
+         * ignored as a whole when it is passed to `initialize` or `updateContext`: the client logs
+         * an error and evaluates configs as if no context was given.
+         */
         public fun id(id: String?): Builder = apply { this.id = id }
 
         /**
@@ -98,10 +118,23 @@ public class ConfigDirectorContext private constructor(
          */
         public fun kind(kind: String?): Builder = apply { this.kind = kind }
 
-        /** The user's display name. */
+        /**
+         * The user's display name.
+         *
+         * A name has at most 256 characters. [build] accepts a longer one, but a context with it is
+         * ignored as a whole when it is passed to `initialize` or `updateContext`: the client logs
+         * an error and evaluates configs as if no context was given.
+         */
         public fun name(name: String?): Builder = apply { this.name = name }
 
-        /** Sets every trait at once, replacing any set so far. */
+        /**
+         * Sets every trait at once, replacing any set so far.
+         *
+         * Traits take at most 64 KB once written as JSON (65,536 bytes in UTF-8). [build] accepts
+         * larger traits, but a context with them is ignored as a whole when it is passed to
+         * `initialize` or `updateContext`: the client logs an error and evaluates configs as if no
+         * context was given.
+         */
         public fun traits(traits: Map<String, Any?>?): Builder = apply {
             this.traits = traits?.let { LinkedHashMap(it) }
         }

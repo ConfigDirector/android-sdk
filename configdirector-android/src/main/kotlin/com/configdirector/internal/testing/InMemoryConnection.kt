@@ -76,7 +76,8 @@ public class InMemoryConnection(
     /**
      * The context of every `initialize` and `updateContext` call, in call order. `initialize`
      * without a context records an empty context, and so does a call whose context has an invalid
-     * context kind, since the client connects without it. `resumeNetwork` is not recorded.
+     * context kind or is over a size limit, since the client connects without it. `resumeNetwork`
+     * is not recorded.
      */
     public val contextUpdates: List<ConfigDirectorContext>
         get() = synchronized(lock) { recordedContexts.toList() }

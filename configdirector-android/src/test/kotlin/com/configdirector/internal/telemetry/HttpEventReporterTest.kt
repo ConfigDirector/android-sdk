@@ -6,6 +6,7 @@ import com.configdirector.LogLevel
 import com.configdirector.RecordingLogger
 import com.configdirector.internal.ClientSession
 import com.configdirector.internal.ConfigType
+import com.configdirector.internal.ContextSizeLimit
 import com.configdirector.internal.transport.SdkMetaContext
 import com.configdirector.internal.transport.TransportOptions
 import com.google.common.truth.Truth.assertThat
@@ -182,8 +183,18 @@ class HttpEventReporterTest {
             report(
                 listOf(evaluation("dark-mode")),
                 invalidContextSubmissionSummaries = listOf(
-                    InvalidContextSubmissionSummary(1788134400123L, 1788134401123L, count = 3, contextKindSample = "Tenant"),
-                    InvalidContextSubmissionSummary(1788134400123L, 1788134401123L, count = 2, contextKindSample = null),
+                    InvalidContextSubmissionSummary(
+                        1788134400123L,
+                        1788134401123L,
+                        count = 3,
+                        InvalidContextEvent.InvalidContextKind("Tenant"),
+                    ),
+                    InvalidContextSubmissionSummary(
+                        1788134400123L,
+                        1788134401123L,
+                        count = 2,
+                        InvalidContextEvent.InvalidContextKind(contextKindSample = null),
+                    ),
                 ),
             ),
         )
@@ -208,6 +219,33 @@ class HttpEventReporterTest {
     }
 
     @Test
+    fun `posts an invalid context submission over a size limit with its reason and no kind sample`() =
+        runBlocking<Unit> {
+            server.enqueue(MockResponse())
+
+            reporter().report(
+                report(
+                    listOf(evaluation("dark-mode")),
+                    invalidContextSubmissionSummaries = listOf(
+                        InvalidContextSubmissionSummary(
+                            1788134400123L,
+                            1788134401123L,
+                            count = 4,
+                            InvalidContextEvent.OverASizeLimit(ContextSizeLimit.TRAITS),
+                        ),
+                    ),
+                ),
+            )
+
+            val submission = JSONObject(request().body.readUtf8())
+                .getJSONObject("aggregatedEvents")
+                .getJSONArray("invalidContext")
+                .getJSONObject(0)
+            assertThat(submission.getInt("count")).isEqualTo(4)
+            assertThat(submission.getJSONObject("event").toString()).isEqualTo("""{"reason":"traits-too-large"}""")
+        }
+
+    @Test
     fun `posts invalid context submissions when nothing was evaluated`() = runBlocking<Unit> {
         server.enqueue(MockResponse())
 
@@ -215,7 +253,12 @@ class HttpEventReporterTest {
             report(
                 emptyList(),
                 invalidContextSubmissionSummaries = listOf(
-                    InvalidContextSubmissionSummary(1788134400123L, 1788134401123L, count = 1, contextKindSample = "Tenant"),
+                    InvalidContextSubmissionSummary(
+                        1788134400123L,
+                        1788134401123L,
+                        count = 1,
+                        InvalidContextEvent.InvalidContextKind("Tenant"),
+                    ),
                 ),
             ),
         )

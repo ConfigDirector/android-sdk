@@ -98,8 +98,8 @@ public fun isClientReady(
 
 /**
  * The context configs are currently evaluated against, or null when there is none, including after
- * a context with an invalid context kind was ignored. Recomposes when a call to `updateContext`
- * takes effect.
+ * a context with an invalid context kind, or one over a size limit, was ignored. Recomposes when a
+ * call to `updateContext` takes effect.
  *
  * @param client the client to read from, taken from [LocalConfigDirectorClient] when not given
  */

@@ -1,11 +1,14 @@
 package com.configdirector.internal.telemetry
 
 import com.configdirector.ConfigDirectorContext
+import com.configdirector.internal.ContextSizeLimit
 
 internal object DiscardingTelemetryClient : TelemetryClient {
     override fun evaluatedConfig(event: EvaluatedConfigEvent) = Unit
 
-    override fun recordInvalidContextSubmission(contextKindSample: String) = Unit
+    override fun recordInvalidContextKind(contextKindSample: String) = Unit
+
+    override fun recordContextOverSizeLimit(limit: ContextSizeLimit) = Unit
 
     override fun trackedEvent(admission: TrackedEventAdmission) = Unit
 

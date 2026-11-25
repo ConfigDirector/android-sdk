@@ -9,6 +9,22 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- `initialize` and `updateContext` (`android-sdk`) now ignore a context over the context size
+  limits before sending it: an `id` or a `name` longer than 256 characters, or `traits` over 64 KB
+  once written as JSON (65,536 bytes in UTF-8). It is ignored as a context with an invalid context
+  kind is: the call completes and connects as if no context had been supplied, so configs are
+  evaluated for no context, and `client.context`, `ClientEvent.ContextUpdated`,
+  `ConfigEvaluation.context` and Compose's `configContext()` (`android-sdk-compose`) read null
+  afterwards. The SDK logs one error that names the limit, and ConfigDirector receives a count of
+  these calls by limit, never the context's id, name or traits. ConfigDirector already ignores such
+  a context when it arrives, so the values served do not change; the client now stops sending it.
+  `build()` still accepts such a context.
+- The test client (`android-sdk-testing`) records an empty context in `contextUpdates` for an
+  `initialize` or `updateContext` whose context is over the context size limits, since the client
+  connects without it.
+
 ## [1.10.0] - 2026-11-06
 
 ### Added

@@ -426,6 +426,43 @@ class ConfigDirectorProviderTest {
         }
 
     @Test
+    fun `resolves flags without a context whose targeting key is over 256 characters`() = runBlocking<Unit> {
+        val provider = provider()
+
+        provider.initialize(
+            ImmutableContext(
+                targetingKey = "i".repeat(257),
+                attributes = mapOf("traits" to Value.Structure(mapOf("plan" to Value.String("pro")))),
+            ),
+        )
+
+        assertThat(provider.getBooleanEvaluation("dark-mode", true, null).value).isFalse()
+        assertThat(provider.getStringEvaluation("welcome-message", "fallback", null).value).isEqualTo("Hello, there")
+    }
+
+    @Test
+    fun `resolves flags without a context whose name is over 256 characters once the context changes`() =
+        runBlocking<Unit> {
+            val provider = provider()
+            provider.initialize(proContext)
+
+            provider.onContextSet(
+                proContext,
+                ImmutableContext(
+                    targetingKey = "user-123",
+                    attributes = mapOf(
+                        "name" to Value.String("n".repeat(257)),
+                        "traits" to Value.Structure(mapOf("plan" to Value.String("pro"))),
+                    ),
+                ),
+            )
+
+            assertThat(provider.getBooleanEvaluation("dark-mode", true, null).value).isFalse()
+            assertThat(provider.getStringEvaluation("welcome-message", "fallback", null).value)
+                .isEqualTo("Hello, there")
+        }
+
+    @Test
     fun `reports it is not ready when no config state arrives in time`() = runBlocking<Unit> {
         server.sendsConfigState = false
         val provider = provider(timeoutMillis = 200)

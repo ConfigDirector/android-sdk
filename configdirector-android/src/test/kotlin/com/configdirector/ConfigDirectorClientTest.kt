@@ -12,6 +12,7 @@ import com.configdirector.internal.transport.StreamingTransport
 import com.configdirector.internal.transport.Transport
 import com.configdirector.internal.transport.TransportOptions
 import com.google.common.truth.Truth.assertThat
+import java.math.BigDecimal
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineStart
@@ -244,16 +245,23 @@ class ConfigDirectorClientTest {
             addEventListener { event -> if (event is ClientEvent.ContextUpdated) contextUpdates += event }
         }
 
-    private fun invalidContextSubmissionCounts(): Map<String?, Int> = server.telemetryReports
-        .flatMap { report ->
-            val submissions = report.getJSONObject("aggregatedEvents").getJSONArray("invalidContext")
-            (0 until submissions.length()).map { submissions.getJSONObject(it) }
-        }
-        .groupBy(
-            { it.getJSONObject("event").optString("kindSample").ifEmpty { null } },
-            { it.getInt("count") },
-        )
-        .mapValues { (_, counts) -> counts.sum() }
+    private fun invalidContextSubmissionCountsBy(keyOf: (event: JSONObject) -> String?): Map<String?, Int> =
+        server.telemetryReports
+            .flatMap { report ->
+                val submissions = report.getJSONObject("aggregatedEvents").getJSONArray("invalidContext")
+                (0 until submissions.length()).map { submissions.getJSONObject(it) }
+            }
+            .groupBy({ keyOf(it.getJSONObject("event")) }, { it.getInt("count") })
+            .mapValues { (_, counts) -> counts.sum() }
+
+    private fun invalidContextSubmissionCounts(): Map<String?, Int> =
+        invalidContextSubmissionCountsBy { event -> event.optString("kindSample").ifEmpty { null } }
+
+    private fun invalidContextSubmissionCountsByEvent(): Map<String?, Int> =
+        invalidContextSubmissionCountsBy { event -> event.toString() }
+
+    private fun traitsOfJsonBytes(jsonBytes: Int, filler: String = "x"): Map<String, Any?> =
+        mapOf("note" to filler.repeat(jsonBytes - """{"note":""}""".length))
 
     private fun sentContexts(path: String, count: Int): List<String> =
         generateSequence { server.takeRequest() }
@@ -1340,6 +1348,146 @@ class ConfigDirectorClientTest {
         assertThat(report).doesNotContain("Lobby screen")
         assertThat(report).doesNotContain("mezzanine")
     }
+
+    @Test
+    fun `connects without a context whose id is over 256 characters at initialization`() = runBlocking<Unit> {
+        val client = client()
+        val contextUpdates = client.recordContextUpdates()
+
+        client.initialize(ConfigDirectorContext.build { id("i".repeat(257)) })
+
+        assertThat(sentPayload().getJSONObject("givenContext").toString()).isEqualTo(noContextJson)
+        assertThat(client.context).isNull()
+        assertThat(client.isReady).isTrue()
+        assertThat(client.getString("welcome-message", "fallback")).isEqualTo("Hello, there")
+        waitFor("the context update event") { contextUpdates.isNotEmpty() }
+        assertThat(contextUpdates).containsExactly(ClientEvent.ContextUpdated(null))
+        assertThat(errorsLogged("Ignored the context")).containsExactly(
+            "ERROR: [ConfigDirectorClient] Ignored the context supplied for initialization because its id is " +
+                "longer than 256 characters; continuing as if no context was supplied.",
+        )
+        waitFor("the invalid context submission to be reported") { invalidContextSubmissionCountsByEvent().isNotEmpty() }
+        assertThat(invalidContextSubmissionCountsByEvent()).containsExactly("""{"reason":"identifier-too-long"}""", 1)
+    }
+
+    @Test
+    fun `connects without a context whose name is over 256 characters at initialization`() = runBlocking<Unit> {
+        val client = client()
+
+        client.initialize(ConfigDirectorContext.build { id("user-123"); name("n".repeat(257)) })
+
+        assertThat(sentPayload().getJSONObject("givenContext").toString()).isEqualTo(noContextJson)
+        assertThat(client.context).isNull()
+        assertThat(errorsLogged("Ignored the context")).containsExactly(
+            "ERROR: [ConfigDirectorClient] Ignored the context supplied for initialization because its name is " +
+                "longer than 256 characters; continuing as if no context was supplied.",
+        )
+        waitFor("the invalid context submission to be reported") { invalidContextSubmissionCountsByEvent().isNotEmpty() }
+        assertThat(invalidContextSubmissionCountsByEvent()).containsExactly("""{"reason":"name-too-long"}""", 1)
+    }
+
+    @Test
+    fun `connects without a context whose traits are over 64 KB of JSON at initialization`() = runBlocking<Unit> {
+        val client = client()
+
+        client.initialize(ConfigDirectorContext.build { id("user-123"); traits(traitsOfJsonBytes(65_537)) })
+
+        assertThat(sentPayload().getJSONObject("givenContext").toString()).isEqualTo(noContextJson)
+        assertThat(client.context).isNull()
+        assertThat(errorsLogged("Ignored the context")).containsExactly(
+            "ERROR: [ConfigDirectorClient] Ignored the context supplied for initialization because its traits are " +
+                "over 64 KB of JSON; continuing as if no context was supplied.",
+        )
+        waitFor("the invalid context submission to be reported") { invalidContextSubmissionCountsByEvent().isNotEmpty() }
+        assertThat(invalidContextSubmissionCountsByEvent()).containsExactly("""{"reason":"traits-too-large"}""", 1)
+    }
+
+    @Test
+    fun `sends traits of exactly 64 KB of JSON whose slashes Android's JSON escapes`() = runBlocking<Unit> {
+        val client = client()
+        val traits = traitsOfJsonBytes(65_536, filler = "/")
+
+        client.initialize(ConfigDirectorContext.build { id("user-123"); traits(traits) })
+
+        val sentTraits = sentPayload().getJSONObject("givenContext").getJSONObject("traits")
+        assertThat(sentTraits.getString("note")).isEqualTo(traits["note"])
+        assertThat(client.context?.traits).isEqualTo(traits)
+        assertThat(errorsLogged("Ignored the context")).isEmpty()
+    }
+
+    @Test
+    fun `hands traits with a number too large for a Double to the connection, as before the size limits`() =
+        runBlocking<Unit> {
+            val connectedContexts = CopyOnWriteArrayList<ConfigDirectorContext>()
+            val client = client(
+                transportFactory = { mode, options ->
+                    val transport = transportFor(mode, options)
+                    object : Transport by transport {
+                        override suspend fun connect(
+                            context: ConfigDirectorContext,
+                            timeoutMillis: Long,
+                            reason: ConnectReason,
+                            onConfigSet: (ConfigSet) -> Unit,
+                        ) {
+                            connectedContexts += context
+                            transport.connect(context, timeoutMillis, reason, onConfigSet)
+                        }
+                    }
+                },
+            )
+            val context = ConfigDirectorContext.build { id("user-123"); trait("visits", BigDecimal("1E+500")) }
+
+            client.initialize(context)
+
+            assertThat(connectedContexts).containsExactly(context)
+            assertThat(errorsLogged("Ignored the context")).isEmpty()
+        }
+
+    @Test
+    fun `stops using the previous context after an update over a size limit`() = runBlocking<Unit> {
+        val client = client()
+        val contextUpdates = client.recordContextUpdates()
+        client.initialize(proContext)
+        checkNotNull(server.takeRequest())
+
+        client.updateContext(ConfigDirectorContext.build { id("user-456"); name("n".repeat(257)) })
+
+        assertThat(sentPayload().getJSONObject("givenContext").toString()).isEqualTo(noContextJson)
+        assertThat(client.context).isNull()
+        assertThat(client.isReady).isTrue()
+        assertThat(client.evaluateString("welcome-message", "fallback").context).isNull()
+        waitFor("both context update events") { contextUpdates.size == 2 }
+        assertThat(contextUpdates)
+            .containsExactly(ClientEvent.ContextUpdated(proContext), ClientEvent.ContextUpdated(null))
+            .inOrder()
+        assertThat(errorsLogged("Ignored the context")).containsExactly(
+            "ERROR: [ConfigDirectorClient] Ignored the context supplied for context update because its name is " +
+                "longer than 256 characters; continuing as if no context was supplied.",
+        )
+    }
+
+    @Test
+    fun `counts one invalid context submission per initialization or update over a size limit`() =
+        runBlocking<Unit> {
+            val client = client()
+
+            client.initialize(ConfigDirectorContext.build { id("i".repeat(257)) })
+            client.updateContext(ConfigDirectorContext.build { id("user-123"); traits(traitsOfJsonBytes(65_537)) })
+            client.updateContext(ConfigDirectorContext.build { id("i".repeat(300)); name("n".repeat(300)) })
+            client.pauseNetwork()
+            client.resumeNetwork()
+
+            val expectedCounts = mapOf(
+                """{"reason":"identifier-too-long"}""" to 2,
+                """{"reason":"traits-too-large"}""" to 1,
+            )
+            waitFor("the invalid context submissions to be reported") {
+                invalidContextSubmissionCountsByEvent() == expectedCounts
+            }
+            settle()
+            assertThat(invalidContextSubmissionCountsByEvent()).isEqualTo(expectedCounts)
+            assertThat(errorsLogged("Ignored the context")).hasSize(3)
+        }
 
     @Test
     fun `re-evaluates against an updated context`() = runBlocking {

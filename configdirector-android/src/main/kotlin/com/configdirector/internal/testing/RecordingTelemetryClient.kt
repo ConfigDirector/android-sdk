@@ -3,6 +3,7 @@ package com.configdirector.internal.testing
 import com.configdirector.ConfigDirectorContext
 import com.configdirector.ConfigDirectorLogger
 import com.configdirector.ConfigDirectorTestingApi
+import com.configdirector.internal.ContextSizeLimit
 import com.configdirector.internal.telemetry.EvaluatedConfigEvent
 import com.configdirector.internal.telemetry.TelemetryClient
 import com.configdirector.internal.telemetry.TrackedEventAdmission
@@ -30,7 +31,9 @@ internal class RecordingTelemetryClient(
 
     override fun evaluatedConfig(event: EvaluatedConfigEvent) = Unit
 
-    override fun recordInvalidContextSubmission(contextKindSample: String) = Unit
+    override fun recordInvalidContextKind(contextKindSample: String) = Unit
+
+    override fun recordContextOverSizeLimit(limit: ContextSizeLimit) = Unit
 
     override fun updateContext(context: ConfigDirectorContext?) = Unit
 

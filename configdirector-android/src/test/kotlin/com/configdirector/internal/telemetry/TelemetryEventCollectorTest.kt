@@ -3,6 +3,7 @@ package com.configdirector.internal.telemetry
 import com.configdirector.ConfigDirectorContext
 import com.configdirector.EvaluationReason
 import com.configdirector.RecordingLogger
+import com.configdirector.internal.ContextSizeLimit
 import com.configdirector.internal.ConfigType
 import com.google.common.truth.Truth.assertThat
 import java.util.concurrent.CopyOnWriteArrayList
@@ -176,45 +177,76 @@ class TelemetryEventCollectorTest {
     @Test
     fun `reports invalid context submissions when nothing was evaluated`() = runBlocking<Unit> {
         val collector = collector(initialFlushDelayMillis = 5_000)
-        collector.recordInvalidContextSubmission("Tenant")
-        collector.recordInvalidContextSubmission("Tenant")
+        collector.recordInvalidContextKind("Tenant")
+        collector.recordInvalidContextKind("Tenant")
 
         collector.flush()
 
         val summary = reporter.reports.single().invalidContextSubmissionSummaries.single()
-        assertThat(summary.contextKindSample).isEqualTo("Tenant")
+        assertThat(summary.event).isEqualTo(InvalidContextEvent.InvalidContextKind("Tenant"))
         assertThat(summary.count).isEqualTo(2)
     }
 
     @Test
     fun `keeps 20 context kind samples per report and counts the rest without one`() = runBlocking<Unit> {
         val collector = collector(initialFlushDelayMillis = 5_000)
-        repeat(22) { collector.recordInvalidContextSubmission("kind-$it") }
-        collector.recordInvalidContextSubmission("kind-0")
-        collector.recordInvalidContextSubmission("kind-21")
+        repeat(22) { collector.recordInvalidContextKind("kind-$it") }
+        collector.recordInvalidContextKind("kind-0")
+        collector.recordInvalidContextKind("kind-21")
 
         collector.flush()
 
         val summaries = reporter.reports.single().invalidContextSubmissionSummaries
         assertThat(summaries).hasSize(21)
-        assertThat(summaries.single { it.contextKindSample == "kind-0" }.count).isEqualTo(2)
-        assertThat(summaries.single { it.contextKindSample == "kind-19" }.count).isEqualTo(1)
-        assertThat(summaries.none { it.contextKindSample == "kind-20" }).isTrue()
-        assertThat(summaries.none { it.contextKindSample == "kind-21" }).isTrue()
-        assertThat(summaries.single { it.contextKindSample == null }.count).isEqualTo(3)
+        assertThat(summaries.single { it.event == InvalidContextEvent.InvalidContextKind("kind-0") }.count).isEqualTo(2)
+        assertThat(summaries.single { it.event == InvalidContextEvent.InvalidContextKind("kind-19") }.count).isEqualTo(1)
+        assertThat(summaries.none { it.event == InvalidContextEvent.InvalidContextKind("kind-20") }).isTrue()
+        assertThat(summaries.none { it.event == InvalidContextEvent.InvalidContextKind("kind-21") }).isTrue()
+        assertThat(summaries.single { it.event == InvalidContextEvent.InvalidContextKind(null) }.count).isEqualTo(3)
     }
 
     @Test
     fun `starts its context kind samples afresh after each report`() = runBlocking<Unit> {
         val collector = collector(initialFlushDelayMillis = 5_000)
-        repeat(21) { collector.recordInvalidContextSubmission("kind-$it") }
+        repeat(21) { collector.recordInvalidContextKind("kind-$it") }
         collector.flush()
 
-        collector.recordInvalidContextSubmission("device-kind")
+        collector.recordInvalidContextKind("device-kind")
         collector.flush()
 
         val summary = reporter.reports[1].invalidContextSubmissionSummaries.single()
-        assertThat(summary.contextKindSample).isEqualTo("device-kind")
+        assertThat(summary.event).isEqualTo(InvalidContextEvent.InvalidContextKind("device-kind"))
+        assertThat(summary.count).isEqualTo(1)
+    }
+
+    @Test
+    fun `reports invalid context submissions over a size limit counted by reason, without a context kind sample`() =
+        runBlocking<Unit> {
+            val collector = collector(initialFlushDelayMillis = 5_000)
+            collector.recordContextOverSizeLimit(ContextSizeLimit.IDENTIFIER)
+            collector.recordContextOverSizeLimit(ContextSizeLimit.TRAITS)
+            collector.recordContextOverSizeLimit(ContextSizeLimit.IDENTIFIER)
+
+            collector.flush()
+
+            val summaries = reporter.reports.single().invalidContextSubmissionSummaries
+            assertThat(summaries.map { it.event to it.count }).containsExactly(
+                InvalidContextEvent.OverASizeLimit(ContextSizeLimit.IDENTIFIER) to 2,
+                InvalidContextEvent.OverASizeLimit(ContextSizeLimit.TRAITS) to 1,
+            )
+        }
+
+    @Test
+    fun `starts its counts by size limit afresh after each report`() = runBlocking<Unit> {
+        val collector = collector(initialFlushDelayMillis = 5_000)
+        collector.recordContextOverSizeLimit(ContextSizeLimit.NAME)
+        collector.flush()
+
+        collector.recordContextOverSizeLimit(ContextSizeLimit.TRAITS)
+        collector.flush()
+
+        val summary = reporter.reports[1].invalidContextSubmissionSummaries.single()
+        assertThat(summary.event).isEqualTo(InvalidContextEvent.OverASizeLimit(ContextSizeLimit.TRAITS))
         assertThat(summary.count).isEqualTo(1)
     }
 
@@ -225,7 +257,20 @@ class TelemetryEventCollectorTest {
         collector.evaluatedConfig(evaluation("dark-mode"))
         collector.flush()
 
-        collector.recordInvalidContextSubmission("Tenant")
+        collector.recordInvalidContextKind("Tenant")
+        collector.flush()
+
+        assertThat(reporter.reports).hasSize(1)
+    }
+
+    @Test
+    fun `collects no submissions over a size limit after a failure retrying cannot fix`() = runBlocking<Unit> {
+        val collector = collector(initialFlushDelayMillis = 5_000)
+        reporter.outcome.set(ReportOutcome.FAILED_FATALLY)
+        collector.evaluatedConfig(evaluation("dark-mode"))
+        collector.flush()
+
+        collector.recordContextOverSizeLimit(ContextSizeLimit.NAME)
         collector.flush()
 
         assertThat(reporter.reports).hasSize(1)

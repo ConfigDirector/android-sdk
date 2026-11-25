@@ -57,7 +57,8 @@ public sealed class ClientEvent {
     public class ContextUpdated internal constructor(
         /**
          * The context configs are evaluated against from now on, or null when there is none,
-         * including after a context with an invalid context kind was ignored.
+         * including after a context with an invalid context kind, or one over a size limit, was
+         * ignored.
          */
         public val context: ConfigDirectorContext?,
     ) : ClientEvent() {

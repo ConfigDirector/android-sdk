@@ -2,6 +2,7 @@ package com.configdirector.internal.telemetry
 
 import com.configdirector.EvaluationReason
 import com.configdirector.internal.ConfigType
+import com.configdirector.internal.ContextSizeLimit
 import com.configdirector.internal.toJsonText
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -119,26 +120,35 @@ internal data class AggregatedEvent(
         .put("event", event.toJson())
 }
 
+internal sealed class InvalidContextEvent {
+    abstract fun toJson(): JSONObject
+
+    data class InvalidContextKind(val contextKindSample: String?) : InvalidContextEvent() {
+        override fun toJson(): JSONObject = JSONObject().put("reason", INVALID_CONTEXT_KIND_REASON).apply {
+            contextKindSample?.let { put("kindSample", it) }
+        }
+
+        private companion object {
+            private const val INVALID_CONTEXT_KIND_REASON = "invalid-context-kind"
+        }
+    }
+
+    data class OverASizeLimit(val limit: ContextSizeLimit) : InvalidContextEvent() {
+        override fun toJson(): JSONObject = JSONObject().put("reason", limit.invalidContextReason)
+    }
+}
+
 internal data class InvalidContextSubmissionSummary(
     val startTime: Long,
     val endTime: Long,
     val count: Int,
-    val contextKindSample: String?,
+    val event: InvalidContextEvent,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("startTime", telemetryTimestamp(startTime))
         .put("endTime", telemetryTimestamp(endTime))
         .put("count", count)
-        .put(
-            "event",
-            JSONObject().put("reason", INVALID_CONTEXT_KIND_REASON).apply {
-                contextKindSample?.let { put("kindSample", it) }
-            },
-        )
-
-    private companion object {
-        private const val INVALID_CONTEXT_KIND_REASON = "invalid-context-kind"
-    }
+        .put("event", event.toJson())
 }
 
 /** The name the ConfigDirector SDKs report for the type a value was asked for. */

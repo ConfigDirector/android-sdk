@@ -2,6 +2,7 @@ package com.configdirector.internal.telemetry
 
 import com.configdirector.ConfigDirectorContext
 import com.configdirector.ConfigDirectorLogger
+import com.configdirector.internal.ContextSizeLimit
 import com.configdirector.warn
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
@@ -32,7 +33,9 @@ internal class TelemetryOptions(
 internal interface TelemetryClient {
     fun evaluatedConfig(event: EvaluatedConfigEvent)
 
-    fun recordInvalidContextSubmission(contextKindSample: String)
+    fun recordInvalidContextKind(contextKindSample: String)
+
+    fun recordContextOverSizeLimit(limit: ContextSizeLimit)
 
     fun trackedEvent(admission: TrackedEventAdmission)
 
@@ -85,10 +88,16 @@ internal class TelemetryEventCollector(
         queue.push(event)
     }
 
-    override fun recordInvalidContextSubmission(contextKindSample: String) {
+    override fun recordInvalidContextKind(contextKindSample: String) {
         if (!collecting.get()) return
 
-        invalidContextSubmissions.record(contextKindSample)
+        invalidContextSubmissions.recordInvalidContextKind(contextKindSample)
+    }
+
+    override fun recordContextOverSizeLimit(limit: ContextSizeLimit) {
+        if (!collecting.get()) return
+
+        invalidContextSubmissions.recordOverSizeLimit(limit)
     }
 
     override fun trackedEvent(admission: TrackedEventAdmission) {

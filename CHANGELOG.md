@@ -9,6 +9,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-11-25
+
 ### Changed
 
 - `initialize` and `updateContext` (`android-sdk`) now ignore a context over the context size

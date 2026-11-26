@@ -8,8 +8,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-11-25
+
 ### Changed
 
+- Depends on version 1.11.0 of the SDK, which ignores a context over the context size limits before
+  sending it.
 - An evaluation context over the context size limits is now ignored before it is sent: a targeting
   key (or `id`) or a `name` longer than 256 characters, or `traits` over 64 KB once written as JSON
   (65,536 bytes in UTF-8). Initialization and context changes still succeed, flags resolve as if no

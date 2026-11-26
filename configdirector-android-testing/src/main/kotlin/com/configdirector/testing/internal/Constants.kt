@@ -1,5 +1,5 @@
 package com.configdirector.testing.internal
 
 internal object Constants {
-    const val TESTING_VERSION: String = "1.10.0"
+    const val TESTING_VERSION: String = "1.11.0"
 }
